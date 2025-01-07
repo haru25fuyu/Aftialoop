@@ -5,18 +5,18 @@ import { InputFieldProps } from '../types/input.ts';
 // InputListProps を定義
 type InputListProps = {
     inputs: InputFieldProps[]; // InputFieldProps の配列
-    url: string;
     method: string;
+    onSubmit: (e: React.FormEvent<HTMLFormElement>) => void;
 };
 
 export const InputList: React.FC<InputListProps> = ({
     inputs,
-    url,
     method,
+    onSubmit,
 }) => {
     return (
         <div>
-            <form action={url} method={method}>
+            <form onSubmit={onSubmit} method={method}>
                 {inputs.map((form) => (
                     <SingleForm key={form.label} {...form} />
                 ))}

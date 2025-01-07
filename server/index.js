@@ -3,6 +3,18 @@ const app = express();
 const port = 3000;
 const mysql = require('mysql');
 
+//ローカルホスト同士でも通信できるようにする
+const cors = require("cors");
+
+const corsOptions = {
+  origin: "http://localhost:5173", // フロントエンドのURLを指定
+  methods: ["GET", "POST", "PUT", "DELETE"], // 許可するHTTPメソッド
+  allowedHeaders: ["Content-Type", "Authorization"], // 許可するヘッダー
+};
+
+// CORSミドルウェアを使う
+app.use(cors(corsOptions));
+
 const connection = mysql.createConnection({
     host: 'localhost',
     user: 'root',
@@ -21,15 +33,13 @@ app.get('/name', (req, res) => {
 
 app.post('/signup', (req, res) => {
     const {name, password} = req.query;
-    console.log(req.query);
-    res.json({'name' : name, 'password' : password});
-    return;
+
     if (!name || !password) {
         res.json({'err_message' : '名前、パスワードを入力して下さい'});
         return;
     
     }
-
+    return;
     const date = new Date();
     connection.query('INSERT INTO users (name, pass, date) VALUES (?, ?, ?)', [name, password,date], (error, results) => {
         if (error) {

@@ -1,15 +1,32 @@
 import { useState } from 'react'
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
+import axios from 'axios'
+
 import './css/App.css'
 import ContentsList from './component/ContentsList'
 import InputList from './component/InputList'
+import BasicContent from './component/BasicContent'
 
-import { BasicContent } from './component/BasicContent'
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
 
 function App() {
+  const [formData, setFormData] = useState<Record<string, string>>({});
+  const handleFieldChange = (fieldName: string, value: string) => {
+    setFormData((prev) => ({ ...prev, [fieldName]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    console.log("送信データ:", formData);
+    try {
+      const res = await axios.post("http://localhost:3000/signup", formData);
+      console.log("受信データ：",res.data); // レスポンスを保存
+    } catch (err) {
+      console.error("エラーが発生しました:", err);
+    }
+  };
   const [count, setCount] = useState(0)
   const test_data: Content[] = [
     {
@@ -37,7 +54,7 @@ function App() {
       name: "name",
       type: "text",
       placeholder: "名前を入力してください",
-      onChange: () => { },
+      onChange: handleFieldChange,
       helperText: "名前",
     },
     {
@@ -45,7 +62,7 @@ function App() {
       name: "password",
       type: "password",
       placeholder: "パスワードを入力してください",
-      onChange: () => { },
+      onChange: handleFieldChange,
       helperText: "パスワード",
     },
     {
@@ -80,7 +97,7 @@ function App() {
         Click on the Vite and React logos to learn more
       </p>
       <ContentsList contents={test_data} Component={BasicContent} />
-      <InputList inputs={test_input} url={"http://localhost:3000/signup"} method='post' />
+      <InputList inputs={test_input} method='post' onSubmit={handleSubmit} />
     </>
   )
 }
