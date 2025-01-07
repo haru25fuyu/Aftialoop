@@ -45,7 +45,7 @@ app.post('/signup', (req, res) => {
     const date = new Date();
     connection.query('INSERT INTO users (name, pass, date) VALUES (?, ?, ?)', [name, password,date], (error, results) => {
         if (error) {
-            res.json({'err_message' : '登録に失敗しました'});
+            res.json({'err_message' : '登録に失敗しました: ' + error});
             return;
         }
         res.json({'message' : '登録が完了しました'});
