@@ -1,0 +1,10 @@
+.contents-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  padding: 16px;
+  width: 100%;
+  /* 親要素の幅を100%に */
+  box-sizing: border-box;
+  /* パディングの影響を受けないように */
+}

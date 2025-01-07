@@ -1,0 +1,19 @@
+.contents_item {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    text-align: center;
+    line-height: 50px;
+}
+
+.link-card {
+    display: block;
+    /* aタグをブロック要素として扱う */
+    text-decoration: none;
+    /* リンクの下線を削除 */
+    color: inherit;
+    /* テキストカラーを継承 */
+    line-height: 3em;
+    width: 100%;
+}
