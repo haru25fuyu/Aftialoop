@@ -21,8 +21,12 @@ function App() {
     e.preventDefault();
     console.log("送信データ:", formData);
     try {
-      const res = await axios.post("http://localhost:3000/signup", formData);
-      console.log("受信データ：",res.data); // レスポンスを保存
+      const res = await axios.post("http://localhost:3000/signup", JSON.stringify(formData), {
+        headers: {
+          "Content-Type": "application/json", // このヘッダーを追加
+        },
+      });
+      console.log("受信データ：", res.data); // レスポンスを保存
     } catch (err) {
       console.error("エラーが発生しました:", err);
     }

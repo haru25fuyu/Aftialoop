@@ -15,6 +15,8 @@ const corsOptions = {
 // CORSミドルウェアを使う
 app.use(cors(corsOptions));
 
+app.use(express.json());
+
 const connection = mysql.createConnection({
     host: 'localhost',
     user: 'root',
@@ -32,14 +34,14 @@ app.get('/name', (req, res) => {
 );
 
 app.post('/signup', (req, res) => {
-    const {name, password} = req.query;
-
+    const {name, password} = req.body;
+    
     if (!name || !password) {
         res.json({'err_message' : '名前、パスワードを入力して下さい'});
         return;
     
     }
-    return;
+
     const date = new Date();
     connection.query('INSERT INTO users (name, pass, date) VALUES (?, ?, ?)', [name, password,date], (error, results) => {
         if (error) {
