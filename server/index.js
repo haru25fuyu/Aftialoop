@@ -1,7 +1,12 @@
 const express = require('express');
-const app = express();
-const port = 3000;
 const mysql = require('mysql');
+const { OAuth2Client } = require("google-auth-library");
+
+const app = express();
+const client = new OAuth2Client(
+  "301597739219-ico36an2l711lodjovq0fskpadnb1a91.apps.googleusercontent.com"
+);
+const port = 3000;
 
 //ローカルホスト同士でも通信できるようにする
 const cors = require("cors");
@@ -50,6 +55,27 @@ app.post('/signup', (req, res) => {
         }
         res.json({'message' : '登録が完了しました'});
     });
+});
+
+app.post("/api/auth/google", async (req, res) => {
+  const { token } = req.body;
+    console.log(token);
+  try {
+    // トークンを検証
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: "301597739219-ico36an2l711lodjovq0fskpadnb1a91.apps.googleusercontent.com" // 必ずクライアントIDを指定
+    });
+
+    const payload = ticket.getPayload(); // トークンのデータを取得
+    console.log("認証成功:", payload);
+
+    // 必要ならユーザー情報を保存
+    res.status(200).json({ message: "認証成功", user: payload });
+  } catch (error) {
+    console.error("認証エラー:", error);
+    res.status(401).json({ message: "認証失敗" });
+  }
 });
 
 app.listen(port, () => {

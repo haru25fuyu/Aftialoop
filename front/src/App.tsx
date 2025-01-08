@@ -13,6 +13,9 @@ import BasicContent from './component/BasicContent'
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
 
+const headers ={
+  "Content-Type": "application/json"// このヘッダーを追加
+};
 function App() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const handleFieldChange = (fieldName: string, value: string) => {
@@ -23,11 +26,7 @@ function App() {
     e.preventDefault();
     console.log("送信データ:", formData);
     try {
-      const res = await axios.post("http://localhost:3000/signup", JSON.stringify(formData), {
-        headers: {
-          "Content-Type": "application/json", // このヘッダーを追加
-        },
-      });
+      const res = await axios.post("http://localhost:3000/signup", JSON.stringify(formData), { headers });
       console.log("受信データ：", res.data); // レスポンスを保存
     } catch (err) {
       console.error("エラーが発生しました:", err);
@@ -83,7 +82,13 @@ function App() {
 
   const handleLoginSuccess = (response: any) => {
     console.log('ログイン成功:', response);
+    const token = { token: response.credential };
     // ここでレスポンスをサーバーに送信し、トークンを検証してユーザーを認証
+    axios.post('http://localhost:3000/api/auth/google', token ,{headers}).then((res) => {
+      console.log('ログイン成功:', res.data);
+    }).catch((err) => {
+      console.error('ログイン失敗:', err);
+    })
   };
 
   const handleLoginFailure = (error: any) => {
