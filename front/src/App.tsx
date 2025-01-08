@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { GoogleOAuthProvider } from '@react-oauth/google';
+import { GoogleLogin } from '@react-oauth/google';
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import axios from 'axios'
@@ -78,9 +80,26 @@ function App() {
       helperText: "",
     }
   ]
+
+  const handleLoginSuccess = (response: any) => {
+    console.log('ログイン成功:', response);
+    // ここでレスポンスをサーバーに送信し、トークンを検証してユーザーを認証
+  };
+
+  const handleLoginFailure = (error: any) => {
+    console.error('ログイン失敗:', error);
+  };
   return (
     <>
+      <GoogleOAuthProvider clientId="301597739219-ico36an2l711lodjovq0fskpadnb1a91.apps.googleusercontent.com">
+        <GoogleLogin
+          onSuccess={handleLoginSuccess}
+          onError={handleLoginFailure}
+          useOneTap
+        />
+      </GoogleOAuthProvider>
       <div>
+
         <a href="https://vite.dev" target="_blank">
           <img src={viteLogo} className="logo" alt="Vite logo" />
         </a>
