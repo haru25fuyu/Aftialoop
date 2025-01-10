@@ -1,6 +1,4 @@
 import { useState } from 'react'
-import { GoogleOAuthProvider } from '@react-oauth/google';
-import { GoogleLogin } from '@react-oauth/google';
 import reactLogo from './assets/react.svg'
 import viteLogo from '/vite.svg'
 import axios from 'axios'
@@ -9,6 +7,7 @@ import './css/App.css'
 import ContentsList from './component/ContentsList'
 import InputList from './component/InputList'
 import BasicContent from './component/BasicContent'
+import GoogleOAuth from './component/GoogleOAuth'
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -55,20 +54,20 @@ function App() {
   ]
   const test_input: InputFieldProps[] = [
     {
-      label: "test",
+      label: "名前",
       name: "name",
       type: "text",
       placeholder: "名前を入力してください",
       onChange: handleFieldChange,
-      helperText: "名前",
+      helperText: "",
     },
     {
-      label: "test2",
+      label: "パスワード",
       name: "password",
       type: "password",
       placeholder: "パスワードを入力してください",
       onChange: handleFieldChange,
-      helperText: "パスワード",
+      helperText: "",
     },
     {
       label: "test3",
@@ -80,29 +79,9 @@ function App() {
     }
   ]
 
-  const handleLoginSuccess = (response: any) => {
-    console.log('ログイン成功:', response);
-    const token = { token: response.credential };
-    // ここでレスポンスをサーバーに送信し、トークンを検証してユーザーを認証
-    axios.post('http://localhost:3000/api/auth/google', token ,{headers}).then((res) => {
-      console.log('ログイン成功:', res.data);
-    }).catch((err) => {
-      console.error('ログイン失敗:', err);
-    })
-  };
 
-  const handleLoginFailure = (error: any) => {
-    console.error('ログイン失敗:', error);
-  };
   return (
     <>
-      <GoogleOAuthProvider clientId="301597739219-ico36an2l711lodjovq0fskpadnb1a91.apps.googleusercontent.com">
-        <GoogleLogin
-          onSuccess={handleLoginSuccess}
-          onError={handleLoginFailure}
-          useOneTap
-        />
-      </GoogleOAuthProvider>
       <div>
 
         <a href="https://vite.dev" target="_blank">
@@ -126,6 +105,7 @@ function App() {
       </p>
       <ContentsList contents={test_data} Component={BasicContent} />
       <InputList inputs={test_input} method='post' onSubmit={handleSubmit} />
+           <GoogleOAuth/>
     </>
   )
 }

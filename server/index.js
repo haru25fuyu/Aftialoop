@@ -4,7 +4,7 @@ const { OAuth2Client } = require("google-auth-library");
 
 const app = express();
 const client = new OAuth2Client(
-  "301597739219-ico36an2l711lodjovq0fskpadnb1a91.apps.googleusercontent.com"
+  "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
 );
 const port = 3000;
 
@@ -15,6 +15,7 @@ const corsOptions = {
   origin: "http://localhost:5173", // フロントエンドのURLを指定
   methods: ["GET", "POST", "PUT", "DELETE"], // 許可するHTTPメソッド
   allowedHeaders: ["Content-Type", "Authorization"], // 許可するヘッダー
+  credentials: true // クッキーなどの認証情報を許可する場合
 };
 
 // CORSミドルウェアを使う
@@ -64,7 +65,7 @@ app.post("/api/auth/google", async (req, res) => {
     // トークンを検証
     const ticket = await client.verifyIdToken({
       idToken: token,
-      audience: "301597739219-ico36an2l711lodjovq0fskpadnb1a91.apps.googleusercontent.com" // 必ずクライアントIDを指定
+      audience: "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com" // 必ずクライアントIDを指定
     });
 
     const payload = ticket.getPayload(); // トークンのデータを取得
