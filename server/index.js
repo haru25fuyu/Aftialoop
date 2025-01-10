@@ -23,43 +23,52 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 const connection = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'subscription'
+  host: '35.200.1.50',
+  user: 'app-user',
+  password: 'q+b4(F}{bH"LzSQm',
+  database: 'animaloop'
 });
 
 app.get('/', (req, res) => {
-    res.send('Hello World');
+  res.send('Hello World');
+  // 接続の確認
+  connection.connect((err) => {
+    if (err) {
+      console.error('接続エラー:', err.stack);
+      return;
+    }
+    console.log('接続成功');
+    connection.end();
+  });
 }
 );
 app.get('/name', (req, res) => {
-    req.query.name ? res.send(`Hello ${req.query.name}`) : res.json({'err_message' : '名前を入力して下さい'});
+  req.query.name ? res.send(`Hello ${req.query.name}`) : res.json({ 'err_message': '名前を入力して下さい' });
 }
 );
 
 app.post('/signup', (req, res) => {
-    const {name, password} = req.body;
-    
-    if (!name || !password) {
-        res.json({'err_message' : '名前、パスワードを入力して下さい'});
-        return;
-    
-    }
+  const { name, password } = req.body;
 
-    const date = new Date();
-    connection.query('INSERT INTO users (name, pass, date) VALUES (?, ?, ?)', [name, password,date], (error, results) => {
-        if (error) {
-            res.json({'err_message' : '登録に失敗しました: ' + error});
-            return;
-        }
-        res.json({'message' : '登録が完了しました'});
-    });
+  if (!name || !password) {
+    res.json({ 'err_message': '名前、パスワードを入力して下さい' });
+    return;
+
+  }
+
+  const date = new Date();
+  connection.query('INSERT INTO users (name, pass, date) VALUES (?, ?, ?)', [name, password, date], (error, results) => {
+    if (error) {
+      res.json({ 'err_message': '登録に失敗しました: ' + error });
+      return;
+    }
+    res.json({ 'message': '登録が完了しました' });
+  });
 });
 
 app.post("/api/auth/google", async (req, res) => {
   const { token } = req.body;
-    console.log(token);
+  console.log(token);
   try {
     // トークンを検証
     const ticket = await client.verifyIdToken({
@@ -79,5 +88,5 @@ app.post("/api/auth/google", async (req, res) => {
 });
 
 app.listen(port, () => {
-    console.log(`Example app listening at http://localhost:${port}`);
+  console.log(`Example app listening at http://localhost:${port}`);
 });
