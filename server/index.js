@@ -6,13 +6,13 @@ const app = express();
 const client = new OAuth2Client(
   "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
 );
-const port = 3000;
+const port = 4000;
 
 //ローカルホスト同士でも通信できるようにする
 const cors = require("cors");
 
 const corsOptions = {
-  origin: "http://localhost:5173", // フロントエンドのURLを指定
+  origin: "http://localhost:3000", // フロントエンドのURLを指定
   methods: ["GET", "POST", "PUT", "DELETE"], // 許可するHTTPメソッド
   allowedHeaders: ["Content-Type", "Authorization"], // 許可するヘッダー
   credentials: true // クッキーなどの認証情報を許可する場合
