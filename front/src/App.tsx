@@ -1,12 +1,13 @@
 import { useState } from 'react'
 import axios from 'axios'
-import { BrowserRouter, Link, Switch, Route } from "react-router-dom";
+import { BrowserRouter, Link, Routes, Route } from "react-router-dom";
 
 import './css/App.css'
 import ContentsList from './component/ContentsList'
 import InputList from './component/InputList'
 import BasicContent from './component/BasicContent'
 import GoogleOAuth from './component/GoogleOAuth'
+import Home from './page/Home'
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -94,24 +95,9 @@ function App() {
 
   return (
     <>
-      <Switch>
-        {/* exactをつけると完全一致になります。Homeはexactをつけてあげます */}
-        <Route exact path="/">
-          <Home />
-        </Route>
-        <Route path="/page1">
-          <Page1 />
-        </Route>
-        <Route path="/page2">
-          <Page2 />
-        </Route>
-        <Route path="/page3">
-          <Page3 />
-        </Route>
-      </Switch>
-      <ContentsList contents={test_data} Component={BasicContent} />
-      <InputList inputs={test_input} method='post' onSubmit={handleSubmit} />
-      <GoogleOAuth />
+      <Routes>
+        <Route path={`/`} element={<Home />} />
+      </Routes>
     </>
   )
 }
