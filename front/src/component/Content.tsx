@@ -1,5 +1,6 @@
 import '../css/BasicContent.css';
 import React from 'react';
+
 import { Content } from '../types/Content';
 import { useNavigate } from 'react-router-dom';
 
@@ -10,7 +11,7 @@ type Props = {
 export const BasicContent: React.FC<Props> = ({ item }) => {
     const navigate = useNavigate();
     const navigator = (url: string) => {
-        navigate(url);
+        navigate(/"");
     }
     return (
         <div key={item.id} className="contents_item" onClick={() =>navigator(item.url)}>
