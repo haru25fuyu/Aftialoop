@@ -5,6 +5,7 @@ const { OAuth2Client } = require("google-auth-library");
 const { generateUniqueID } = require("./function");
 const { GetUniqueID } = require("./function");
 const { connection } = require("./config");
+const { corsOptions } = require("./config");
 
 const app = express();
 const client = new OAuth2Client(
@@ -14,14 +15,6 @@ const port = 4000;
 
 //ローカルホスト同士でも通信できるようにする
 const cors = require("cors");
-
-const corsOptions = {
-  origin: "http://dev.animaloop.jp",
-  optionsSuccessStatus: 200,
-  methods: ["GET", "POST", "PUT", "DELETE"], // 許可するHTTPメソッド
-  allowedHeaders: ["Content-Type", "Authorization"], // 許可するヘッダー
-  credentials: true // クッキーなどの認証情報を許可する場合
-};
 
 // CORSミドルウェアを使う
 app.use(cors(corsOptions));

@@ -18,7 +18,7 @@ export const InputList: React.FC<InputListProps> = ({
         <div>
             <form onSubmit={onSubmit} method={method}>
                 {inputs.map((form) => (
-                    <SingleForm key={form.label} {...form} />
+                    <SingleForm key={form.name} {...form} />
                 ))}
             </form>
         </div>

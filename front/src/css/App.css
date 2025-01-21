@@ -1,8 +1,11 @@
 #root {
-  width: 100%;
-  margin: 0 auto;
-  padding: 2rem;
-  text-align: center;
+  /*全画面に表示*/
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width:100%;
+  margin: 0;
+  padding: 0;
 }
 
 .logo {

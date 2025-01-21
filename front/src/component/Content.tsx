@@ -11,7 +11,7 @@ type Props = {
 export const BasicContent: React.FC<Props> = ({ item }) => {
     const navigate = useNavigate();
     const navigator = (url: string) => {
-        navigate(/"");
+        navigate("/payment");
     }
     return (
         <div key={item.id} className="contents_item" onClick={() =>navigator(item.url)}>
