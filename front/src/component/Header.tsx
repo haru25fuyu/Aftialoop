@@ -30,8 +30,8 @@ export const Header: React.FC = () => {
 
             <div className='right-margin'>
                 <div className='search-form'>
-                    <input type="text" name="search" placeholder="SEARCH"></input>
-                    <button><img className='search' src="/../data/serch.png" /></button>
+                    <input type="text" placeholder="キーワードを入力" />
+                    <button type="submit" aria-label="検索"></button>
                 </div>
                 <div className='login'>
                     <Link to="/login">ログイン</Link>

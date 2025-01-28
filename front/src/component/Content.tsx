@@ -10,15 +10,16 @@ type Props = {
 
 export const BasicContent: React.FC<Props> = ({ item }) => {
     const navigate = useNavigate();
-    const navigator = (url: string) => {
-        navigate("/payment");
+    const navigator = (id: string) => {
+        navigate("/payment?id=" + id);
     }
     return (
-        <div key={item.id} className="contents_item" onClick={() =>navigator(item.url)}>
+        <div key={item.id} className="contents_item" onClick={() => navigator(item.id.toString())}>
             < h3 > {item.name}</h3 >
             <p>価格: {item.price}円</p>
         </div >
     )
+
 }
 
 export default BasicContent;
