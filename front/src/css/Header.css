@@ -1,4 +1,4 @@
-.BackGround {
+.Header {
     background-color: #ffffff;
     display: flex;
     height: 80px;
@@ -34,7 +34,7 @@
     flex-direction: column;
 }
 
-ul {
+.header-list {
     display: inline-block;
     list-style: none;
     font-size: 12px;
@@ -137,14 +137,20 @@ ul {
     margin-right: 5px;
 }
 
+@media (max-width: 700px) {
+    .header-list {
+        column-count: 1;
+        /* リストを一列にする */
+    }
 
-
-@media (max-width: 500px) {
-    .BackGround {
+    .Header {
         height: 120px;
         width: 100%;
     }
+}
 
+
+@media (max-width: 500px) {
     .logo {
         height: 70%;
         justify-content: center;
@@ -155,10 +161,7 @@ ul {
         padding-top: 5px;
     }
 
-    ul {
-        column-count: 1;
-        /* リストを一列にする */
-    }
+
 
     .search-form {
         display: flex;

@@ -1,0 +1,47 @@
+.category ul {
+    height: auto;
+    margin: auto;
+    list-style: none;
+    text-align: center;
+    column-gap: 10px;
+    font-size: 10px;
+    column-count: 5;
+}
+
+.category {
+    display: flex;
+    margin: auto;
+    height: 50px;
+    width: 80%;
+}
+
+
+.footer {
+    display: flex;
+    height: 100px;
+    width: 100%;
+}
+
+.fotter-list {
+    margin: auto;
+    margin-left: 0;
+    height: 50%;
+    width: 50%;
+}
+
+.fotter-list ul {
+    height: auto;
+    margin: auto;
+    list-style: none;
+    text-align: center;
+    column-gap: 10px;
+    font-size: 14px;
+    column-count: 4;
+}
+
+.fotter-logo {
+    width: auto;
+    height: 100%;
+    padding: 0;
+    margin-left: auto;
+}

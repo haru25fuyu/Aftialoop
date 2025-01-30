@@ -1,13 +1,16 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { Swiper, SwiperSlide } from "swiper/react";
 import '../css/Home.css';
 import "swiper/swiper-bundle.css";
 
-import { Header } from '../component/Header';
 import { Content } from '../types/Content';
+
+import { Header } from '../component/Header';
 import { BasicContent } from '../component/Content';
 import { ContentsList } from '../component/ContentsList';
-import { Swiper, SwiperSlide } from "swiper/react";
+import { Footer } from '../component/Footer';
+import PaymentFormComponent from '../page/Payment';
 
 
 const Home: React.FC = () => {
@@ -122,6 +125,8 @@ const Home: React.FC = () => {
                     </Swiper>
                 </div>
             </div>
+            <Footer />
+            <PaymentFormComponent customerId="yourCustomerId"/>
         </div>
     );
 };

@@ -6,11 +6,11 @@ import '../css/Header.css';
 export const Header: React.FC = () => {
 
     return (
-        <div className="BackGround">
+        <div className="Header">
             <img className='logo' src="/../data/Logo.JPG"></img>
             <div className="list">
                 <span className='title'>MENU</span>
-                <ul>
+                <ul className='header-list'>
                     <li><Link to="/">TOP</Link></li>
                     <li><Link to="/payment">商品一覧</Link></li>
                     <li><Link to="/mypage">マイページ</Link></li>
@@ -20,7 +20,7 @@ export const Header: React.FC = () => {
 
             <div className="list">
                 <span className='title'>CATWGORY</span>
-                <ul>
+                <ul className='header-list'>
                     <li><Link to="/">カテゴリー１</Link></li>
                     <li><Link to="/payment">カテゴリー２</Link></li>
                     <li><Link to="/mypage">カテゴリー３</Link></li>

@@ -8,6 +8,7 @@ import InputList from './component/InputList'
 import BasicContent from './component/BasicContent'
 import GoogleOAuth from './component/GoogleOAuth'
 import Home from './page/Home'
+import SignUp from './page/SignUp';
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -97,6 +98,8 @@ function App() {
     <>
       <Routes>
         <Route path={`/`} element={<Home />} />
+        <Route path={`/paymentForm`} element={<Home />} />    
+        <Route path={`/signup`} element={<SignUp />} />    
       </Routes>
     </>
   )

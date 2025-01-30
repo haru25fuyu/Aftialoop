@@ -1,5 +1,5 @@
 const NODE_API = {
-  URL: "http://34.28.36.10:4000",
+  URL: "https://node.animaloop.jp",
   HEADERS: {
     "Content-Type": "application/json"
   }
