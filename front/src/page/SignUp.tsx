@@ -17,6 +17,7 @@ const SignUp: React.FC = () => {
     const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
 
     const onSubmit = async (data: Inputs) => {
+        console.log(data);
         axios.post(NODE_API.URL+'/signup', data, { headers: NODE_API.HEADERS })
             .then((res) => {
                 console.log(res);

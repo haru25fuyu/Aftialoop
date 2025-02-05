@@ -1,4 +1,6 @@
 const mysql = require("mysql");
+const { SquareClient, SquareEnvironment } = require("square"); 
+const { OAuth2Client } = require("google-auth-library");
 
 const connection = mysql.createConnection({
   host: "10.27.96.3",
@@ -11,7 +13,8 @@ const allowedOrigins = [
   "https://animaloop.jp",
   "https://dev.animaloop.jp",
   "http://34.28.36.10:3000",
-  "http://34.28.36.10"
+  "http://34.28.36.10",
+  "http://localhost:3000"
   // 他の許可したいオリジンを追加
 ];
 
@@ -30,4 +33,14 @@ const corsOptions = {
   credentials: true // クッキーなどの認証情報を許可する場合
 };
 
-module.exports = { connection, corsOptions };
+const googleOAuth = new OAuth2Client(
+  "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
+);
+
+const square = new SquareClient({
+  timeout: 3000,
+  environment: SquareEnvironment.Sandbox,
+  token: "AAAl7pyi2lBTaZGdxQT2T27qHwMCz8BtoEurNnI5L2EI0rbv9pVv5zOGdICu-lg"
+});
+
+module.exports = { connection, corsOptions, square, googleOAuth };

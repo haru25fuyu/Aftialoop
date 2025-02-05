@@ -18,6 +18,8 @@
     "express": "^4.21.2",
     "google-auth-library": "^9.15.0",
     "mysql": "^2.18.1",
+    "node-mailjet": "^6.0.6",
+    "square": "^40.0.0",
     "whatwg-url": "^14.1.0"
   }
 }

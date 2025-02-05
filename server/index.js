@@ -1,16 +1,18 @@
 const express = require("express");
 const mysql = require("mysql");
-const { OAuth2Client } = require("google-auth-library");
+const { SquareClient, SquareEnvironment } = require("square");
+const { v4: uuidv4 } = require("uuid");
+const mailjet = require("node-mailjet").connect(
+  process.env.MJ_APIKEY_PUBLIC,
+  process.env.MJ_APIKEY_PRIVATE
+);
 
 const { generateUniqueID } = require("./function");
 const { GetUniqueID } = require("./function");
-const { connection } = require("./config");
-const { corsOptions } = require("./config");
+const { connection, corsOptions, square, googleOAuth } = require("./config");
+
 
 const app = express();
-const client = new OAuth2Client(
-  "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
-);
 const port = 4000;
 
 //ローカルホスト同士でも通信できるようにする
@@ -20,6 +22,11 @@ const cors = require("cors");
 app.use(cors(corsOptions));
 
 app.use(express.json());
+
+const client = new SquareClient({
+  token: "EAAAl3qvaEFwgNjCiYc51iRS8DabAhTUuJl0apLduuOWCWk0dAAw4SWf-4TnHopZ"
+});
+
 
 app.get("/", (req, res) => {
   res.send("Hello World!");
@@ -32,7 +39,7 @@ app.get("/name", (req, res) => {
 });
 
 app.post("/signup", async (req, res) => {
-  const { name, password } = req.body;
+  const { name, password, email } = req.body;
 
   if (!name || !password) {
     res.status(200).json({ err_message: "名前、パスワードを入力して下さい" });
@@ -40,6 +47,92 @@ app.post("/signup", async (req, res) => {
   }
 
   try {
+    const response = await client.customers.search({
+      count:true,
+        query: {
+            filter: {
+                emailAddress: {
+                    exact: email,
+                },
+            },
+            sort: {},
+        },
+    });
+    console.log("スクエア",response);
+    if(response.count>0){
+      res.status(200).json({ err_message: "このメールアドレスは既に登録されています" });
+      return;
+    }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ err_message: "Square APIエラーが発生しました" });
+  }
+
+  //メールが正しいかチェックするためにメールを送信する
+  const request = mailjet
+    .post("send", { version: "v3.1" })
+    .request({
+      Messages: [
+        {
+          From: {
+            Email: "haru25fuyu@gmail.com",
+            Name: "Mailjet Pilot"
+          },
+          To: [
+            {
+              Email: "haru25fuyu@gmail.com",
+              Name: "passenger 1"
+            }
+          ],
+          Subject: "Your email flight plan!",
+          TextPart:
+            "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
+          HTMLPart:
+            '<h3>Dear passenger 1, welcome to <a href="https://www.mailjet.com/">Mailjet</a>!</h3><br />May the delivery force be with you!'
+        }
+      ]
+    });
+  request
+    .then(result => {
+      console.log(result.body);
+    })
+    .catch(err => {
+      console.log(err.statusCode);
+    });
+
+  //Squareに顧客情報を保存
+  try {
+    const response = await client.customers.create({
+        idempotencyKey: uuidv4(),
+        emailAddress: email,
+        givenName: name,
+    });
+    console.log("スクエア",response);
+    res.status(200).json({ response: response });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ err_message: "Square APIエラーが発生しました" });
+  }
+  return;
+
+  try {
+    //e-mailの重複チェック
+    connection.query(
+      "SELECT * FROM users WHERE email = ?",
+      [email],
+      async (error, results) => {
+        if (error) {
+          console.error("エラーが発生しました:", error);
+          res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+          return;
+        }
+
+        if (results.length > 0) {
+          res.status(200).json({ err_message: "この名前は既に使用されています" });
+          return;
+        }
+      }
+    );
     var id = await GetUniqueID(generateUniqueID());
 
     connection.query(
@@ -51,6 +144,7 @@ app.post("/signup", async (req, res) => {
           return;
         }
         // 登録成功
+        res.status(200).json({ message: "登録に成功しました" });
       }
     );
   } catch (error) {
@@ -64,7 +158,7 @@ app.post("/api/auth/google", async (req, res) => {
 
   try {
     // トークンを検証
-    const ticket = await client.verifyIdToken({
+    const ticket = await googleOAuth.verifyIdToken({
       idToken: token,
       audience:
         "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com" // 必ずクライアントIDを指定
