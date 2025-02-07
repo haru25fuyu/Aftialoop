@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
 import '../css/Footer.css';
@@ -6,7 +7,7 @@ import '../css/Footer.css';
 export const Footer: React.FC = () => {
 
     return (
-        <>
+        <footer>
             <div className="category">
                 <ul>
                     <li><Link to="/">TOP</Link></li>
@@ -35,7 +36,7 @@ export const Footer: React.FC = () => {
                 </div>
 
             </div>
-        </>
+        </footer>
     );
 }
 

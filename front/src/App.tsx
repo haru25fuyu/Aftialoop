@@ -9,6 +9,10 @@ import BasicContent from './component/BasicContent'
 import GoogleOAuth from './component/GoogleOAuth'
 import Home from './page/Home'
 import SignUp from './page/SignUp';
+import SignUpComplete from './page/SignUpComplete';
+import RegisterConfirm from './page/RegisterConfirm';
+import PaymentForm from './page/PaymentForm';
+import PaymentComplete from './page/PaymentComplete';
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -99,7 +103,9 @@ function App() {
       <Routes>
         <Route path={`/`} element={<Home />} />
         <Route path={`/paymentForm`} element={<Home />} />    
-        <Route path={`/signup`} element={<SignUp />} />    
+        <Route path={`/signup`} element={<SignUp />} />  
+        <Route path={`/signup/complete`} element={<SignUpComplete />} />  
+        <Route path={`/register/confirm`} element={<RegisterConfirm />} />
       </Routes>
     </>
   )
