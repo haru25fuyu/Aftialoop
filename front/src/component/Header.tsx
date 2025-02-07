@@ -34,8 +34,9 @@ export const Header: React.FC = () => {
                     <button type="submit" aria-label="検索"></button>
                 </div>
                 <div className='login'>
-                    <Link to="/login">ログイン</Link>
-                    <img src="/../data/login.jpeg" />
+                    <Link to="/login" className='login-link'>
+                        <span>ログイン</span><img src="/../data/login.jpeg" />
+                    </Link>
                 </div>
             </div>
         </div>

@@ -152,6 +152,7 @@ app.post("/signup", async (req, res) => {
       console.log(err.statusCode);
     });
 
+  res.status(200).json({ message: "登録に成功しました" });
   return;
 
 });
