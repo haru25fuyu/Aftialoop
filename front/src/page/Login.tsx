@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
-import { useNavigate  } from 'react-router-dom';
+import { useNavigate , Link } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
@@ -14,17 +14,17 @@ type Inputs = {
     password: string
 }
 
-const SignUp: React.FC = () => {
+const Login: React.FC = () => {
     const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
     const navigate = useNavigate();
 
     const onSubmit = async (data: Inputs) => {
         console.log(data);
-        axios.post(NODE_API.URL+'/signup', data, { headers: NODE_API.HEADERS })
+        axios.post(NODE_API.URL + '/login', data, { headers: NODE_API.HEADERS })
             .then((res) => {
                 console.log(res);
                 //仮登録完了ページに遷移
-                 navigate('/signup/complete');
+                //navigate('/signup/complete');
             })
             .catch((err) => {
                 console.error(err);
@@ -34,11 +34,13 @@ const SignUp: React.FC = () => {
         <div>
             <Header />
 
-            <div className="flex justify-center items-center mt-10 max-md:mt-0">
-                <div className="w-full max-w-md p-8 space-y-6 bg-white rounded shadow-md">
-                    <h2 className="text-2xl font-bold text-center text-gray-900">サインアップ</h2>
+            <div className="flex justify-center items-center mt-8 max-md:mt-0">
+                <div className="w-full max-w-md p-5
+                
+                space-y-6 bg-white rounded shadow-md">
+                    <h2 className="text-2xl font-bold text-center text-gray-900">ログイン</h2>
                     <GoogleOAuth />
-                    <div className="text-center text-2xl">or</div>
+                    <div className="text-center text-l">or</div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">メールアドレス</label>
@@ -59,18 +61,21 @@ const SignUp: React.FC = () => {
                             {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password.message}</p>}
                         </div>
                         <div>
+                            <Link to="/">パスワード忘れた方</Link>
                             <button
                                 type="submit"
                                 className="w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
-                                サインアップ
+                                ログイン
                             </button>
                         </div>
                     </form>
+                    <hr />
+                    <div className="text-center text-l"><Link to="/SignUp">新規登録はこちら</Link></div>
                 </div>
             </div>
         </div>
     );
 };
 
-export default SignUp;
+export default Login;

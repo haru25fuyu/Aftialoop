@@ -10,33 +10,32 @@
 
 .main-image {
     height: 100%;
+    width: 90%;
     margin-left: auto;
     z-index: 1;
     border-radius: 6% 0 0 6% / 50% 0 0 50%;
-    max-width: 750px;
+    max-width: 850x;
     /* 目的の幅 */
-    height: 250px;
+    height: 400px;
     /* 目的の高さ */
     object-fit: cover;
-
 }
 
 
 .overlay {
     position: absolute;
     right: 0;
-    top: 17.8rem;
+    top: 435px;
     /* 半透明の背景 */
     color: rgb(255, 88, 88);
     /* テキストの色 */
     text-align: right;
-    /* テキストを右揃え */
-    font-size: 2.3rem;
     /* テキストサイズ */
     z-index: 99;
+    font-size: 30px;
 }
 
-.overlay h2 {
+.overlay h1 {
     margin: 0;
 }
 
@@ -78,7 +77,7 @@
 
 .recommend {
     width: 100%;
-    height: 17 0px;
+    height: 300px;
     display: flex;
 }
 
@@ -95,15 +94,21 @@
 
     margin-right: auto;
     width: 50%;
-    height: inherit;
+    height: 100%;
 }
 
 .swiper-slide .content {
     text-align: center;
     width: 50%;
+    height: 100%;
+    /*文字を高さの中央に*/
     background-image: url("../data/background.png");
     background-size: cover;
     background-position: center;
+}
+
+.content h3 {
+    font-size: 2.5rem;
 }
 
 .slider {
@@ -149,7 +154,8 @@ h3 {
     height: 100%;
     padding: 10px;
 }
-.Description .right{
+
+.Description .right {
     text-align: center;
     width: 50%;
     height: 100%;
@@ -166,12 +172,32 @@ h3 {
 
 .left h3 {
     margin: 0;
-    
+
 }
+
+@media (max-width: 900px) {
+    .overlay {
+        top: 495px;
+    }
+}
+
+@media (max-width: 800px) {
+    .overlay {
+        top: 462px;
+        font-size: 23px;
+    }
+}
+
+
 
 @media (max-width: 770px) {
     .main-image {
-        width: 90%;
+        height: 300px;
+    }
+
+    .overlay {
+        top: 370px;
+        font-size: 20px;
     }
 
     .item ul {
@@ -184,12 +210,13 @@ h3 {
     .item ul {
         width: 100%;
     }
+
+    .main {
+        width: 100%;
+    }
 }
 
 @media (max-width: 500px) {
-    .overlay {
-        top: 20.3rem;
-    }
 
     .recommend img {
         width: 55%;

@@ -11,6 +11,7 @@ import Home from './page/Home'
 import SignUp from './page/SignUp';
 import SignUpComplete from './page/SignUpComplete';
 import RegisterConfirm from './page/RegisterConfirm';
+import Login from './page/Login';
 import PaymentForm from './page/PaymentForm';
 import PaymentComplete from './page/PaymentComplete';
 
@@ -106,6 +107,7 @@ function App() {
         <Route path={`/signup`} element={<SignUp />} />  
         <Route path={`/signup/complete`} element={<SignUpComplete />} />  
         <Route path={`/register/confirm`} element={<RegisterConfirm />} />
+        <Route path={`/login`} element={<Login />} />
       </Routes>
     </>
   )

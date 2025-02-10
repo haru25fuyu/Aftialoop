@@ -1,12 +1,13 @@
 const mysql = require("mysql");
-const { SquareClient, SquareEnvironment } = require("square"); 
+const { SquareClient, SquareEnvironment } = require("square");
 const { OAuth2Client } = require("google-auth-library");
+const jwt = require("jsonwebtoken");
 
 const connection = mysql.createConnection({
-  host: "10.27.96.3",
+  host: "localhost",
   user: "app-user",
   password: 'q+b4(F}{bH"LzSQm',
-  database: "animaloop"
+  database: "Akarinimaloop"
 });
 
 const allowedOrigins = [
@@ -15,6 +16,7 @@ const allowedOrigins = [
   "http://34.28.36.10:3000",
   "http://34.28.36.10",
   "http://localhost:3000"
+
   // 他の許可したいオリジンを追加
 ];
 
@@ -43,4 +45,99 @@ const square = new SquareClient({
   token: "AAAl7pyi2lBTaZGdxQT2T27qHwMCz8BtoEurNnI5L2EI0rbv9pVv5zOGdICu-lg"
 });
 
-module.exports = { connection, corsOptions, square, googleOAuth };
+const SECRET_KEY = "your_secret_key"; // 🔑 秘密鍵（本番では環境変数にする）
+
+const GenerateToken = user => {
+  return jwt.sign(
+    { user_id: user.id, name: user.email },
+    SECRET_KEY,
+    { expiresIn: user.limit } // ユーザーごとの制限に合わせる
+  );
+};
+
+const GenerateRefreshToken = user => {
+  return jwt.sign({ user_id: user.id, name: user.email }, SECRET_REFRESH_KEY, {
+    expiresIn: REFRESH_LIMIT
+  });
+};
+
+function getUserFromToken(token) {
+  try {
+    return jwt.verify(token, SECRET_KEY);
+  } catch (err) {
+    return null;
+  }
+}
+
+function getUserFromRefreshToken(token) {
+  try {
+    return jwt.verify(token, SECRET_REFRESH_KEY);
+  } catch (err) {
+    return null;
+  }
+}
+
+function checkAccessToken(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const refresh_token = req.query.token;
+
+  // もしアクセストークンがない場合は、リフレッシュトークンを使用
+  if (!authHeader && !refresh_token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const token = authHeader ? authHeader.replace("Bearer ", "") : null;
+  const user = token
+    ? getUserFromToken(token)
+    : getUserFromRefreshToken(refresh_token);
+
+  if (!user) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  const newAccessToken = GenerateToken(user);
+
+  if (refresh_token) {
+    // リフレッシュトークンの期限確認
+    let decoded;
+    try {
+      decoded = jwt.verify(refresh_token, SECRET_REFRESH_KEY);
+    } catch (err) {
+      return res
+        .status(401)
+        .json({ message: "Unauthorized", error: err.message });
+    }
+
+    const remainingTime = decoded.exp - Math.floor(Date.now() / 1000); // 秒数
+    const daysRemaining = Math.floor(remainingTime / 86400); // 日数に変換
+
+    if (daysRemaining < 7) {
+      // 7日未満なら新しいリフレッシュトークンを発行
+      const newRefreshToken = GenerateRefreshToken(user);
+      return res.json({
+        access_token: newAccessToken,
+        refresh_token: newRefreshToken
+      });
+    }
+    else {
+      return res.json({ access_token: newAccessToken });
+    }
+  }
+
+  // ユーザー情報をリクエストに追加
+  req.user = user;
+  next();
+}
+
+
+module.exports = {
+  connection,
+  corsOptions,
+  square,
+  googleOAuth,
+  GenerateToken,
+  getUserFromToken,
+  GenerateRefreshToken,
+  getUserFromRefreshToken,
+  checkAccessToken
+};

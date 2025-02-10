@@ -54,7 +54,7 @@ const Home: React.FC = () => {
             <div className='main'>
                 <img className='main-image' src="/../data/IMG_3589.JPG" alt="Animaloop" />
                 <div className='overlay'>
-                    <h2>ANIMALOOP</h2>
+                    <h1>ANIMALOOP</h1>
                 </div>
             </div>
 
@@ -67,7 +67,7 @@ const Home: React.FC = () => {
                 </ul>
             </div>
 
-            <div className='recommend' style={{ height: '200px', width: '100%' }}>
+            <div className='recommend' >
                 <Swiper
                     className="swiper-container"
                     direction="vertical" // 縦方向スライダーにする
@@ -81,10 +81,13 @@ const Home: React.FC = () => {
                         <SwiperSlide className="swiper-slide" key={item.id}>
                             <img src="/../data/IMG_3589.JPG" alt="" />
                             <div className='content'>
+                                <h2>おすすめ商品</h2>
                                 <h3>{item.name}</h3>
-                                <p>{item.discription}</p>
-                                <p>価格：{item.price}円</p>
-                                <p>ポイント：{item.point}pt</p>
+                                <ul>
+                                    <li>{item.discription}</li>
+                                    <li>価格：{item.price}円</li>
+                                    <li>ポイント：{item.point}pt</li>
+                                </ul>
                             </div>
                         </SwiperSlide>
                     ))}
