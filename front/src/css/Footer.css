@@ -23,20 +23,10 @@
 }
 
 .fotter-list {
-    margin: auto;
-    margin-left: 0;
+    margin: auto;    
     height: 50%;
     width: 50%;
-}
-
-.fotter-list ul {
-    height: auto;
-    margin: auto;
-    list-style: none;
-    text-align: center;
-    column-gap: 10px;
-    font-size: 14px;
-    column-count: 4;
+    font-size: 10px;
 }
 
 .fotter-logo {
@@ -44,4 +34,31 @@
     height: 100%;
     padding: 0;
     margin-left: auto;
+}
+
+.cart{
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin: auto;
+}
+
+.inst{
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    margin-top: auto;
+    margin-bottom: 15px;
+}
+
+@media (max-width: 900px) {
+    .fotter-logo {
+        margin: auto 0;
+        height: 70px;
+        width: 70px;
+    }
+    .fotter-main-list {
+        font-size: 12px;
+
+    }
 }
