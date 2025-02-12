@@ -49,9 +49,13 @@ const square = new SquareClient({
 const SECRET_KEY = "vU4@i1nQMSLN2pr9xQ7A!J^@7rw"; // 🔑 秘密鍵（本番では環境変数にする）
 const SECRET_REFRESH_KEY = "lZ2!6mFJa&!kWq^kszJ2*hU159BF"; // 🔑 リフレッシュトークンの秘密鍵
 const GenerateToken = user => {
-  return jwt.sign({ user_id: user.id, email: user.email }, SECRET_KEY, {
-    expiresIn: user.limit
-  }); // ユーザーごとの制限に合わせる
+  return jwt.sign(
+    { user_id: user.id, email: user.email, name: user.name },
+    SECRET_KEY,
+    {
+      expiresIn: user.limit
+    }
+  ); // ユーザーごとの制限に合わせる
 };
 
 const GenerateRefreshToken = user => {
@@ -76,66 +80,10 @@ function getUserFromRefreshToken(token) {
   }
 }
 
-function checkAccessToken(req, res, next) {
-  const authHeader = req.headers.authorization;
-  const refresh_token = req.cookies.refresh_token;
-
-  // もしアクセストークンがない場合は、リフレッシュトークンを使用
-  if (!authHeader && !refresh_token) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const token = authHeader ? authHeader.replace("Bearer ", "") : null;
-  const user = token
-    ? getUserFromToken(token)
-    : getUserFromRefreshToken(refresh_token);
-
-  if (!user) {
-    return res.status(401).json({ message: "Unauthorized" });
-  }
-
-  const newAccessToken = GenerateToken(user);
-
-  if (refresh_token) {
-    // リフレッシュトークンの期限確認
-    let decoded;
-    try {
-      decoded = jwt.verify(refresh_token, SECRET_REFRESH_KEY);
-    } catch (err) {
-      return res
-        .status(401)
-        .json({ message: "Unauthorized", error: err.message });
-    }
-
-    const remainingTime = decoded.exp - Math.floor(Date.now() / 1000); // 秒数
-    const daysRemaining = Math.floor(remainingTime / 86400); // 日数に変換
-
-    if (daysRemaining < 7) {
-      // 7日未満なら新しいリフレッシュトークンを発行
-      const newRefreshToken = GenerateRefreshToken(user);
-      res.cookie("refresh_token", newRefreshToken, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        maxAge: REFRESH_LIMIT * 1000,
-        sameSite: "lax"
-      });
-      return res.json({
-        access_token: newAccessToken
-      });
-    } else {
-      return res.json({ access_token: newAccessToken });
-    }
-  }
-
-  // ユーザー情報をリクエストに追加
-  req.user = user;
-  next();
-}
-
 //リフレッシュトークンの設定
-function checkRefreshToken(res, user, RefreshToken) {
+function checkRefreshToken(res, user) {
   const expiresAt = new Date();
-  expiresAt.setDate(expiresAt.getDate() + 31);
+  expiresAt.setDate(expiresAt.getDate() + 14);
 
   // `expiresAt` を `YYYY-MM-DD HH:MM:SS` に変換
   const formattedExpiresAt = expiresAt
@@ -143,6 +91,8 @@ function checkRefreshToken(res, user, RefreshToken) {
     .slice(0, 19)
     .replace("T", " ");
 
+  // リフレッシュトークンを生成
+  const RefreshToken = GenerateRefreshToken(user);
   // リフレッシュトークンをHTTP Onlyクッキーに設定
   res.cookie("refresh_token", RefreshToken, {
     httpOnly: true, // JavaScriptからアクセスできない
@@ -181,6 +131,72 @@ function checkRefreshToken(res, user, RefreshToken) {
   );
 }
 
+function CheckUser(req, res) {
+  const authHeader = req.headers.authorization;
+  const refresh_token = req.cookies.refresh_token;
+
+  // もしアクセストークンがない場合は、リフレッシュトークンを使用
+  if (!authHeader) {
+    return res.status(401).json({ user: false, message: "Unauthorized" });
+  }
+
+  let token = authHeader ? authHeader.replace("Bearer ", "") : null;
+  let user = token ? getUserFromToken(token) : null;
+
+  if (!user && !refresh_token) {
+    return res.status(401).json({ user: false, message: "Unauthorized" });
+  }
+
+  if (!user) {
+    user = refresh_token ? getUserFromRefreshToken(refresh_token) : null;
+    if (!user) {
+      return res.status(401).json({ user: false, message: "Unauthorized" });
+    } else {
+      //リフレッシュトークンは存在するがアクセストークンがない場合
+      const newAccessToken = GenerateToken(user); //アクセストークンの再発行
+
+      //リフレッシュトークンの期限を確認少なかったら再発行
+      const remainingTime = user.exp - Math.floor(Date.now() / 1000); // 秒数
+      const daysRemaining = Math.floor(remainingTime / 86400); // 日数に変換
+
+      if (daysRemaining < 7) {
+        // 7日未満なら新しいリフレッシュトークンを発行
+        checkRefreshToken(res, user);
+
+        return res
+          .status(200)
+          .json({ user: true, access_token: newAccessToken });
+      }
+
+      return res.status(200).json({ user: true, access_token: newAccessToken });
+    }
+  } else {
+    //アクセストークンの再発行
+    const newAccessToken = GenerateToken(user);
+    //リフレッシュトークンが存在すれば、期限を確認無ければ再発行
+    if (!refresh_token) {
+      checkRefreshToken(res, user);
+      return res.status(200).json({ user: true, access_token: newAccessToken });
+    }
+
+    let decoded = getUserFromRefreshToken(refresh_token);
+    if (!decoded) {
+      //リフレッシュトークンが不鮮明でもアクセストークンで入ってるから大丈夫
+      checkRefreshToken(res, user, newRefreshToken);
+      return res.status(200).json({ user: true, access_token: newAccessToken });
+    }
+
+    const remainingTime = decoded.exp - Math.floor(Date.now() / 1000); // 秒数
+    const daysRemaining = Math.floor(remainingTime / 86400); // 日数に変換
+
+    if (daysRemaining < 7) {
+      // 7日未満なら新しいリフレッシュトークンを発行
+      checkRefreshToken(res, decoded);
+    }
+    return res.status(200).json({ user: true, access_token: newAccessToken });
+  }
+};
+
 module.exports = {
   connection,
   corsOptions,
@@ -190,6 +206,6 @@ module.exports = {
   getUserFromToken,
   GenerateRefreshToken,
   getUserFromRefreshToken,
-  checkAccessToken,
-  checkRefreshToken
+  checkRefreshToken,
+  CheckUser
 };

@@ -1,10 +1,29 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { jwtDecode } from "jwt-decode";
 import '../css/Header.css';
 
 
 export const Header: React.FC = () => {
-
+    const [loginText, setLoginText] = useState("ログイン");
+    const [loginImage, setLoginImage] = useState("/../data/login.jpeg");
+    const [URL, setURL] = useState("/login");
+    useEffect(() => {
+        const refreshToken = localStorage.getItem('token');
+        console.log(refreshToken);
+        if (refreshToken && refreshToken !== "undefined") {
+            //トークンをでコードして、ユーザー情報を取得
+            const decoded = jwtDecode<{ sub: string }>(refreshToken);
+            console.log(decoded);
+            const name = decoded.name ? decoded.name : decoded.email;
+            const image = localStorage.getItem('userIcon')
+            const icon = (image && image !== "undefined") ? decoded.image : "/../data/user.png";
+            setLoginText(name);
+            setLoginImage(icon);
+            setURL("/mypage");
+        }
+    }, []);
     return (
         <div className="Header">
             <img className='logo' src="/../data/Logo.JPG"></img>
@@ -34,8 +53,8 @@ export const Header: React.FC = () => {
                     <button type="submit" aria-label="検索"></button>
                 </div>
                 <div className='login'>
-                    <Link to="/login" className='login-link'>
-                        <span>ログイン</span><img src="/../data/login.jpeg" />
+                    <Link to={URL} className='login-link'>
+                        <span>{loginText}</span><img src={loginImage} />
                     </Link>
                 </div>
             </div>

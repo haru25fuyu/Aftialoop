@@ -6,6 +6,8 @@ const jwt = require("jsonwebtoken");
 const bodyParser = require("body-parser");
 const validator = require("validator");
 const Mailjet = require("node-mailjet");
+const axios = require("axios");
+
 const mailjet = Mailjet.apiConnect(
   "febc3b75a254bad3d2a659482dd53aa2",
   "130e9056600b21ed8d48ccfc382391f9"
@@ -23,8 +25,8 @@ const {
   getUserFromToken,
   GenerateRefreshToken,
   getUserFromRefreshToken,
-  checkAccessToken,
   checkRefreshToken,
+  CheckUser
 } = require("./config");
 
 const app = express();
@@ -337,26 +339,10 @@ app.post("/login", async (req, res) => {
   );
 });
 
-app.post("/refresh_token", (req, res) => {
-  const refreshToken = req.body.refresh_token;
-
-  try {
-    // リフレッシュトークンをデコード
-    const decoded = jwt.verify(refreshToken, SECRET_KEY);
-    const userId = decoded.user_id;
-
-    // 新しいアクセストークンを発行
-    const newAccessToken = jwt.sign({ user_id: userId }, SECRET_KEY, {
-      expiresIn: "1h"
-    });
-
-    res.json({ access_token: newAccessToken });
-  } catch (err) {
-    if (err instanceof jwt.ExpiredSignatureError) {
-      return res.status(401).json({ message: "Refresh token expired" });
-    }
-    return res.status(401).json({ message: "Invalid refresh token" });
-  }
+//マイページの表示
+app.post("/mypage", async (req, res) => {
+  console.log("マイページ");
+  CheckUser(req, res);
 });
 
 //google認証

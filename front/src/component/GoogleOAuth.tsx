@@ -9,7 +9,14 @@ const handleLoginSuccess = (response: any) => {
     const token = { token: response.credential };
     // ここでレスポンスをサーバーに送信し、トークンを検証してユーザーを認証
     axios.post(NODE_API.URL + '/api/auth/google', token, { headers:NODE_API.HEADER }).then((res) => {
-        console.log('ログイン成功:', res.data);
+        console.log('ログイン成功:', res.data.response);
+        const expiresIn = res.data.expires_in;
+        // 現在時刻にexpires_in（秒）を加えて、期限を計算
+        const expirationTime = Date.now() / 1000 + expiresIn;  // 秒単位で保存
+
+        localStorage.setItem('token', res.data.response.AccessToken);
+        localStorage.setItem('expirationTime', expirationTime);
+
     }).catch((err) => {
         console.error('ログイン失敗:', err);
     })

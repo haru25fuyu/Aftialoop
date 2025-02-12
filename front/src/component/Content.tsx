@@ -8,7 +8,7 @@ type Props = {
     item: Content;
 };
 
-export const BasicContent: React.FC<Props> = ({ item }) => {
+const BasicContent: React.FC<Props> = ({ item }) => {
     const navigate = useNavigate();
     const navigator = (id: string) => {
         navigate("/payment?id=" + id);
@@ -22,4 +22,18 @@ export const BasicContent: React.FC<Props> = ({ item }) => {
 
 }
 
+const LinkContent: React.FC<Props> = ({ item }) => {
+    const navigate = useNavigate();
+    const navigator = () => {
+        navigate(item.image_url);
+    }
+    return (
+        <div key={item.id} className="contents_item" onClick={() => navigator()}>
+            {item.name}           
+        </div >
+    )
+
+}
+
 export default BasicContent;
+export { LinkContent };

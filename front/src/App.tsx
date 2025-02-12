@@ -12,8 +12,9 @@ import SignUp from './page/SignUp';
 import SignUpComplete from './page/SignUpComplete';
 import RegisterConfirm from './page/RegisterConfirm';
 import Login from './page/Login';
-import PaymentForm from './page/PaymentForm';
-import PaymentComplete from './page/PaymentComplete';
+//import PaymentForm from './page/PaymentForm';
+//import PaymentComplete from './page/PaymentComplete';
+import MyPage from './page/MyPage';
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -108,6 +109,7 @@ function App() {
         <Route path={`/signup/complete`} element={<SignUpComplete />} />  
         <Route path={`/register/confirm`} element={<RegisterConfirm />} />
         <Route path={`/login`} element={<Login />} />
+        <Route path={`/mypage`} element={<MyPage />} />
       </Routes>
     </>
   )
