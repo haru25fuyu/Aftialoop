@@ -22,9 +22,15 @@ const Login: React.FC = () => {
         console.log(data);
         axios.post(NODE_API.URL + '/login', data, { headers: NODE_API.HEADERS })
             .then((res) => {
-                console.log(res);
-                //仮登録完了ページに遷移
-                //navigate('/signup/complete');
+                console.log(res.data);
+                const expiresIn = res.data.expires_in;
+                // 現在時刻にexpires_in（秒）を加えて、期限を計算
+                const expirationTime = Date.now() / 1000 + expiresIn;  // 秒単位で保存
+
+                localStorage.setItem('token', res.data.token);
+                localStorage.setItem('expirationTime', expirationTime);
+
+                navigate('/');
             })
             .catch((err) => {
                 console.error(err);

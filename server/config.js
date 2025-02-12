@@ -2,12 +2,13 @@ const mysql = require("mysql");
 const { SquareClient, SquareEnvironment } = require("square");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
 const connection = mysql.createConnection({
   host: "localhost",
   user: "app-user",
   password: 'q+b4(F}{bH"LzSQm',
-  database: "Akarinimaloop"
+  database: "Animaloop"
 });
 
 const allowedOrigins = [
@@ -45,19 +46,17 @@ const square = new SquareClient({
   token: "AAAl7pyi2lBTaZGdxQT2T27qHwMCz8BtoEurNnI5L2EI0rbv9pVv5zOGdICu-lg"
 });
 
-const SECRET_KEY = "your_secret_key"; // 🔑 秘密鍵（本番では環境変数にする）
-
+const SECRET_KEY = "vU4@i1nQMSLN2pr9xQ7A!J^@7rw"; // 🔑 秘密鍵（本番では環境変数にする）
+const SECRET_REFRESH_KEY = "lZ2!6mFJa&!kWq^kszJ2*hU159BF"; // 🔑 リフレッシュトークンの秘密鍵
 const GenerateToken = user => {
-  return jwt.sign(
-    { user_id: user.id, name: user.email },
-    SECRET_KEY,
-    { expiresIn: user.limit } // ユーザーごとの制限に合わせる
-  );
+  return jwt.sign({ user_id: user.id, email: user.email }, SECRET_KEY, {
+    expiresIn: user.limit
+  }); // ユーザーごとの制限に合わせる
 };
 
 const GenerateRefreshToken = user => {
-  return jwt.sign({ user_id: user.id, name: user.email }, SECRET_REFRESH_KEY, {
-    expiresIn: REFRESH_LIMIT
+  return jwt.sign({ user_id: user.id, email: user.email }, SECRET_REFRESH_KEY, {
+    expiresIn: "14d" // 14日間有効
   });
 };
 
@@ -79,7 +78,7 @@ function getUserFromRefreshToken(token) {
 
 function checkAccessToken(req, res, next) {
   const authHeader = req.headers.authorization;
-  const refresh_token = req.query.token;
+  const refresh_token = req.cookies.refresh_token;
 
   // もしアクセストークンがない場合は、リフレッシュトークンを使用
   if (!authHeader && !refresh_token) {
@@ -114,12 +113,16 @@ function checkAccessToken(req, res, next) {
     if (daysRemaining < 7) {
       // 7日未満なら新しいリフレッシュトークンを発行
       const newRefreshToken = GenerateRefreshToken(user);
-      return res.json({
-        access_token: newAccessToken,
-        refresh_token: newRefreshToken
+      res.cookie("refresh_token", newRefreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        maxAge: REFRESH_LIMIT * 1000,
+        sameSite: "lax"
       });
-    }
-    else {
+      return res.json({
+        access_token: newAccessToken
+      });
+    } else {
       return res.json({ access_token: newAccessToken });
     }
   }
@@ -129,6 +132,54 @@ function checkAccessToken(req, res, next) {
   next();
 }
 
+//リフレッシュトークンの設定
+function checkRefreshToken(res, user, RefreshToken) {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + 31);
+
+  // `expiresAt` を `YYYY-MM-DD HH:MM:SS` に変換
+  const formattedExpiresAt = expiresAt
+    .toISOString()
+    .slice(0, 19)
+    .replace("T", " ");
+
+  // リフレッシュトークンをHTTP Onlyクッキーに設定
+  res.cookie("refresh_token", RefreshToken, {
+    httpOnly: true, // JavaScriptからアクセスできない
+    secure: process.env.NODE_ENV === "production", // 本番環境でのみhttps
+    maxAge: 14 * 24 * 60 * 60 * 1000, // 14日間の有効期限
+    sameSite: "lax" // クロスサイトリクエストを制限
+  });
+
+  //リフレッシュトークンおなじuser_idを持つトークンを削除
+  connection.query(
+    "DELETE FROM refresh_tokens WHERE user_id = ?",
+    [user.id],
+    (error, results) => {
+      if (error) {
+        console.error("エラーが発生しました:", error);
+        res.status(500).json({
+          err_message: "サーバーエラーが発生しました"
+        });
+        return;
+      }
+    }
+  );
+  //リフレッシュトークをSQLに保存
+  connection.query(
+    "INSERT INTO refresh_tokens (user_id, refresh_token,expires_at ) VALUES (?, ?, ?)",
+    [user.id, RefreshToken, formattedExpiresAt],
+    (error, results) => {
+      if (error) {
+        console.error("エラーが発生しました:", error);
+        res.status(500).json({
+          err_message: "サーバーエラーが発生しました"
+        });
+        return;
+      }
+    }
+  );
+}
 
 module.exports = {
   connection,
@@ -139,5 +190,6 @@ module.exports = {
   getUserFromToken,
   GenerateRefreshToken,
   getUserFromRefreshToken,
-  checkAccessToken
+  checkAccessToken,
+  checkRefreshToken
 };
