@@ -11,11 +11,9 @@ export const Header: React.FC = () => {
     const [URL, setURL] = useState("/login");
     useEffect(() => {
         const refreshToken = localStorage.getItem('token');
-        console.log(refreshToken);
         if (refreshToken && refreshToken !== "undefined") {
             //トークンをでコードして、ユーザー情報を取得
             const decoded = jwtDecode<{ sub: string }>(refreshToken);
-            console.log(decoded);
             const name = decoded.name ? decoded.name : decoded.email;
             const image = localStorage.getItem('userIcon')
             const icon = (image && image !== "undefined") ? decoded.image : "/../data/user.png";
