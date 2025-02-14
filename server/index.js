@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require("uuid");
 const jwt = require("jsonwebtoken");
 const Mailjet = require("node-mailjet");
 const axios = require("axios");
+const cookieParser = require("cookie-parser");
 
 const mailjet = Mailjet.apiConnect(
   "febc3b75a254bad3d2a659482dd53aa2",
@@ -18,7 +19,11 @@ const {
   corsOptions,
   square,
   googleOAuth,
-  GenerateRefreshToken
+  GenerateToken,
+  getUserFromToken,
+  GenerateRefreshToken,
+  getUserFromRefreshToken,
+  CheckUser
 } = require("./config");
 
 const app = express();

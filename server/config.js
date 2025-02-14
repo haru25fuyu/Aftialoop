@@ -2,12 +2,13 @@ const mysql = require("mysql");
 const { SquareClient, SquareEnvironment } = require("square");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
+const cookieParser = require("cookie-parser");
 
 const connection = mysql.createConnection({
   host: "localhost",
   user: "app-user",
   password: 'q+b4(F}{bH"LzSQm',
-  database: "Akarinimaloop"
+  database: "Animaloop"
 });
 
 const allowedOrigins = [

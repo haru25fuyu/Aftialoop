@@ -14,12 +14,9 @@
     "nodemon": "^3.1.9"
   },
   "dependencies": {
-<<<<<<< HEAD
     "axios": "^1.7.9",
     "body-parser": "^1.20.3",
     "cookie-parser": "^1.4.7",
-=======
->>>>>>> parent of 5b68b90b (validatorモジュールの新しいユーティリティ関数を追加し、依存関係を更新)
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "google-auth-library": "^9.15.0",
