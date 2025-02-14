@@ -2,13 +2,12 @@ const mysql = require("mysql");
 const { SquareClient, SquareEnvironment } = require("square");
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
-const cookieParser = require("cookie-parser");
 
 const connection = mysql.createConnection({
   host: "localhost",
   user: "app-user",
   password: 'q+b4(F}{bH"LzSQm',
-  database: "Animaloop"
+  database: "Akarinimaloop"
 });
 
 const allowedOrigins = [
@@ -46,8 +45,8 @@ const square = new SquareClient({
   token: "AAAl7pyi2lBTaZGdxQT2T27qHwMCz8BtoEurNnI5L2EI0rbv9pVv5zOGdICu-lg"
 });
 
-const SECRET_KEY = "vU4@i1nQMSLN2pr9xQ7A!J^@7rw"; // 🔑 秘密鍵（本番では環境変数にする）
-const SECRET_REFRESH_KEY = "lZ2!6mFJa&!kWq^kszJ2*hU159BF"; // 🔑 リフレッシュトークンの秘密鍵
+const SECRET_KEY = "your_secret_key"; // 🔑 秘密鍵（本番では環境変数にする）
+
 const GenerateToken = user => {
   return jwt.sign(
     { id: user.id, email: user.email, name: user.name },
