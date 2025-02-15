@@ -46,11 +46,11 @@ const square = new SquareClient({
   token: "AAAl7pyi2lBTaZGdxQT2T27qHwMCz8BtoEurNnI5L2EI0rbv9pVv5zOGdICu-lg"
 });
 
-const SECRET_KEY = "vU4@i1nQMSLN2pr9xQ7A!J^@7rw"; // 🔑 秘密鍵（本番では環境変数にする）
-const SECRET_REFRESH_KEY = "lZ2!6mFJa&!kWq^kszJ2*hU159BF"; // 🔑 リフレッシュトークンの秘密鍵
+const SECRET_KEY = "your_secret_key"; // 🔑 秘密鍵（本番では環境変数にする）
+
 const GenerateToken = user => {
   return jwt.sign(
-    { user_id: user.id, email: user.email, name: user.name },
+    { id: user.id, email: user.email, name: user.name },
     SECRET_KEY,
     {
       expiresIn: user.limit
@@ -59,7 +59,7 @@ const GenerateToken = user => {
 };
 
 const GenerateRefreshToken = user => {
-  return jwt.sign({ user_id: user.id, email: user.email }, SECRET_REFRESH_KEY, {
+  return jwt.sign({ id: user.id, email: user.email }, SECRET_REFRESH_KEY, {
     expiresIn: "14d" // 14日間有効
   });
 };
@@ -171,6 +171,7 @@ function CheckUser(req, res) {
       return res.status(200).json({ user: true, access_token: newAccessToken });
     }
   } else {
+    user["limit"] = "1h"; // ユーザーごとの制限に合わせる
     //アクセストークンの再発行
     const newAccessToken = GenerateToken(user);
     //リフレッシュトークンが存在すれば、期限を確認無ければ再発行

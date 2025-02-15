@@ -19,10 +19,8 @@ const SignUp: React.FC = () => {
     const navigate = useNavigate();
 
     const onSubmit = async (data: Inputs) => {
-        console.log(data);
         axios.post(NODE_API.URL+'/signup', data, { headers: NODE_API.HEADERS })
             .then((res) => {
-                console.log(res);
                 //仮登録完了ページに遷移
                  navigate('/signup/complete');
             })
