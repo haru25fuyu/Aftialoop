@@ -43,10 +43,11 @@ const googleOAuth = new OAuth2Client(
 const square = new SquareClient({
   timeout: 3000,
   environment: SquareEnvironment.Sandbox,
-  token: "AAAl7pyi2lBTaZGdxQT2T27qHwMCz8BtoEurNnI5L2EI0rbv9pVv5zOGdICu-lg"
+  token: "EAAAl1gdrBY8nmIpVtgahxRd8caJY9fv12ZMQKp4H_XDjjeULamq8Z9J-m45vYyn"
 });
 
 const SECRET_KEY = "your_secret_key"; // 🔑 秘密鍵（本番では環境変数にする）
+const SECRET_REFRESH_KEY = "your_secret_refresh_key"; // 🔑 秘密鍵（本番では環境変数にする）
 
 const GenerateToken = user => {
   return jwt.sign(
@@ -96,9 +97,10 @@ function checkRefreshToken(res, user) {
   // リフレッシュトークンをHTTP Onlyクッキーに設定
   res.cookie("refresh_token", RefreshToken, {
     httpOnly: true, // JavaScriptからアクセスできない
-    secure: process.env.NODE_ENV === "production", // 本番環境でのみhttps
+    //secure: process.env.NODE_ENV === "production", // 本番環境でのみhttps
+    secure: false,
     maxAge: 14 * 24 * 60 * 60 * 1000, // 14日間の有効期限
-    sameSite: "lax" // クロスサイトリクエストを制限
+    sameSite: "None" // クロスサイトリクエストを制限
   });
 
   //リフレッシュトークンおなじuser_idを持つトークンを削除
@@ -135,22 +137,23 @@ function CheckUser(req, res) {
   const authHeader = req.headers.authorization;
   const refresh_token = req.cookies.refresh_token;
 
+
   // もしアクセストークンがない場合は、リフレッシュトークンを使用
-  if (!authHeader) {
-    return res.status(401).json({ user: false, message: "Unauthorized" });
+  if (!authHeader && !refresh_token) {
+    return res.status(401).json({ user: false, message: "トークンが有りません" });
   }
 
   let token = authHeader ? authHeader.replace("Bearer ", "") : null;
   let user = token ? getUserFromToken(token) : null;
 
   if (!user && !refresh_token) {
-    return res.status(401).json({ user: false, message: "Unauthorized" });
+    return res.status(401).json({ user: false, message: "トークンが期限切れです" });
   }
 
   if (!user) {
     user = refresh_token ? getUserFromRefreshToken(refresh_token) : null;
     if (!user) {
-      return res.status(401).json({ user: false, message: "Unauthorized" });
+      return res.status(401).json({ user: false, message: "アクセストークンが期限切れです" });
     } else {
       //リフレッシュトークンは存在するがアクセストークンがない場合
       const newAccessToken = GenerateToken(user); //アクセストークンの再発行
@@ -177,14 +180,15 @@ function CheckUser(req, res) {
     //リフレッシュトークンが存在すれば、期限を確認無ければ再発行
     if (!refresh_token) {
       checkRefreshToken(res, user);
-      return res.status(200).json({ user: true, access_token: newAccessToken });
+
+      return { user: true, access_token: newAccessToken };
     }
 
     let decoded = getUserFromRefreshToken(refresh_token);
     if (!decoded) {
       //リフレッシュトークンが不鮮明でもアクセストークンで入ってるから大丈夫
       checkRefreshToken(res, user, newRefreshToken);
-      return res.status(200).json({ user: true, access_token: newAccessToken });
+      return { user: true, access_token: newAccessToken };
     }
 
     const remainingTime = decoded.exp - Math.floor(Date.now() / 1000); // 秒数
@@ -194,7 +198,7 @@ function CheckUser(req, res) {
       // 7日未満なら新しいリフレッシュトークンを発行
       checkRefreshToken(res, decoded);
     }
-    return res.status(200).json({ user: true, access_token: newAccessToken });
+    return { user: true, access_token: newAccessToken };
   }
 };
 

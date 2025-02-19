@@ -4,11 +4,11 @@ import { PaymentForm, CreditCard } from 'react-square-web-payments-sdk';
 
 //import Header from '../component/Header';
 
-interface PaymentFormComponentProps {
+interface PaymentFormProps {
     customerId: string;
 }
 
-const PaymentFormComponent: React.FC<PaymentFormComponentProps> = ({ customerId }) => {
+const PaymentForm: React.FC<PaymentFormProps> = ({ customerId }) => {
     const handlePayment = async (token: string) => {
         const response = await fetch('/save-card', {
             method: 'POST',
@@ -41,5 +41,5 @@ const PaymentFormComponent: React.FC<PaymentFormComponentProps> = ({ customerId 
     );
 };
 
-export default  PaymentFormComponent;
+export default  PaymentForm;
 

@@ -15,6 +15,7 @@ import Login from './page/Login';
 //import PaymentForm from './page/PaymentForm';
 //import PaymentComplete from './page/PaymentComplete';
 import MyPage from './page/MyPage';
+import PaymentRegistration from './page/PaymentRegistration';
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -110,6 +111,7 @@ function App() {
         <Route path={`/register/confirm`} element={<RegisterConfirm />} />
         <Route path={`/login`} element={<Login />} />
         <Route path={`/mypage`} element={<MyPage />} />
+        <Route path={`/payment/registration`} element={<PaymentRegistration />} />
       </Routes>
     </>
   )

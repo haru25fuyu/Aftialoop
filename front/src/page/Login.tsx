@@ -41,9 +41,7 @@ const Login: React.FC = () => {
             <Header />
 
             <div className="flex justify-center items-center mt-8 max-md:mt-0">
-                <div className="w-full max-w-md p-5
-                
-                space-y-6 bg-white rounded shadow-md">
+                <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">ログイン</h2>
                     <GoogleOAuth />
                     <div className="text-center text-l">or</div>

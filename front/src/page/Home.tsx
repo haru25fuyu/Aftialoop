@@ -10,8 +10,6 @@ import { Header } from '../component/Header';
 import BasicContent  from '../component/Content';
 import { ContentsList } from '../component/ContentsList';
 import { Footer } from '../component/Footer';
-import PaymentFormComponent from '../page/Payment';
-
 
 const Home: React.FC = () => {
     const contentsList: Content[] = [
@@ -129,7 +127,7 @@ const Home: React.FC = () => {
                 </div>
             </div>
             <Footer />
-            <PaymentFormComponent customerId="yourCustomerId"/>
+            
         </div>
     );
 };

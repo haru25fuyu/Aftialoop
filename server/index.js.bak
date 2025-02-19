@@ -31,7 +31,6 @@ const port = 4000;
 
 //ローカルホスト同士でも通信できるようにする
 const cors = require("cors");
-const e = require("express");
 
 // CORSミドルウェアを使う
 app.use(cors(corsOptions));
@@ -39,8 +38,9 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use(cookieParser());
+
 const client = new SquareClient({
-  token: "EAAAl1gdrBY8nmIpVtgahxRd8caJY9fv12ZMQKp4H_XDjjeULamq8Z9J-m45vYyn"
+  token: "EAAAl3qvaEFwgNjCiYc51iRS8DabAhTUuJl0apLduuOWCWk0dAAw4SWf-4TnHopZ"
 });
 
 app.get("/", (req, res) => {
@@ -68,11 +68,11 @@ app.post("/signup", async (req, res) => {
       query: {
         filter: {
           emailAddress: {
-            exact: email,
-          },
+            exact: email
+          }
         },
-        sort: {},
-      },
+        sort: {}
+      }
     });
     console.log("スクエア", response);
     if (response.count > 0) {
@@ -129,7 +129,7 @@ app.post("/signup", async (req, res) => {
   //本登録用トークンをSQLに保存
   connection.query(
     "INSERT INTO registration_tokens (id,email,pass, token, expires_at) VALUES (?, ?, ?)",
-    [id,email,password, token, new Date(Date.now() + 24 * 60 * 60 * 1000)],
+    [id, email, password, token, new Date(Date.now() + 24 * 60 * 60 * 1000)],
     (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
@@ -137,8 +137,8 @@ app.post("/signup", async (req, res) => {
         return;
       }
     }
-  );  
-
+  );
+  
   const registrationLink =
     "https://animaloop.jp/register/confirm?token=" + token;
   // HTMLテンプレートに変数を埋め込む
@@ -226,12 +226,11 @@ app.get("/register/confirm", async (req, res) => {
         res.status(200).json({ err_message: "トークンが切れています。" });
         return;
       }
-      if(results[0].token !== token){
+      if(results[0].token !== token) {
         res.status(200).json({ err_message: "トークンが無効です。" });
       }
       user_data = results[0];
     });
-
   try {
     //Squareに顧客情報を保存
     try {
@@ -245,7 +244,7 @@ app.get("/register/confirm", async (req, res) => {
     } catch (error) {
       console.log(error);
       res.status(500).json({ err_message: "Square APIエラーが発生しました" });
-    };
+    }
 
     connection.query(
       "INSERT INTO users (id,name, pass) VALUES ( ?, ?, ?)",
@@ -273,7 +272,6 @@ app.post("/login", async (req, res) => {
     res.status(200).json({ err_message: "メールアドレス、パスワードを入力してください" });
     return;
   }
-
 
   connection.query(
     "SELECT * FROM users WHERE email = ? AND pass = ?",
@@ -357,8 +355,7 @@ app.post("/mypage", async (req, res) => {
       favorites = results;
     }
   );
-  res.status(200).json({user, view_history, favorites });
-});
+  res.status(200).json({user, view_history, favorites });});
 
 app.post("/api/save-card", async (req, res) => {
     const { token, customerId } = req.body; // フロントからトークンを受け取る
@@ -390,7 +387,6 @@ app.post("/api/save-card", async (req, res) => {
     }
 });
 
-
 //google認証
 app.post("/api/auth/google", async (req, res) => {
   const { token } = req.body;
@@ -416,20 +412,10 @@ app.post("/api/auth/google", async (req, res) => {
           res.status(500).json({ message: "サーバーエラーが発生しました" });
           return;
         }
+        var id = await GetUniqueID(generateUniqueID());
 
         if (results.length === 0) {
-          //スクエアに顧客情報を保存
-          try {
-            const squareResponse = await client.customers.create({
-              idempotencyKey: uuidv4(),
-              emailAddress: payload.email,
-              givenName: payload.name
-            });
-            console.log("スクエア", squareResponse);
-          } catch (error) {
-            console.log(error);
-            res.status(500).json({ message: "Square APIエラーが発生しました" });
-          }
+		
           const id = squareResponse.id;
           // ユーザーが存在しない場合は登録
           connection.query(
@@ -443,7 +429,7 @@ app.post("/api/auth/google", async (req, res) => {
               }
             }
           );
-        }
+}
         else {
           
           //トークンの発行
