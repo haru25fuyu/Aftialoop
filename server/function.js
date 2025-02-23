@@ -1,5 +1,6 @@
 const mysql = require("mysql");
 const { connection } = require("./config");
+const bcrypt = require("bcrypt");
 
 // 使用する数字の範囲（1〜9）で、隣接する数字が同じでない20桁のIDを生成
 function generateUniqueID() {
@@ -37,5 +38,15 @@ function GetUniqueID(newID) {
   });
 }
 
+async function hashPassword(password) {
+  const saltRounds = 10; // 計算コスト（10〜12が推奨）
+  const hashedPassword = await bcrypt.hash(password, saltRounds);
+  return hashedPassword;
+}
 
-module.exports = { GetUniqueID, generateUniqueID };
+module.exports = {
+  GetUniqueID,
+  generateUniqueID,
+  hashPassword,
+  SaveSquareCustomer
+};

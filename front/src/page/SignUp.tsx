@@ -1,7 +1,7 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
-import { useNavigate  } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
@@ -19,10 +19,12 @@ const SignUp: React.FC = () => {
     const navigate = useNavigate();
 
     const onSubmit = async (data: Inputs) => {
-        axios.post(NODE_API.URL+'/signup', data, { headers: NODE_API.HEADERS })
+        axios.post(NODE_API.URL + '/signup', data, { headers: NODE_API.HEADERS })
             .then((res) => {
-                //仮登録完了ページに遷移
-                 navigate('/signup/complete');
+                if (!res.data.err_message) {
+                    //仮登録完了ページに遷移
+                    navigate('/signup/complete');
+                }
             })
             .catch((err) => {
                 console.error(err);

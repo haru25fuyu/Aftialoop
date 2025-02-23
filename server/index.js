@@ -12,8 +12,7 @@ const mailjet = Mailjet.apiConnect(
   "130e9056600b21ed8d48ccfc382391f9"
 );
 
-const { generateUniqueID } = require("./function");
-const { GetUniqueID } = require("./function");
+const { GetUniqueID,generateUniqueID,hashPassword,SaveSquareCustomer} = require("./function");
 const {
   connection,
   corsOptions,
@@ -83,6 +82,7 @@ app.post("/signup", async (req, res) => {
   } catch (error) {
     console.log(error);
     res.status(500).json({ err_message: "Square APIエラーが発生しました" });
+    return;
   }
 
   try {
@@ -103,34 +103,27 @@ app.post("/signup", async (req, res) => {
         }
       }
     );
-    id = uuidv4();
-    connection.query(
-      "INSERT INTO users (id,name, pass) VALUES ( ?, ?, ?)",
-      [id, name, password],
-      (error, results) => {
-        if (error) {
-          res.status(200).json({ err_message: "登録に失敗しました: " + error });
-          return;
-        }
-        // 登録成功
-        res.status(200).json({ message: "登録に成功しました" });
-      }
-    );
+    
   } catch (error) {
     console.error("エラーが発生しました:", error);
     res.status(500).json({ err_message: "サーバーエラーが発生しました" });
   }
 
+  const id = uuidv4();
+  const hashedPassword = await hashPassword(password);
+
   const token = GenerateToken({
-    user_id: id,
+    id: id,
     email: email,
     limit: "24h"
   });
 
+
   //本登録用トークンをSQLに保存
+  //前にあったら消す
   connection.query(
-    "INSERT INTO registration_tokens (id,email,pass, token, expires_at) VALUES (?, ?, ?)",
-    [id, email, password, token, new Date(Date.now() + 24 * 60 * 60 * 1000)],
+    "DELETE FROM user_registration_tokens WHERE email = ?",
+    [email],
     (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
@@ -139,7 +132,17 @@ app.post("/signup", async (req, res) => {
       }
     }
   );
-  
+  await connection.query(
+   "INSERT INTO user_registration_tokens (id,email,password_hash, token, expires_at) VALUES (?, ?, ?,?,?)",
+    [id, email, hashedPassword, token, new Date(Date.now() + 24 * 60 * 60 * 1000)],
+    (error, results) => {
+      if (error) {
+        console.error("エラーが発生しました:", error);
+        res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+        return;
+      }
+    }
+  );
   const registrationLink =
     "https://animaloop.jp/register/confirm?token=" + token;
   // HTMLテンプレートに変数を埋め込む
@@ -182,19 +185,18 @@ app.post("/signup", async (req, res) => {
   request
     .then(result => {
       console.log(result.body);
+      res.status(200).json({ message: "登録に成功しました" });
     })
     .catch(err => {
       console.log(err.statusCode);
+      res.status(500).json({ err_message: "メール送信エラーが発生しました" });
     });
-
-  res.status(200).json({ message: "登録に成功しました" });
-  return;
 });
 
 //本登録
 app.get("/register/confirm", async (req, res) => {
   const { token } = req.query;
-  const { decoded } = getUserFromToken(token);
+  const decoded  = getUserFromToken(token);
 
   if (!decoded) {
     res.status(401).json({ err_message: "トークンが切れています。" });
@@ -206,65 +208,92 @@ app.get("/register/confirm", async (req, res) => {
     return;
   }
 
-  let user_data = {};
-  //トークンの有効期限をチェック
-  connection.query(
-    "SELECT * FROM registration_tokens WHERE id = ?",
-    [decoded.id],
-    (error, results) => {
-      if (error) {
-        console.error("エラーが発生しました:", error);
-        res.status(500).json({ err_message: "サーバーエラーが発生しました" });
-        return;
-      }
-
-      if (results.length === 0) {
-        res.status(200).json({ err_message: "トークンが無効です。" });
-        return;
-      }
-
-      if (new Date(results[0].expires_at) < new Date()) {
-        res.status(200).json({ err_message: "トークンが切れています。" });
-        return;
-      }
-      if(results[0].token !== token) {
-        res.status(200).json({ err_message: "トークンが無効です。" });
-      }
-      user_data = results[0];
-    });
-  try {
-    //Squareに顧客情報を保存
-    try {
-      const squareResponse = await client.customers.create({
-        idempotencyKey: uuidv4(),
-        emailAddress: user_data.email,
-        givenName: user_data.name
-      });
-      console.log("スクエア", squareResponse);
-      res.status(200).json({ response: squareResponse });
-    } catch (error) {
-      console.log(error);
-      res.status(500).json({ err_message: "Square APIエラーが発生しました" });
-    }
-
-    await connection.query(
-      "INSERT INTO users (id,name, pass) VALUES ( ?, ?, ?)",
-      [squareResponse.id, user_data.email, user_data.password],
+const getUserData = async (decoded, token) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      "SELECT * FROM user_registration_tokens WHERE id = ?",
+      [decoded.id],
       (error, results) => {
         if (error) {
+          reject({ err_message: "サーバーエラーが発生しました" });
+          return;
+        }
+
+        if (results.length === 0) {
+          reject({ err_message: "トークンが無効です。" });
+          return;
+        }
+
+        if (new Date(results[0].expires_at) < new Date()) {
+          reject({ err_message: "トークンが切れています。" });
+          return;
+        }
+
+        if (results[0].token !== token) {
+          reject({ err_message: "トークンが無効です。" });
+          return;
+        }
+
+        resolve(results[0]); // 正常時はデータを返す
+      }
+    );
+  });
+
+const saveUserDB = async (decoded, token, res) => {
+      await connection.query(
+      "INSERT INTO users (id,name, pass) VALUES ( ?, ?, ?)",
+      [squareResponse.id, user_data.email, user_data.password_hash],
+      (error, results) => {
+        if (error) {
+          console.error("エラーが発生しました:", error);
           res.status(200).json({ err_message: "登録に失敗しました: " + error });
           return;
         }
-        // 登録成功
-        res.status(200).json({ message: "登録に成功しました" });
+        connection.query(
+          "INSERT INTO profile (user_id) VALUES (?)",
+          [squareResponse.id],
+          (error, results) => {
+            if (error) {
+              console.error("エラーが発生しました:", error);
+              res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+              return;
+            }
+            //トークンを削除
+            connection.query(
+              "DELETE FROM user_registration_tokens WHERE id = ?",
+              [decoded.id],
+              (error, results) => {
+                if (error) {
+                  console.error("エラーが発生しました:", error);
+                  res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+                  return;
+                }
+              }
+            );
+            // 登録成功
+            res.status(200).json({ message: "登録に成功しました" });
+          }
+        );
       }
     );
-  } catch (error) {
+  };
+      
+};
+  
+const handleUser = async (decoded, token, res) => {
+  try {
+     const user_data = await getUserData(decoded, token);
+    //Squareに顧客情報を保存
+      console.log("user:",user_data);
+     
+   catch (error) {
     console.error("エラーが発生しました:", error);
-    res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+    res.status(500).json({ err_message: "サーバーエラーが発生しました:"+error });
   }
-  res.status(200).json({ message: "登録が完了しました" });
+};
+handleUser(decoded, token, res);
 });
+
 
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
@@ -275,8 +304,8 @@ app.post("/login", async (req, res) => {
   }
 
   connection.query(
-    "SELECT * FROM users WHERE email = ? AND pass = ?",
-    [email, password],
+    "SELECT * FROM users WHERE email = ?",
+    [email],
     (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
@@ -288,32 +317,27 @@ app.post("/login", async (req, res) => {
         res.status(200).json({ err_message: "メールアドレスまたはパスワードが間違っています" });
         return;
       }
-
-      var user = results[0];
-      user["limit"] = "1h";
-      const RefreshToken = GenerateRefreshToken(user);
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 31);
-      //リフレッシュトークをSQLに保存
-      connection.query(
-        "INSERT INTO refresh_tokens (user_id, refresh_token,expires_at ) VALUES (?, ?)",
-        [user.id, RefreshToken, expiresAt],
-        (error, results) => {
-          if (error) {
-            console.error("エラーが発生しました:", error);
-            res.status(500).json({ err_message: "サーバーエラーが発生しました" });
-            return;
-          }
+      //パスワードの照合
+      bcrypt.compare(password, results[0].pass, (err, result) => {
+        if (err) {
+          console.error("エラーが発生しました:", err);
+          res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+          return;
         }
-      );
-      RefreshToken(user);
-      const response = {
-        AccessToken: GenerateToken(user),
-        token_type: "Bearer",
-        expires_in: 3600
-      };
-      //アクセストークンとリフレッシュトークンを返す;
-      res.status(200).json({ response });
+        if (!result) {
+          res.status(200).json({ err_message: "メールアドレスまたはパスワードが間違っています" });
+          return;
+        }
+        let user = results[0];
+        user["limit"] = "1h";
+        checkRefreshToken(res, user);
+        const response = {
+          AccessToken: GenerateToken(user),
+          token_type: "Bearer",
+          expires_in: 3600
+        };
+        res.status(200).json({ response });
+      });
     }
   );
 });
@@ -366,6 +390,30 @@ app.post("/mypage", async (req, res) => {
     const decoded = getUserFromToken(user.access_token);
     const id = decoded.id;
     return res.status(200).json({ customerId: id });
+  });
+
+  app.post("/get-customer/data", async (req, res) => {
+    const user = CheckUser(req, res);
+    if (!user.user) {
+      return;
+    }
+    const decoded = getUserFromToken(user.access_token);
+    const id = decoded.id;
+
+    connection.query(
+      //プロフィールとユーザーテーブルから情報を取得
+      "SELECT u.*, p.* FROM users AS u JOIN profile AS p ON u.id = p.user_id WHERE u.id = ?",
+      [id],
+      (error, results) => {
+        if (error) {
+          console.error("エラーが発生しました:", error);
+          res.status(500).json({ err_message: "サーバーエラーが発生しました" });
+          return;
+        }
+        console.log(results);
+        res.status(200).json({ user: results[0] });
+      }
+    );
   });
 
 app.post("/api/save-card", async (req, res) => {
@@ -442,8 +490,34 @@ app.post("/api/auth/google", async (req, res) => {
                 res.status(500).json({ message: "サーバーエラーが発生しました" });
                 return;
               }
+            },
+            connection.query(
+            "INSERT INTO profile (user_id) VALUES (?)",
+            [squareResponse.customer.id],
+            (error, results) => {
+              if (error) {
+                console.error("エラーが発生しました:", error);
+                res.status(500).json({ message: "サーバーエラーが発生しました" });
+                return;
+              }
+
+              let user = {
+                id: squareResponse.customer.id,
+                email: payload.email,
+                name: payload.name
+              };
+              user["limit"] = "1h";
+              checkRefreshToken(res, user);
+          
+              const response = {
+                AccessToken: GenerateToken(user),
+                token_type: "Bearer",
+                expires_in: 3600
+              }; 
+              res.status(200).json({ response });
             }
-          );
+          )
+        )
         }else{
           // ユーザーが存在する場合は更新
           connection.query(

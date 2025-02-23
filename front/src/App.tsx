@@ -16,6 +16,7 @@ import Login from './page/Login';
 //import PaymentComplete from './page/PaymentComplete';
 import MyPage from './page/MyPage';
 import PaymentRegistration from './page/PaymentRegistration';
+import Profile from './page/profile.tsx';
 
 import { Content } from './types/Content';
 import { InputFieldProps } from './types/input';
@@ -105,13 +106,14 @@ function App() {
     <>
       <Routes>
         <Route path={`/`} element={<Home />} />
-        <Route path={`/paymentForm`} element={<Home />} />    
-        <Route path={`/signup`} element={<SignUp />} />  
-        <Route path={`/signup/complete`} element={<SignUpComplete />} />  
+        <Route path={`/paymentForm`} element={<Home />} />
+        <Route path={`/signup`} element={<SignUp />} />
+        <Route path={`/signup/complete`} element={<SignUpComplete />} />
         <Route path={`/register/confirm`} element={<RegisterConfirm />} />
         <Route path={`/login`} element={<Login />} />
         <Route path={`/mypage`} element={<MyPage />} />
         <Route path={`/payment/registration`} element={<PaymentRegistration />} />
+        <Route path={`/profile`} element={<Profile />} />
       </Routes>
     </>
   )
