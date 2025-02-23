@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import { connection } from "./config";
 import { hashPassword, GenerateToken } from "./function";
+import e from "express";
 
 function EmailCheck(email) {
   return new Promise((resolve, reject) => {
@@ -25,7 +26,7 @@ function EmailCheck(email) {
       );
     } catch (error) {
       console.error("エラーが発生しました:", error);
-      reject(new Error("サーバーエラーが発生しました"));
+      reject({ error: error, code: 500 }); // エラーが発生した場合の戻り値
     }
   });
 }
@@ -64,7 +65,7 @@ const RegistartionToken = (email, password) => {
           (error, results) => {
             if (error) {
               console.error("INSERTエラーが発生しました:", error);
-              return reject("INSERTエラーが発生しました:", error);
+              return reject({ error: error, code: 500 });
             }
 
             // 正常終了後にトークンを返す
@@ -85,10 +86,10 @@ const GetUserFromRegistrationToken = token => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: "データベースエラー" + error, code: 500 });
         }
         if (results.length === 0) {
-          return reject("トークンが見つかりません");
+          return reject({ error: "トークンが見つかりません", code: 404 });
         }
         resolve(results[0]);
       }
@@ -96,6 +97,24 @@ const GetUserFromRegistrationToken = token => {
   });
 };
 
+//仮登録トークンの削除
+const DeleteRegistrationToken = token => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      "DELETE FROM user_registration_tokens WHERE token = ?",
+      [token],
+      (error, results) => {
+        if (error) {
+          console.error("エラーが発生しました:", error);
+          return reject({ error: error, code: 500 });
+        }
+        resolve(true);
+      }
+    );
+  });
+};
+
+//ユーザー情報の保存
 function SaveUser(user) {
   let columns = [];
   let values = [];
@@ -114,7 +133,7 @@ function SaveUser(user) {
   connection.query(sql, values, (error, results) => {
     if (error) {
       console.error("エラーが発生しました:", error);
-      return error;
+      return { error: error, code: 500 }; // エラーが発生した場合の戻り値};
     }
     return true; // 成功した場合の戻り値
   });
@@ -154,13 +173,13 @@ const GetUserData = async (where = [], values = []) => {
     const [results] = await connection.promise().query(sql, values);
 
     if (results.length === 0) {
-      throw new Error("ユーザーが見つかりません");
+      return false;
     }
 
     return results[0]; // 最初のユーザーを返す
   } catch (error) {
     console.error("エラーが発生しました:", error);
-    throw error;
+    return { error: error, code: 404 };
   }
 };
 
@@ -176,7 +195,7 @@ const GetUserDataAndProfile = async id => {
     return { user, profile };
   } catch (error) {
     console.error("エラー:", error);
-    throw error; // 呼び出し元でキャッチできるようにする
+    return { error: error, code: 404 };
   }
 };
 
@@ -188,7 +207,7 @@ const UpdateUser = (id, user) => {
 
     // ユーザー情報のキーと値をループ処理
     Object.entries(user).forEach(([key, value]) => {
-      setClauses.push(`${key} = ?`);
+      setClauses.push(`${key} = ?`); // カラム名 = ? にしてプレースホルダーを使用
       values.push(value);
     });
 
@@ -200,7 +219,7 @@ const UpdateUser = (id, user) => {
     connection.query(sql, values, (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
-        return reject(error);
+        return reject({ error: error, code: 500 });
       }
       resolve(true);
     });
@@ -227,7 +246,7 @@ const UpdateProfile = (id, profile) => {
     connection.query(sql, values, (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
-        return reject(error);
+        return reject({ error: error, code: 500 });
       }
       resolve(true);
     });
@@ -243,7 +262,7 @@ const GetProfileAndUserData = id => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(results[0]);
       }
@@ -259,7 +278,7 @@ const GetFavoriteItems = user_id => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(results);
       }
@@ -276,7 +295,7 @@ const AddFavorite = (user_id, item_id) => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(true);
       }
@@ -458,5 +477,24 @@ const SearchItems = keyword => {
 module.exports = {
   EmailCheck,
   RegistartionToken,
-  GetUserFromRegistrationToken
+  GetUserFromRegistrationToken,
+  DeleteRegistrationToken,
+  SaveUser,
+  SaveProfile,
+  GetUserData,
+  GetUserDataAndProfile,
+  UpdateUser,
+  UpdateProfile,
+  GetProfileAndUserData,
+  GetFavoriteItems,
+  AddFavorite,
+  DeleteFavorite,
+  AddHistory,
+  GetHistory,
+  AddItem,
+  UpdateItem,
+  DeleteItem,
+  GetItem,
+  GetItems,
+  SearchItems
 };

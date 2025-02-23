@@ -19,7 +19,7 @@ const SaveSquareCustomer = user_data => {
       resolve(squareResponse);
     } catch (err) {
       console.error("エラーが発生しました:", err);
-      reject(false);
+      reject({ error: err, code: 500 });
     }
   });
 };
@@ -37,7 +37,9 @@ const CheckSquareCustomer = email => {
         }
       });
       console.log("スクエア", squareResponse);
-      resolve(true);
+      // 顧客が存在する場合はtrueを返す
+      resolve(squareResponse.customers.length > 0);
+      W;
     } catch (err) {
       console.error("エラーが発生しました:", err);
       reject(false);
