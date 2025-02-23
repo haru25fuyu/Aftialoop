@@ -1,7 +1,6 @@
-import { v4 as uuidv4 } from "uuid";
-import { connection } from "./config";
-import { hashPassword, GenerateToken } from "./function";
-import e from "express";
+const { v4: uuidv4 } = require("uuid");
+const { connection } = require("./config");
+const { hashPassword, GenerateToken } = require("./Utils");
 
 function EmailCheck(email) {
   return new Promise((resolve, reject) => {
@@ -32,10 +31,11 @@ function EmailCheck(email) {
 }
 
 //仮登録トークン発行
-const RegistartionToken = (email, password) => {
-  return new Promise((resolve, reject) => {
+const RegistartionToken = async (email, password) => {
+  return new Promise(async (resolve, reject) => {
     const id = uuidv4();
-    const hashedPassword = hashPassword(password);
+    const hashedPassword = await hashPassword(password);
+
     const token = GenerateToken({
       id: id,
       email: email,
@@ -54,7 +54,7 @@ const RegistartionToken = (email, password) => {
 
         // INSERTクエリ（DELETE成功後に実行）
         connection.query(
-          "INSERT INTO user_registration_tokens (id, email, password_hash, token, expires_at) VALUES (?, ?, ?, ?, ?)",
+          "INSERT INTO user_registration_tokens (id, email, password, token, expires_at) VALUES (?, ?, ?, ?, ?)",
           [
             id,
             email,
@@ -88,7 +88,8 @@ const GetUserFromRegistrationToken = token => {
           console.error("エラーが発生しました:", error);
           return reject({ error: "データベースエラー" + error, code: 500 });
         }
-        if (results.length === 0) {
+        console.log(results);
+        if (!results) {
           return reject({ error: "トークンが見つかりません", code: 404 });
         }
         resolve(results[0]);
@@ -116,87 +117,97 @@ const DeleteRegistrationToken = token => {
 
 //ユーザー情報の保存
 function SaveUser(user) {
-  let columns = [];
-  let values = [];
+  return new Promise((resolve, reject) => {
+    let columns = [];
+    let values = [];
 
-  // Object.entries() で key と value を取り出し、columns と values に格納
-  Object.entries(user).forEach(([key, value]) => {
-    columns.push(key);
-    values.push(value);
-  });
+    // Object.entries() で key と value を取り出し、columns と values に格納
+    Object.entries(user).forEach(([key, value]) => {
+      columns.push(key);
+      values.push(value);
+    });
 
-  // プレースホルダを使って、SQLインジェクションを防ぐ
-  const sql = `INSERT INTO users (${columns.join(",")}) VALUES (${columns
-    .map(() => "?")
-    .join(",")})`;
+    // プレースホルダを使って、SQLインジェクションを防ぐ
+    const sql = `INSERT INTO users (${columns.join(",")}) VALUES (${columns
+      .map(() => "?")
+      .join(",")})`;
 
-  connection.query(sql, values, (error, results) => {
-    if (error) {
-      console.error("エラーが発生しました:", error);
-      return { error: error, code: 500 }; // エラーが発生した場合の戻り値};
-    }
-    return true; // 成功した場合の戻り値
+    connection.query(sql, values, (error, results) => {
+      if (error) {
+        console.error("エラーが発生しました:", error);
+        reject({ error: error, code: 500 }); // エラーが発生した場合の戻り値};
+      }
+      return resolve(true); // 成功した場合の戻り値
+    });
   });
 }
 
 const SaveProfile = user => {
-  let columns = [];
-  let values = [];
+  return new Promise((resolve, reject) => {
+    let columns = [];
+    let values = [];
 
-  Object.entries(user).forEach(([key, value]) => {
-    columns.push(key);
-    values.push(value);
-  });
+    Object.entries(user).forEach(([key, value]) => {
+      columns.push(key);
+      values.push(value);
+    });
 
-  const placeholders = columns.map(() => "?").join(",");
-  const sql = `INSERT INTO profile (${columns.join(
-    ","
-  )}) VALUES (${placeholders})`;
+    const placeholders = columns.map(() => "?").join(",");
+    const sql = `INSERT INTO profile (${columns.join(
+      ","
+    )}) VALUES (${placeholders})`;
 
-  // クエリの結果を待たずに実行
-  connection.query(sql, values, (error, results) => {
-    if (error) {
-      console.error("エラーが発生しました:", error);
-    }
+    // クエリの結果を待たずに実行
+    connection.query(sql, values, (error, results) => {
+      if (error) {
+        console.error("エラーが発生しました:", error);
+        return reject({ error: error, code: 500 });
+      }
+    });
+    return resolve(true);
   });
 };
 
 //ユーザー情報の取得
 const GetUserData = async (where = [], values = []) => {
-  try {
-    let sql = "SELECT * FROM users";
+  return new Promise(async (resolve, reject) => {
+    try {
+      let sql = "SELECT * FROM users";
 
-    if (where.length > 0) {
-      sql += ` WHERE ${where.join(" AND ")}`;
+      if (where.length > 0) {
+        sql += ` WHERE ${where.join(" AND ")}`;
+      }
+
+      const [results] = await connection.promise().query(sql, values);
+
+      if (results.length === 0) {
+        return resolve(false);
+      }
+
+      return resolve(results[0]);
+    } catch (error) {
+      console.error("エラーが発生しました:", error);
+      return reject({ error: error, code: 500 });
     }
-
-    const [results] = await connection.promise().query(sql, values);
-
-    if (results.length === 0) {
-      return false;
-    }
-
-    return results[0]; // 最初のユーザーを返す
-  } catch (error) {
-    console.error("エラーが発生しました:", error);
-    return { error: error, code: 404 };
-  }
+  });
 };
 
 //ユーザーとプロフィールのデータを取得
 const GetUserDataAndProfile = async id => {
-  try {
-    // ユーザーデータを取得
-    const user = await GetUserData(["id = ?"], [id]);
+  return new Promise(async (resolve, reject) => {
+    try {
+      // ユーザーデータを取得
+      const user = await GetUserData(["id = ?"], [id]);
 
-    // プロフィールデータを取得
-    const profile = await GetProfileData(["user_id = ?"], [id]);
+      // プロフィールデータを取得
+      const profile = await GetProfileData(["user_id = ?"], [id]);
 
-    return { user, profile };
-  } catch (error) {
-    console.error("エラー:", error);
-    return { error: error, code: 404 };
-  }
+      resolve({ user, profile });
+    } catch (error) {
+      console.error("エラー:", error);
+      return reject(error);
+    }
+  });
 };
 
 //ユーザー情報の更新
@@ -312,7 +323,7 @@ const DeleteFavorite = (user_id, item_id) => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(true);
       }
@@ -329,7 +340,7 @@ const AddHistory = (user_id, item_id) => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(true);
       }
@@ -346,7 +357,7 @@ const GetHistory = user_id => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(results);
       }
@@ -381,7 +392,7 @@ const AddItem = item => {
     connection.query(sql, values, (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
-        return reject(error);
+        return reject({ error: error, code: 500 });
       }
       resolve(true);
     });
@@ -399,7 +410,7 @@ const UpdateItem = (id, item) => {
     connection.query(sql, (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
-        return reject(error);
+        return reject({ error: error, code: 500 });
       }
       resolve(true);
     });
@@ -415,7 +426,7 @@ const DeleteItem = id => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(true);
       }
@@ -432,7 +443,7 @@ const GetItem = id => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(results[0]);
       }
@@ -450,7 +461,7 @@ const GetItems = (where, value) => {
     connection.query(sql, value, (error, results) => {
       if (error) {
         console.error("エラーが発生しました:", error);
-        return reject(error);
+        return reject({ error: error, code: 500 });
       }
       resolve(results);
     });
@@ -466,9 +477,34 @@ const SearchItems = keyword => {
       (error, results) => {
         if (error) {
           console.error("エラーが発生しました:", error);
-          return reject(error);
+          return reject({ error: error, code: 500 });
         }
         resolve(results);
+      }
+    );
+  });
+};
+
+const SaveRefreshToken = (user_id, RefreshToken, formattedExpiresAt) => {
+  return new Promise((resolve, reject) => {
+    connection.query(
+      "DELETE FROM refresh_tokens WHERE user_id = ?",
+      [user_id],
+      (error, results) => {
+        if (error) {
+          console.error("エラーが発生しました:", error);
+          return reject({ error: error, code: 500 });
+        }
+      }
+    );
+    connection.query(
+      "INSERT INTO refresh_tokens (user_id, refresh_token,expires_at ) VALUES (?, ?, ?)",
+      [user_id, RefreshToken, formattedExpiresAt],
+      (error, results) => {
+        if (error) {
+          console.error("エラーが発生しました:", error);
+          return reject({ error: error, code: 500 });
+        }
       }
     );
   });
@@ -496,5 +532,6 @@ module.exports = {
   DeleteItem,
   GetItem,
   GetItems,
-  SearchItems
+  SearchItems,
+  SaveRefreshToken
 };

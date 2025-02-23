@@ -1,21 +1,19 @@
-const { Client, Environment } = require("square");
+const { SquareClient } = require("square");
 const { connection } = require("./config");
 const { v4: uuidv4 } = require("uuid");
 
-const squareClient = new Client({
-  environment: Environment.Sandbox,
-  accessToken: process.env.SQUARE_ACCESS_TOKEN
+const squareClient = new SquareClient({
+  token: "EAAAl3qvaEFwgNjCiYc51iRS8DabAhTUuJl0apLduuOWCWk0dAAw4SWf-4TnHopZ"
 });
 
-const SaveSquareCustomer = user_data => {
-  return new Promise((resolve, reject) => {
+const SaveSquareCustomer = async user_data => {
+  return new Promise(async (resolve, reject) => {
     try {
-      const squareResponse = squareClient.customers.create({
+      const squareResponse = await squareClient.customers.create({
         idempotencyKey: uuidv4(),
         emailAddress: user_data.email,
         givenName: user_data.name
       });
-      console.log("スクエア", squareResponse);
       resolve(squareResponse);
     } catch (err) {
       console.error("エラーが発生しました:", err);
@@ -25,9 +23,9 @@ const SaveSquareCustomer = user_data => {
 };
 
 const CheckSquareCustomer = email => {
-  return new Promise((resolve, reject) => {
+  return new Promise(async (resolve, reject) => {
     try {
-      const squareResponse = squareClient.customers.searchCustomers({
+      const squareResponse = await squareClient.customers.search({
         query: {
           filter: {
             emailAddress: {
@@ -38,8 +36,7 @@ const CheckSquareCustomer = email => {
       });
       console.log("スクエア", squareResponse);
       // 顧客が存在する場合はtrueを返す
-      resolve(squareResponse.customers.length > 0);
-      W;
+      resolve(squareResponse.count > 0);
     } catch (err) {
       console.error("エラーが発生しました:", err);
       reject(false);
