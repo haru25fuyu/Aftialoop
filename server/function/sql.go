@@ -1,34 +1,21 @@
-package sql
+package function
 
 import (
+	"animaloop/config"
 	"database/sql"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
-	"animaloop/utils"
-	"animaloop/config"
 
 	_ "github.com/go-sql-driver/mysql"
-	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-	"github.com/dgrijalva/jwt-go"
 )
-
-var db *sql.DB
-
-type User struct {
-	ID    string
-	Email string
-	Name  string
-	Password string
-	Limit string
-}
 
 // Initialize DB connection
 func init() {
 	var err error
 	dsn := "user:password@tcp(localhost:3306)/yourdatabase"
-	db, err = sql.Open("mysql", dsn)
+	config.DB, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -36,51 +23,51 @@ func init() {
 
 func EmailCheck(email string) (bool, error) {
 	query := "SELECT COUNT(*) > 0 FROM users WHERE email = ?"
-		row := config.DB.QueryRow(query, user.Email)
-		var exists bool
-		err = row.Scan(&exists)
-		if err != nil {
-			http.Error(w, "Database error", http.StatusInternalServerError)
-			return false, err
-		}
+	row := config.DB.QueryRow(query, email)
+	var exists bool
+	err := row.Scan(&exists)
+	if err != nil {
+		log.Println("Database error%d", http.StatusInternalServerError)
+		return false, err
+	}
 	return exists, nil
 }
 
 func SetRegistrationToken(user User) (string, error) {
-	token := GenerateToken(user)
-	expiresAt := time.Now().Add(user.Limit * time.Hour)
+	token, err := GenerateToken(user)
+	expiresAt := time.Now().Add(time.Duration(user.Limit) * time.Hour)
 
 	//同じemailのトークンがあれば削除
-	_, err := db.Exec("DELETE FROM user_registration_tokens WHERE email = ?", user.Email)
+	_, err = config.DB.Exec("DELETE FROM user_registration_tokens WHERE email = ?", user.Email)
 	if err != nil {
 		return "", err
 	}
 
-	_, err := db.Exec("INSERT INTO user_registration_tokens (id, email, password, token, expires_at) VALUES (?, ?, ?, ?, ?)", user.Id, user.Email, user.Password, token, expiresAt)
+	_, err = config.DB.Exec("INSERT INTO user_registration_tokens (id, email, password, token, expires_at) VALUES (?, ?, ?, ?, ?)", user.ID, user.Email, user.Password, token, expiresAt)
 	if err != nil {
 		return "", err
 	}
 	return token, nil
 }
 
-func GetUserFromRegistrationToken(token string ) (map[string]interface{}, error) {
+func GetUserFromRegistrationToken(token string) (map[string]interface{}, error) {
 	var userId, email, password, registrationToken string
 	var expiresAt time.Time
-	err := db.QueryRow("SELECT id, email, password, token, expires_at FROM user_registration_tokens WHERE token = ?", token).Scan(&userId, &email, &password, &registrationToken, &expiresAt)
+	err := config.DB.QueryRow("SELECT id, email, password, token, expires_at FROM user_registration_tokens WHERE token = ?", token).Scan(&userId, &email, &password, &registrationToken, &expiresAt)
 	if err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{
-		"id":           userId,
-		"email":        email,
-		"password":     password,
-		"token":        registrationToken,
-		"expires_at":   expiresAt,
+		"id":         userId,
+		"email":      email,
+		"password":   password,
+		"token":      registrationToken,
+		"expires_at": expiresAt,
 	}, nil
 }
 
 func DeleteRegistrationToken(token string) error {
-	_, err := db.Exec("DELETE FROM user_registration_tokens WHERE token = ?", token)
+	_, err := config.DB.Exec("DELETE FROM user_registration_tokens WHERE token = ?", token)
 	return err
 }
 
@@ -100,7 +87,7 @@ func SaveUser(user map[string]interface{}) error {
 	}
 	query := fmt.Sprintf("INSERT INTO users (%s) VALUES (%s)", join(columns, ","), placeholders)
 
-	_, err := db.Exec(query, values...)
+	_, err := config.DB.Exec(query, values...)
 	return err
 }
 
@@ -110,7 +97,7 @@ func GetUserData(where []string, values []interface{}) (map[string]interface{}, 
 		query += " WHERE " + join(where, " AND ")
 	}
 
-	row := db.QueryRow(query, values...)
+	row := config.DB.QueryRow(query, values...)
 	var userId, email, password string
 	err := row.Scan(&userId, &email, &password)
 	if err != nil {
@@ -136,7 +123,7 @@ func UpdateUser(id string, user map[string]interface{}) error {
 
 	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", join(setClauses, ","))
 	values = append(values, id)
-	_, err := db.Exec(query, values...)
+	_, err := config.DB.Exec(query, values...)
 	return err
 }
 
