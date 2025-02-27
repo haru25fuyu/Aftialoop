@@ -7,6 +7,9 @@ import (
 
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
+	"golang.org/x/net/context"
+	"golang.org/x/oauth2"
+	oauth2v2 "google.golang.org/api/oauth2/v2"
 )
 
 // ユーザー情報を格納する構造体
@@ -15,11 +18,12 @@ type User struct {
 	Name     string `json:"name"`
 	Email    string `json:"email"`
 	Password string `json:"password"`
+	Exp      int64
 	Limit    int
 }
 
 // JWTを生成する関数
-func GenerateToken(user User) (string, error) {
+func GenerateToken(user *User) (string, error) {
 	claims := jwt.MapClaims{
 		"id":    user.ID,
 		"email": user.Email,
@@ -32,7 +36,7 @@ func GenerateToken(user User) (string, error) {
 }
 
 // リフレッシュトークンを生成する関数
-func GenerateRefreshToken(user User) (string, error) {
+func GenerateRefreshToken(user *User) (string, error) {
 	claims := jwt.MapClaims{
 		"id":    user.ID,
 		"email": user.Email,
@@ -65,6 +69,7 @@ func GetUserFromToken(tokenString string) (*User, error) {
 		ID:    claims["id"].(string),
 		Email: claims["email"].(string),
 		Name:  claims["name"].(string),
+		Exp:   int64(claims["exp"].(float64)),
 	}
 
 	return user, nil
@@ -108,4 +113,30 @@ func HashPassword(password string) (string, error) {
 // パスワードを検証する関数
 func ComparePassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+
+// サーバー側でアクセストークンを使ってユーザー情報を取得する関数
+func GetGoogleUserInfo(tokenString string) (*oauth2v2.Userinfo, error) {
+    // OAuth2のクライアントを作成
+    ctx := context.Background()
+
+	token := &oauth2.Token{
+        AccessToken: tokenString,
+    }
+
+    client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
+
+    // Google OAuth2 APIサービスのインスタンスを作成
+    service, err := oauth2v2.New(client)
+    if err != nil {
+        return nil, err
+    }
+
+    // ユーザー情報を取得
+    userInfo, err := service.Userinfo.Get().Do()
+    if err != nil {
+        return nil, err
+    }
+
+    return userInfo, nil
 }

@@ -1,20 +1,14 @@
 package config
 
 import (
-	"database/sql"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
-<<<<<<< HEAD
-=======
 	"github.com/jmoiron/sqlx"
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
-	"golang.org/x/oauth2"
 )
 
 var allowedOrigins = []string{
@@ -27,13 +21,10 @@ var allowedOrigins = []string{
 }
 
 var googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
+var googleOAuthClientSecret string;
 
 // MySQL接続情報
-<<<<<<< HEAD
-var DB *sql.DB
-=======
 var DB *sqlx.DB
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 
 var MAILJET_API_KEY, MAILJET_API_SECRET, SECRET_KEY, SECRET_REFRESH_KEY, SQUARE_ACCESS_TOKEN string
 
@@ -41,7 +32,7 @@ func init() {
 	// MySQL接続
 	var err error
 	dsn := "app-user:q+b4(F}{bH\"LzSQm@tcp(localhost:3306)/Animaloop"
-	DB, err = sql.Open("mysql", dsn)
+	DB, err = sqlx.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal("MySQL接続エラー:", err)
 	}
@@ -58,6 +49,9 @@ func init() {
 	SECRET_REFRESH_KEY = os.Getenv("SECRET_REFRESH_KEY")
 
 	SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_ACCESS_TOKEN")
+
+	googleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+
 }
 
 func corsHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,35 +68,4 @@ func corsHandler(w http.ResponseWriter, r *http.Request) {
 	handler.ServeHTTP(w, r)
 }
 
-func googleOAuthHandler(w http.ResponseWriter, r *http.Request) {
-	// Google OAuth2クライアント設定
-	conf := &oauth2.Config{
-		ClientID:     googleOAuthClientID,
-		ClientSecret: "your-client-secret", // Google OAuth2シークレットを設定
-		RedirectURL:  "your-redirect-url",  // リダイレクトURL
-		Scopes:       []string{"openid"},   //　取得したい情報のスコープ
-		Endpoint: oauth2.Endpoint{
-			AuthURL:  "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenURL: "https://oauth2.googleapis.com/token",
-		},
-	}
 
-	// Google OAuth2認証フロー
-	code := r.URL.Query().Get("code")
-	if code != "" {
-		// 認証コードを使ってアクセストークンを取得
-		token, err := conf.Exchange(r.Context(), code)
-		if err != nil {
-			http.Error(w, "OAuth2認証失敗", http.StatusUnauthorized)
-			return
-		}
-
-		// 認証されたユーザーの情報を取得する処理を書く
-		// 例えば、tokenを使ってユーザー情報を取得するなど
-		fmt.Fprintf(w, "Access Token: %s", token.AccessToken)
-	} else {
-		// 認証URLにリダイレクトする処理
-		authURL := conf.AuthCodeURL("", oauth2.AccessTypeOffline)
-		http.Redirect(w, r, authURL, http.StatusFound)
-	}
-}

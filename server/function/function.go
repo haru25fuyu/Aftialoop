@@ -1,17 +1,16 @@
 package function
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 )
 
-func CheckUser(w http.ResponseWriter, r *http.Request) (string, error) {
+func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     authHeader := r.Header.Get("Authorization")
     refreshToken, err := r.Cookie("refresh_token")
 
     if authHeader == "" && err != nil {
-        return "", http.Error(w, `{"user": false, "message": "トークンが有りません"}`, http.StatusUnauthorized)
+        return "" , "トークンが有りません";
     }
 
     var token string
@@ -19,85 +18,77 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, error) {
 
     if authHeader != "" {
         token = authHeader[len("Bearer "):]
-        user = getUserFromToken(token)
+        user,err = GetUserFromToken(token)
     }
 
     if user == nil && err != nil {
-        return "", http.Error(w, `{"user": false, "message": "トークンが期限切れです"}`, http.StatusUnauthorized)
+        return "", "トークンが期限切れです"
     }
 
     if user == nil {
-        user = getUserFromRefreshToken(refreshToken.Value)
+        user,err = GetUserFromRefreshToken(refreshToken.Value)
         if user == nil {
-            return "", http.Error(w, `{"user": false, "message": "アクセストークンが期限切れです"}`, http.StatusUnauthorized)
+            return "", "アクセストークンが期限切れです"
         } else {
-            newAccessToken := GenerateToken(user)
+            newAccessToken,err := GenerateToken(user)
+            if err != nil {
+                return "", "サーバーエラー"
+            }
             remainingTime := user.Exp - time.Now().Unix()
             daysRemaining := remainingTime / 86400
 
             if daysRemaining < 7 {
-                checkRefreshToken(w, user)
-                return newAccessToken, nil
+                SetRefreshToken(w, user)
+                return newAccessToken, ""
             }
 
-            return newAccessToken, nil
+            return newAccessToken, ""
         }
     } else {
-        user.Limit = "1h"
-        newAccessToken := GenerateToken(user)
+        user.Limit = 1
+        newAccessToken,err := GenerateToken(user)
 
         if err != nil {
-            checkRefreshToken(w, user)
-            return newAccessToken, nil
+            SetRefreshToken(w, user)
+            return newAccessToken, ""
         }
 
-        decoded := getUserFromRefreshToken(refreshToken.Value)
+        decoded,err := GetUserFromRefreshToken(refreshToken.Value)
         if decoded == nil {
-            checkRefreshToken(w, user)
-            return newAccessToken, nil
+            SetRefreshToken(w, user)
+            return newAccessToken, ""
         }
 
         remainingTime := decoded.Exp - time.Now().Unix()
         daysRemaining := remainingTime / 86400
 
         if daysRemaining < 7 {
-            checkRefreshToken(w, decoded)
+            SetRefreshToken(w, decoded)
         }
 
-        return newAccessToken, nil
+        return newAccessToken, ""
     }
 }
 
-func checkRefreshToken(w http.ResponseWriter, refresh_token string) {
-	//リフレッシュトークンをでコード
-	decoded, err := GetUserFromRefreshToken(refresh_token)
-	if err != nil {
-		http.Error(w, `{"user": false, "message": "リフレッシュトークンの解析に失敗しました"}`, http.StatusUnauthorized)
-		return
-	}
+func SetRefreshToken(w http.ResponseWriter, user *User) error {
+	expires_at := time.Now().Add(24 * time.Hour * 14)
 
-	//リフレッシュトークンが期限が七日以下か確認
-	remainingTime := decoded.Exp - time.Now().Unix()
-	daysRemaining := remainingTime / 86400
-	if daysRemaining >= 7 {
-		return
-	}
-	user := &User{
-		ID:    decoded.ID,
-		Email: decoded.Email,
-		Name:  decoded.Name,
-	}
-	//リフレッシュトークンの有効期限が七日以下の場合、新しいアクセストークンを生成
-	newAccessToken := GenerateToken(user)
+    refreshToken, err := GenerateRefreshToken(user)
+    if err != nil {
+        return err
+    }
+
 	//新しいアクセストークンをクッキーに保存
 	http.SetCookie(w, &http.Cookie{
 		Name: "refresh_token",
-		Value: newAccessToken,
-		Expires: time.Now().Add(24 * time.Hour),
+		Value: refreshToken,
+		Expires: expires_at,
 		HttpOnly: true,
 		SameSite: http.SameSiteNoneMode,
 		Secure: true,	
 	})
 
-	return
+    SaveRefreshToken(refreshToken, user.ID)
+
+	return nil
 }

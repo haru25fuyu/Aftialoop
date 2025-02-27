@@ -38,7 +38,7 @@ func EmailCheck(email string) (bool, error) {
 	return count > 0, nil
 }
 
-func SetRegistrationToken(user User) (string, error) {
+func SetRegistrationToken(user *User) (string, error) {
 	token,err := GenerateToken(user)
 	_, err = config.DB.Exec("INSERT INTO user_registration_tokens (email, password, token, expires_at) VALUES (?, ?, ?, ?)", user.Email, user.Password, token, time.Now().Add(24*time.Hour))
 	return token, err
@@ -147,7 +147,7 @@ func GetProfile(id string) (map[string]interface{}, error) {
     return profile, nil
 }
 
-func UpdateProfile(id string, profile map[string]interface) error {
+func UpdateProfile(id string, profile map[string]interface{}) error {
     setClauses := []string{}
     values := []interface{}{}
     for key, value := range profile {
@@ -177,6 +177,84 @@ func GetUserDataAndProfile(where []string, values []interface{}) (map[string]int
         return nil, err
     }
     return user, nil
+}
+
+func SaveRefreshToken(token string, user_id string) error {
+	//　ユーザーIDが一致するトークンを削除
+	_, err := config.DB.Exec("DELETE FROM refresh_tokens WHERE user_id = ?", user_id)
+	if err != nil {
+		return err	
+	}
+
+	// 新しいリフレッシュトークンを保存
+	_, err = config.DB.Exec("INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES (?, ?, ?)", token, user_id, time.Now().Add(14*24*time.Hour))
+	return err
+}
+
+//お気に入りと商品情報をjoinして取得
+func GetFavoriteItems(user_id string,limit int) ([]map[string]interface{}, error) {
+    var query_limit string
+    if(limit != 0) {
+        query_limit = "LIMIT " + string(limit)
+    }
+    query := "SELECT * FROM favorites INNER JOIN items ON favorites.item_id = items.id WHERE favorites.user_id = ? " + query_limit
+    var results []map[string]interface{}
+    err := config.DB.Select(&results, query, user_id)
+    return results, err
+}
+
+//お気に入りの追加
+func AddFavorite(user_id string, item_id string) error {
+    _, err := config.DB.Exec("INSERT INTO favorites (user_id, item_id) VALUES (?, ?)", user_id, item_id)
+    
+    if(err != nil) {
+        return err
+    }
+    return nil
+}
+
+//お気に入りの削除
+func DeleteFavorite(user_id string, item_id string) error {
+    _, err := config.DB.Exec("DELETE FROM favorites WHERE user_id = ? AND item_id = ?", user_id, item_id)
+
+    if(err != nil) {
+        return err
+    }
+    return nil
+}
+
+//閲覧履歴の取得
+func GetHistory(user_id string,limit int) ([]map[string]interface{}, error) {
+    var query_limit string
+    if(limit != 0) {
+        query_limit = "LIMIT " + string(limit)
+    }
+    query := "SELECT * FROM histories INNER JOIN items ON histories.item_id = items.id WHERE histories.user_id = ? " + query_limit
+    var results []map[string]interface{}
+    err := config.DB.Select(&results, query, user_id)
+    return results, err
+}
+
+//閲覧履歴の追加
+func AddHistory(user_id string, item_id string) error {
+    _, err := config.DB.Exec("INSERT INTO histories (user_id, item_id) VALUES (?, ?)", user_id, item_id)
+
+    if(err != nil) {
+        return err
+    }
+
+    return nil
+}
+
+//閲覧履歴の削除
+func DeleteHistory(user_id string, item_id string) error {
+    _, err := config.DB.Exec("DELETE FROM histories WHERE user_id = ? AND item_id = ?", user_id, item_id)
+
+    if(err != nil) {
+        return err
+    }
+
+    return nil
 }
 
 func join(arr []string, separator string) string {
