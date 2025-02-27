@@ -40,11 +40,6 @@ func main() {
 		}
 
 		w.Write([]byte("Hello " + ID))
-<<<<<<< HEAD
-		
-=======
-
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 	})
 
 	// 仮登録
@@ -64,11 +59,7 @@ func main() {
 			return
 		}
 
-<<<<<<< HEAD
-		sql_mail,err := function.EmailCheck(user.Email)
-=======
 		sql_mail, err := function.EmailCheck(user.Email)
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 		square_mail := function.CheckSquareEmail(user.Email)
 
 		if sql_mail || square_mail {
@@ -84,13 +75,8 @@ func main() {
 			return
 		}
 		user.Limit = 24
-<<<<<<< HEAD
-		
-		token,err:=function.SetRegistrationToken(user)
-=======
 
 		token, err := function.SetRegistrationToken(user)
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 		if err != nil {
 			http.Error(w, "Could not set registration token", http.StatusInternalServerError)
 			return
@@ -117,21 +103,6 @@ func main() {
       <p>Animaloopサポートチーム</p>
     	`, user.Email, url)
 
-<<<<<<< HEAD
-	// Mailjet クライアントの作成
-	mailjetClient  := mailjet.NewMailjetClient(config.MAILJET_API_KEY,config.MAILJET_API_KEY)
-	// メールの内容を設定
-	messagesInfo := []mailjet.InfoMessagesV31{
-		{
-			From: &mailjet.RecipientV31{
-				Email: "pilot@mailjet.com",
-				Name:  "Mailjet Pilot",
-			},
-			To: &mailjet.RecipientsV31{
-				mailjet.RecipientV31{
-					Email: "passenger1@mailjet.com",
-					Name:  "passenger 1",
-=======
 		// Mailjet クライアントの作成
 		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_KEY)
 		// メールの内容を設定
@@ -140,7 +111,6 @@ func main() {
 				From: &mailjet.RecipientV31{
 					Email: "pilot@mailjet.com",
 					Name:  "Mailjet Pilot",
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 				},
 				To: &mailjet.RecipientsV31{
 					mailjet.RecipientV31{
@@ -152,15 +122,7 @@ func main() {
 				TextPart: "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
 				HTMLPart: htmlContent,
 			},
-<<<<<<< HEAD
-			Subject:  "Your email flight plan!",
-			TextPart: "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
-			HTMLPart: htmlContent,
-		},
-	}
-=======
 		}
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 
 		// メール送信
 		messages := mailjet.MessagesV31{Info: messagesInfo}
@@ -173,15 +135,9 @@ func main() {
 			return
 		}
 
-<<<<<<< HEAD
-	log.Printf("Email sent: %+v", res)
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "仮登録が完了しました"})
-=======
 		log.Printf("Email sent: %+v", res)
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "仮登録が完了しました"})
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 
 	})
 
@@ -196,8 +152,6 @@ func main() {
 
 		//トークンの有効期限を確認
 		user, err := function.GetUserFromToken(token)
-<<<<<<< HEAD
-=======
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
@@ -205,28 +159,12 @@ func main() {
 		}
 
 		userData, err := function.GetUserFromRegistrationToken(token)
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
 		}
 
-<<<<<<< HEAD
-		userData, err := function.GetUserFromRegistrationToken(token)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
-			return
-		}
-
-		user = &function.User{
-			ID:       userData["id"].(string),
-			Email:    userData["email"].(string),
-			Password: userData["password"].(string),
-		}
-=======
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 
 		if user == nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -234,10 +172,6 @@ func main() {
 			return
 		}
 
-<<<<<<< HEAD
-
-=======
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 		// 本登録処理（仮）
 		id,err :=function.CreateCustomer(userData)
 		if err != nil {
@@ -276,11 +210,7 @@ func main() {
 	// ログイン
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
 		var user function.User
-<<<<<<< HEAD
-		err := json.NewDecoder(r.Body).Decode(&user)
-=======
 		err := json.NewDecoder(r.Body).Decode(&query)
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
@@ -292,19 +222,8 @@ func main() {
 			return
 		}
 
-<<<<<<< HEAD
-		// 仮のユーザー確認（実際にはDBから取得）
-		storedUser := function.User{
-			ID:       "12345",
-			Email:    "newuser@example.com",
-			Password: "$2a$10$7Qk74oJkA.hfZBd7rdVXb.BPrAVSgg6PHO5BdVWb6B2uxorGkexAi", // bcrypt hash
-		}
-
-		if user.Email != storedUser.Email {
-=======
 		user := function.GetUserData([]string{"email"}, []interface{}{user.Email})
 		if user == nil || err != nil {
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
 			return
@@ -363,12 +282,6 @@ func main() {
 			return
 		}
 
-<<<<<<< HEAD
-		// ユーザー情報取得（仮）
-		user := function.User{
-			ID:    claims["id"].(string),
-			Email: claims["email"].(string),
-=======
 		// 結果を格納する変数
 		var history interface{}
 		var favorites interface{}
@@ -419,7 +332,6 @@ func main() {
 				json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
 				return
 			}
->>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 		}
 
 		// レスポンスを返す
