@@ -8,6 +8,10 @@ import (
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
+<<<<<<< HEAD
+=======
+	"github.com/jmoiron/sqlx"
+>>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 	"golang.org/x/oauth2"
@@ -25,7 +29,11 @@ var allowedOrigins = []string{
 var googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
 
 // MySQL接続情報
+<<<<<<< HEAD
 var DB *sql.DB
+=======
+var DB *sqlx.DB
+>>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 
 var MAILJET_API_KEY, MAILJET_API_SECRET, SECRET_KEY, SECRET_REFRESH_KEY, SQUARE_ACCESS_TOKEN string
 

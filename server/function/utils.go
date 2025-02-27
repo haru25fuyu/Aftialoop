@@ -104,3 +104,11 @@ func HashPassword(password string) (string, error) {
 	}
 	return string(hashedPassword), nil
 }
+<<<<<<< HEAD
+=======
+
+// パスワードを検証する関数
+func ComparePassword(hashedPassword, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+>>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7

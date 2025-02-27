@@ -6,6 +6,10 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-sql-driver/mysql v1.9.0
 	github.com/gorilla/mux v1.8.1
+<<<<<<< HEAD
+=======
+	github.com/jmoiron/sqlx v1.4.0
+>>>>>>> 9ecdaf137c49b612dab2145b093cb263ddf917a7
 	github.com/joho/godotenv v1.5.1
 	github.com/mailjet/mailjet-apiv3-go v0.0.0-20201009050126-c24bc15a9394
 	github.com/rs/cors v1.11.1
