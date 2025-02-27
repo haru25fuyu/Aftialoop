@@ -1,10 +1,9 @@
-package utils
+package function
 
 import (
-	"fmt"
-	"log"
-	"time"
 	"animaloop/config"
+	"fmt"
+	"time"
 
 	"github.com/dgrijalva/jwt-go"
 	"golang.org/x/crypto/bcrypt"
@@ -12,11 +11,11 @@ import (
 
 // ユーザー情報を格納する構造体
 type User struct {
-	ID    string
-	Email string
-	Name  string
-	Password string
-	Limit string
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+	Limit    int
 }
 
 // JWTを生成する関数
@@ -45,7 +44,7 @@ func GenerateRefreshToken(user User) (string, error) {
 }
 
 // トークンからユーザー情報を取得する関数
-func getUserFromToken(tokenString string) (*User, error) {
+func GetUserFromToken(tokenString string) (*User, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -72,7 +71,7 @@ func getUserFromToken(tokenString string) (*User, error) {
 }
 
 // リフレッシュトークンからユーザー情報を取得する関数
-func getUserFromRefreshToken(tokenString string) (*User, error) {
+func GetUserFromRefreshToken(tokenString string) (*User, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
@@ -98,10 +97,15 @@ func getUserFromRefreshToken(tokenString string) (*User, error) {
 }
 
 // パスワードをハッシュ化する関数
-func hashPassword(password string) (string, error) {
+func HashPassword(password string) (string, error) {
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
 	return string(hashedPassword), nil
+}
+
+// パスワードを検証する関数
+func ComparePassword(hashedPassword, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }

@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
-	"github.com/go-sql-driver/mysql"
-	"github.com/rs/cors"
-	"google.golang.org/api/oauth2/v2"
-	"golang.org/x/oauth2"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
+	"github.com/rs/cors"
+	"golang.org/x/oauth2"
 )
 
 var allowedOrigins = []string{
@@ -25,46 +26,40 @@ var allowedOrigins = []string{
 var googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
 
 // MySQL接続情報
-var db *sql.DB
+var DB *sqlx.DB
 
-var {
-	MAILJET_API_KEY    string
-    MAILJET_API_SECRET string
-	SECRET_KEY string
-	SECRET_REFRESH_KEY string
-	SQUARE_ACCESS_TOKEN string
-}
+var MAILJET_API_KEY, MAILJET_API_SECRET, SECRET_KEY, SECRET_REFRESH_KEY, SQUARE_ACCESS_TOKEN string
 
 func init() {
 	// MySQL接続
 	var err error
 	dsn := "app-user:q+b4(F}{bH\"LzSQm@tcp(localhost:3306)/Animaloop"
-	db, err = sql.Open("mysql", dsn)
+	DB, err = sql.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal("MySQL接続エラー:", err)
 	}
 
-	err := godotenv.Load()
+	err = godotenv.Load()
 	if err != nil {
-        log.Println("No .env file found, using system env variables")
-    }
+		log.Println("No .env file found, using system env variables")
+	}
 
-    MAILJET_API_KEY = os.Getenv("MAILJET_API_KEY")
-    MAILJET_API_SECRET = os.Getenv("MAILJET_API_SECRET")
+	MAILJET_API_KEY = os.Getenv("MAILJET_API_KEY")
+	MAILJET_API_SECRET = os.Getenv("MAILJET_API_SECRET")
 
-	SECRET_KEY := os.Getenv("SECRET_KEY")
-	SECRET_REFRESH_KEY := os.Getenv("SECRET_REFRESH_KEY")
-	
-	SQUARE_ACCESS_TOKEN := os.Getenv("SQUARE_ACCESS_TOKEN")
+	SECRET_KEY = os.Getenv("SECRET_KEY")
+	SECRET_REFRESH_KEY = os.Getenv("SECRET_REFRESH_KEY")
+
+	SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_ACCESS_TOKEN")
 }
 
 func corsHandler(w http.ResponseWriter, r *http.Request) {
 	// CORS設定
 	corsOptions := cors.New(cors.Options{
-		AllowedOrigins: allowedOrigins,
-		AllowedMethods: []string{"GET", "POST", "PUT", "DELETE"},
-		AllowedHeaders: []string{"Content-Type", "Authorization"},
-		AllowCredentials: true,
+		AllowedOrigins:       allowedOrigins,
+		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:       []string{"Content-Type", "Authorization"},
+		AllowCredentials:     true,
 		OptionsSuccessStatus: http.StatusOK,
 	})
 
@@ -78,8 +73,8 @@ func googleOAuthHandler(w http.ResponseWriter, r *http.Request) {
 		ClientID:     googleOAuthClientID,
 		ClientSecret: "your-client-secret", // Google OAuth2シークレットを設定
 		RedirectURL:  "your-redirect-url",  // リダイレクトURL
-		Scopes:       []string{oauth2.ScopeOpenID},
-		Endpoint:     oauth2.Endpoint{
+		Scopes:       []string{"openid"},   //　取得したい情報のスコープ
+		Endpoint: oauth2.Endpoint{
 			AuthURL:  "https://accounts.google.com/o/oauth2/v2/auth",
 			TokenURL: "https://oauth2.googleapis.com/token",
 		},
