@@ -11,23 +11,15 @@ import (
 	option "github.com/square/square-go-sdk/option"
 )
 
-func CreateCustomer(user map[string]interface{}) (string, error) {
-	client := client.NewClient(
-		option.WithBaseURL(
-			square.Environments.Sandbox,
-		),
-		option.WithToken(
-			config.SQUARE_ACCESS_TOKEN,
-		),
-	)
-	response, err := client.Customers.Create(
+func CreateCustomer(user User) (string, error) {
+	response, err := config.SquareClient.Customers.Create(
 		context.TODO(),
 		&square.CreateCustomerRequest{
 			EmailAddress: square.String(
-				user["email"].(string),
+				user.ID,
 			),
 			Nickname: square.String(
-				user["name"].(string),
+				user.Name,
 			),
 		},
 	)

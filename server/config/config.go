@@ -2,16 +2,17 @@ package config
 
 import (
 	"log"
-	"net/http"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/joho/godotenv"
-	"github.com/rs/cors"
+	"github.com/square/square-go-sdk"
+	client "github.com/square/square-go-sdk/client"
+	"github.com/square/square-go-sdk/option"
 )
 
-var allowedOrigins = []string{
+var AllowedOrigins = []string{
 	"https://animaloop.jp",
 	"https://dev.animaloop.jp",
 	"http://34.28.36.10:3000",
@@ -26,9 +27,13 @@ var googleOAuthClientSecret string;
 // MySQL接続情報
 var DB *sqlx.DB
 
-var MAILJET_API_KEY, MAILJET_API_SECRET, SECRET_KEY, SECRET_REFRESH_KEY, SQUARE_ACCESS_TOKEN string
+var MAILJET_API_KEY, MAILJET_API_SECRET, SQUARE_ACCESS_TOKEN string
+var SECRET_KEY, SECRET_REFRESH_KEY []byte
 
-func init() {
+var SquareClient = client.NewClient()
+
+
+func Init() {
 	// MySQL接続
 	var err error
 	dsn := "app-user:q+b4(F}{bH\"LzSQm@tcp(localhost:3306)/Animaloop"
@@ -45,27 +50,23 @@ func init() {
 	MAILJET_API_KEY = os.Getenv("MAILJET_API_KEY")
 	MAILJET_API_SECRET = os.Getenv("MAILJET_API_SECRET")
 
-	SECRET_KEY = os.Getenv("SECRET_KEY")
-	SECRET_REFRESH_KEY = os.Getenv("SECRET_REFRESH_KEY")
+	SECRET_KEY = []byte(os.Getenv("SECRET_KEY"))
+	SECRET_REFRESH_KEY = []byte(os.Getenv("SECRET_REFRESH_KEY"))
 
-	SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_ACCESS_TOKEN")
+	SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_SANDBOX_TOKEN")
 
 	googleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
-}
+	// Squareのクライアントを初期化
+	SquareClient = client.NewClient(
+		option.WithBaseURL(
+			square.Environments.Sandbox,
+		),
+		option.WithToken(
+			SQUARE_ACCESS_TOKEN,
+		),
+	)
 
-func corsHandler(w http.ResponseWriter, r *http.Request) {
-	// CORS設定
-	corsOptions := cors.New(cors.Options{
-		AllowedOrigins:       allowedOrigins,
-		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE"},
-		AllowedHeaders:       []string{"Content-Type", "Authorization"},
-		AllowCredentials:     true,
-		OptionsSuccessStatus: http.StatusOK,
-	})
-
-	handler := corsOptions.Handler(http.DefaultServeMux)
-	handler.ServeHTTP(w, r)
 }
 
 

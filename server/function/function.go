@@ -27,7 +27,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 
     if user == nil {
         user,err = GetUserFromRefreshToken(refreshToken.Value)
-        if user == nil {
+        if user == nil || err != nil {
             return "", "アクセストークンが期限切れです"
         } else {
             newAccessToken,err := GenerateToken(user)
@@ -54,7 +54,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
         }
 
         decoded,err := GetUserFromRefreshToken(refreshToken.Value)
-        if decoded == nil {
+        if decoded == nil || err != nil {
             SetRefreshToken(w, user)
             return newAccessToken, ""
         }

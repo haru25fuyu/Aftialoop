@@ -3,6 +3,7 @@ package function
 import (
 	"animaloop/config"
 	"fmt"
+	"reflect"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
@@ -14,10 +15,12 @@ import (
 
 // ユーザー情報を格納する構造体
 type User struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+    ID       string `db:"id" json:"id"`
+    Name     string `db:"name" json:"name"`
+    Email    string `db:"email" json:"email"`
+    Password string `db:"password" json:"password"`
+    GoogleID string `db:"google_id"`
+    AppleID  string `db:"apple_id"`
 	Exp      int64
 	Limit    int
 }
@@ -139,4 +142,25 @@ func GetGoogleUserInfo(tokenString string) (*oauth2v2.Userinfo, error) {
     }
 
     return userInfo, nil
+}
+
+// 構造体をマップに変換する関数
+func StructToMap(s interface{}) (map[string]interface{}, error) {
+	// 受け取った構造体の値を取得
+	val := reflect.ValueOf(s)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem() // ポインタをデリファレンスする
+	}
+	if val.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("expected a struct, got %s", val.Kind())
+	}
+
+	// 構造体をマップに変換
+	result := make(map[string]interface{})
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Type().Field(i)
+		result[field.Name] = val.Field(i).Interface()
+	}
+
+	return result, nil
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mailjet/mailjet-apiv3-go"
+	"github.com/rs/cors"
 )
 
 // トークン情報
@@ -22,6 +23,19 @@ type TokenResponse struct {
 
 func main() {
 	r := mux.NewRouter()
+	
+	config.Init()
+
+	// CORS設定
+	corsOptions := cors.New(cors.Options{
+		AllowedOrigins:       config.AllowedOrigins,
+		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedHeaders:       []string{"Content-Type", "Authorization"},
+		AllowCredentials:     true,
+		OptionsSuccessStatus: http.StatusOK,
+	})
+
+	handler := corsOptions.Handler(r)
 
 	log.Println("Server started on: http://localhost:4000")
 
@@ -30,25 +44,18 @@ func main() {
 	})
 
 	r.HandleFunc("/name", func(w http.ResponseWriter, r *http.Request) {
-		ID, err := function.CreateCustomer(map[string]interface{}{
-			"email": "haru22fuyu@gmail.com",
-			"name":  "Haru",
-		})
-
-		if err != nil {
-			log.Fatalf("Error creating customer: %v", err)
-		}
-
-		w.Write([]byte("Hello " + ID))
+		
 	})
 
 	// 仮登録
 	r.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
-
+		
 		//リクエストボディからパスワードとメールアドレスを取得
 		var user function.User
 		err := json.NewDecoder(r.Body).Decode(&user)
+		log.Println(user)
 		if err != nil {
+			log.Println("エラーが発生しました")
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
@@ -58,7 +65,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレス、パスワードを入力してください"})
 			return
 		}
-
+		
 		sql_mail, err := function.EmailCheck(user.Email)
 		square_mail := function.CheckSquareEmail(user.Email)
 
@@ -78,6 +85,7 @@ func main() {
 
 		token, err := function.SetRegistrationToken(&user)
 		if err != nil {
+			log.Fatalf("Failed to set registration token: %s", err)
 			http.Error(w, "Could not set registration token", http.StatusInternalServerError)
 			return
 		}
@@ -104,17 +112,17 @@ func main() {
     	`, user.Email, url)
 
 		// Mailjet クライアントの作成
-		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_KEY)
+		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_SECRET)
 		// メールの内容を設定
 		messagesInfo := []mailjet.InfoMessagesV31{
 			{
 				From: &mailjet.RecipientV31{
-					Email: "pilot@mailjet.com",
+					Email: "haru25fuyu@animaloop.jp",
 					Name:  "Mailjet Pilot",
 				},
 				To: &mailjet.RecipientsV31{
 					mailjet.RecipientV31{
-						Email: "passenger1@mailjet.com",
+						Email: user.Email,
 						Name:  "passenger 1",
 					},
 				},
@@ -144,6 +152,7 @@ func main() {
 	// 本登録
 	r.HandleFunc("/register/confirm", func(w http.ResponseWriter, r *http.Request) {
 		token := r.URL.Query().Get("token")
+
 		if token == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
@@ -153,7 +162,7 @@ func main() {
 		//トークンの有効期限を確認
 		var user *function.User
 		user, err := function.GetUserFromToken(token)
-		if err != nil {
+		if err != nil {			
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
@@ -161,34 +170,43 @@ func main() {
 
 		userData, err := function.GetUserFromRegistrationToken(token)
 		if err != nil {
+			log.Println(err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
 		}
 
 		if user == nil {
+			log.Println("ユーザーなし")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
 		}
 
 		// 本登録処理（仮）
-		id, err := function.CreateCustomer(userData)
+		id, err := function.CreateCustomer(userData[0])
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
 			return
 		}
 
-		userData["id"] = id
-		err = function.SaveUser(userData)
+		userData[0].ID = id
+		prm,err := function.StructToMap(userData[0]);
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました", "error": err.Error()})
+			return
+		}
+
+		err = function.SaveUser(prm)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
 			return
 		}
 
-		function.SaveProfile(userData["id"].(string), map[string]interface{}{})
+		function.SaveProfile(userData[0].ID, map[string]interface{}{})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
@@ -230,7 +248,7 @@ func main() {
 		}
 
 		// パスワード検証
-		err = function.ComparePassword(user["password"].(string), query.Password)
+		err = function.ComparePassword(user[0].Email, query.Password)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
@@ -239,9 +257,9 @@ func main() {
 
 		// トークン生成
 		var token_data function.User
-		token_data.ID = user["id"].(string)
-		token_data.Email = user["email"].(string)
-		token_data.Name = user["name"].(string)
+		token_data.ID = user[0].ID
+		token_data.Email = user[0].Email
+		token_data.Name = user[0].Name
 		token_data.Limit = 1
 		token, erro := function.GenerateToken(&token_data)
 
@@ -478,15 +496,15 @@ func main() {
 				return
 			}
 
-			err = function.UpdateUser(user["id"].(string), map[string]interface{}{
+			err = function.UpdateUser(user[0].ID, map[string]interface{}{
 				"name":      payload.Name,
 				"google_id": payload.Id,
 			})
 
 			// トークン生成
 			var token_data function.User
-			token_data.ID = user["id"].(string)
-			token_data.Email = user["email"].(string)
+			token_data.ID = user[0].ID
+			token_data.Email = user[0].Email
 			token_data.Name = payload.Name
 			token_data.Limit = 1
 
@@ -517,10 +535,10 @@ func main() {
 		}
 
 		// ユーザーが存在しない場合はユーザーを作成
-		user := map[string]interface{}{
-			"email":     email,
-			"name":      payload.Name,
-			"google_id": payload.Id,
+		user := function.User{
+			Email:     email,
+			Name:      payload.Name,
+			GoogleID: payload.Id,
 		}
 
 		// スクエアのカスタマーを作成
@@ -531,10 +549,16 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
 			return
 		}
-		user["id"] = squareResponse
+		user.ID = squareResponse
 
+		prm, err := function.StructToMap(user)
+		if err != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
+			return
+		}
 		// ユーザーを作成
-		err = function.SaveUser(user)
+		err = function.SaveUser(prm)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
@@ -542,7 +566,7 @@ func main() {
 		}
 
 		// プロフィールを作成
-		err = function.SaveProfile(user["id"].(string), map[string]interface{}{})
+		err = function.SaveProfile(user.ID, map[string]interface{}{})
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
@@ -550,13 +574,9 @@ func main() {
 		}
 
 		//　アクセストークンとリフレッシュトークンを生成
-		var token_data function.User
-		token_data.ID = user["id"].(string)
-		token_data.Email = user["email"].(string)
-		token_data.Name = user["name"].(string)
-		token_data.Limit = 1
+		user.Limit = 1
 
-		token, err = function.GenerateToken(&token_data)
+		token, err = function.GenerateToken(&user)
 
 		if err != nil {
 			http.Error(w, "Could not generate token", http.StatusInternalServerError)
@@ -564,7 +584,7 @@ func main() {
 		}
 
 		// refresh_tokenをOnlyクッキーに
-		err = function.SetRefreshToken(w, &token_data)
+		err = function.SetRefreshToken(w, &user)
 		if err != nil {
 			http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
 			return
@@ -581,5 +601,5 @@ func main() {
 	})
 
 	// サーバーを起動
-	log.Fatal(http.ListenAndServe(":4000", r))
+	log.Fatal(http.ListenAndServe(":4000", handler))
 }
