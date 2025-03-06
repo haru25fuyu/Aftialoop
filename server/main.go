@@ -259,22 +259,14 @@ func main() {
 		token_data.Email = user.Email
 		token_data.Name = user.Name
 		token_data.Limit = 1
-		token, erro := function.GenerateToken(&token_data)
+		token, err := function.GenerateToken(&token_data)
 
-		refresh_token, err := function.GenerateRefreshToken(&token_data)
-
-		if err != nil || erro != nil {
+		if err != nil {
 			http.Error(w, "Could not generate token", http.StatusInternalServerError)
 			return
 		}
-		//refresh_tokenをOnlyクッキーに
-		http.SetCookie(w, &http.Cookie{
-			Name:     "refresh_token",
-			Value:    refresh_token,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-			Secure:   true,
-		})
+
+		function.SetRefreshToken(w, &token_data)
 
 		response := TokenResponse{
 			AccessToken: token,
