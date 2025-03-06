@@ -23,7 +23,7 @@ type TokenResponse struct {
 
 func main() {
 	r := mux.NewRouter()
-	
+
 	config.Init()
 
 	// CORS設定
@@ -44,12 +44,12 @@ func main() {
 	})
 
 	r.HandleFunc("/name", func(w http.ResponseWriter, r *http.Request) {
-		
+
 	})
 
 	// 仮登録
 	r.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
-		
+
 		//リクエストボディからパスワードとメールアドレスを取得
 		var user function.SqlUser
 		err := json.NewDecoder(r.Body).Decode(&user)
@@ -65,7 +65,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレス、パスワードを入力してください"})
 			return
 		}
-		
+
 		sql_mail, err := function.EmailCheck(user.Email)
 		square_mail := function.CheckSquareEmail(user.Email)
 
@@ -161,13 +161,11 @@ func main() {
 
 		//トークンの有効期限を確認
 		_, err := function.GetUserFromToken(token)
-		if err != nil {			
+		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
 		}
-		
-
 
 		userData, err := function.GetUserFromRegistrationToken(token)
 		if err != nil {
@@ -186,7 +184,7 @@ func main() {
 		}
 
 		userData.ID = id
-		prm,err := function.StructToMap(userData);
+		prm, err := function.StructToMap(userData)
 		if err != nil {
 			log.Println("エラーが発生しました", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -291,12 +289,12 @@ func main() {
 	// マイページ表示
 	r.HandleFunc("/mypage", func(w http.ResponseWriter, r *http.Request) {
 		token, res := function.CheckUser(w, r)
-		if res != "" {
+		if res != "" || token == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": res})
 			return
 		}
-
+		log.Println(token)
 		// トークンを検証
 		var claims *function.User
 		claims, err := function.GetUserFromToken(token)
@@ -315,34 +313,41 @@ func main() {
 		errCh := make(chan error, 3) // 3つの非同期処理があるためバッファサイズ3
 
 		wg := new(sync.WaitGroup)
+
 		// 履歴取得
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			history, err = function.GetHistory(claims.ID, 0)
+			h, err := function.GetHistory(claims.ID, 0)
 			if err != nil {
 				errCh <- err
+				return
 			}
+			history = h
 		}()
 
 		// お気に入り取得
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			favorites, err = function.GetFavoriteItems(claims.ID, 0)
+			f, err := function.GetFavoriteItems(claims.ID, 0)
 			if err != nil {
 				errCh <- err
+				return
 			}
+			favorites = f
 		}()
 
 		// ユーザー情報取得
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			user, err = function.GetUserData([]string{"id"}, []interface{}{claims.ID})
+			u, err := function.GetUserData([]string{"id"}, []interface{}{claims.ID})
 			if err != nil {
 				errCh <- err
+				return
 			}
+			user = u
 		}()
 
 		// 全ての処理が完了するのを待つ
@@ -350,14 +355,12 @@ func main() {
 		close(errCh)
 
 		// エラーチェック
-		for e := range errCh {
-			if e != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
-				return
+		for err := range errCh {
+			if err != nil {
+				// エラーハンドリング
+				log.Println(err)
 			}
 		}
-
 		// レスポンスを返す
 		response := map[string]interface{}{
 			"history":   history,
@@ -536,8 +539,8 @@ func main() {
 
 		// ユーザーが存在しない場合はユーザーを作成
 		user := function.SqlUser{
-			Email:     email,
-			Name:      payload.Name,
+			Email:    email,
+			Name:     payload.Name,
 			GoogleID: payload.Id,
 		}
 
