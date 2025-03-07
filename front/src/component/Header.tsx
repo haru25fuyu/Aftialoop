@@ -38,10 +38,10 @@ export const Header: React.FC = () => {
             <div className="list">
                 <span className='title'>CATWGORY</span>
                 <ul className='header-list'>
-                    <li><Link to="/">カテゴリー１</Link></li>
-                    <li><Link to="/payment">カテゴリー２</Link></li>
-                    <li><Link to="/mypage">カテゴリー３</Link></li>
-                    <li><Link to="/mypage">カテゴリー４</Link></li>
+                    <li><Link to="/List">カテゴリー１</Link></li>
+                    <li><Link to="/List">カテゴリー２</Link></li>
+                    <li><Link to="/List">カテゴリー３</Link></li>
+                    <li><Link to="/List">カテゴリー４</Link></li>
                 </ul>
             </div>
 

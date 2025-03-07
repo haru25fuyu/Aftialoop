@@ -1,0 +1,82 @@
+.main {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: 80%;
+    background-color: #f5f5f5;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.main-image {
+    height: 100%;
+    width: 90%;
+    margin-left: auto;
+    z-index: 1;
+    border-radius: 6% 0 0 6% / 50% 0 0 50%;
+    max-width: 850x;
+    /* 目的の幅 */
+    height: 400px;
+    /* 目的の高さ */
+    object-fit: cover;
+}
+
+.overlay {
+    position: absolute;
+    right: 0;
+    top: 435px;
+    /* 半透明の背景 */
+    color: rgb(255, 88, 88);
+    /* テキストの色 */
+    text-align: right;
+    /* テキストサイズ */
+    z-index: 99;
+    font-size: 30px;
+}
+
+.overlay h1 {
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .overlay {
+        top: 495px;
+    }
+}
+
+@media (max-width: 800px) {
+    .overlay {
+        top: 462px;
+        font-size: 23px;
+    }
+}
+
+@media (max-width: 770px) {
+    .main-image {
+        height: 300px;
+    }
+
+    .overlay {
+        top: 370px;
+        font-size: 20px;
+    }
+}
+
+@media (max-width: 600px) {
+
+    .main {
+        width: 100%;
+    }
+
+    .main-image {
+        height: 200px;
+    }
+    .overlay {
+        top: 280px;
+        font-size: 15px;
+    }
+}
+
+@media (max-width: 400px) {
+   
+}

@@ -7,9 +7,10 @@ import "swiper/swiper-bundle.css";
 import { Content } from '../types/Content';
 
 import { Header } from '../component/Header';
-import BasicContent  from '../component/Content';
+import BasicContent from '../component/Content';
 import { ContentsList } from '../component/ContentsList';
 import { Footer } from '../component/Footer';
+import MainImage from '../component/MainImage.tsx';
 
 const Home: React.FC = () => {
     const contentsList: Content[] = [
@@ -48,13 +49,11 @@ const Home: React.FC = () => {
     ]
     return (
         <div>
-            <Header />
-            <div className='main'>
-                <img className='main-image' src="/../data/IMG_3589.JPG" alt="Animaloop" />
-                <div className='overlay'>
-                    <h1>ANIMALOOP</h1>
-                </div>
-            </div>
+            <header>
+                <Header />
+                <MainImage image={"/../data/IMG_3589.JPG"} title={"GOODS LIST"} />
+            </header>
+
 
             <div className='news'>
                 <h3>お知らせ</h3>
@@ -127,7 +126,7 @@ const Home: React.FC = () => {
                 </div>
             </div>
             <Footer />
-            
+
         </div>
     );
 };
