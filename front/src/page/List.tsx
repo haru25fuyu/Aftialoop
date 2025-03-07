@@ -8,6 +8,8 @@ import BasicContent from '../component/Content.tsx';
 import Header from '../component/Header.tsx';
 import MainImage from '../component/MainImage.tsx';
 
+import '../css/List.css';
+
 const List: React.FC = () => {
     const search = useLocation().search;
     const query = new URLSearchParams(search);

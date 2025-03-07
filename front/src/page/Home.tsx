@@ -51,7 +51,7 @@ const Home: React.FC = () => {
         <div>
             <header>
                 <Header />
-                <MainImage image={"/../data/IMG_3589.JPG"} title={"GOODS LIST"} />
+                <MainImage image={"/../data/IMG_3589.JPG"} title={"ANIMALOOP"} />
             </header>
 
 

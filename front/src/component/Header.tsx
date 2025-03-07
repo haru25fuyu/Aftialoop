@@ -27,7 +27,7 @@ export const Header: React.FC = () => {
     }, []);
     return (
         <div className="Header">
-            <img className='logo' src="/../data/Logo.JPG"></img>
+            <img className='logo' src="/../data/animaloop_logo.jpg"></img>
             <div className="list">
                 <span className='title'>MENU</span>
                 <ul className='header-list'>
