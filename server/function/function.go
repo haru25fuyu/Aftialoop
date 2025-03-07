@@ -1,12 +1,15 @@
 package function
 
 import (
+	"log"
 	"net/http"
 	"time"
 )
 
 func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     authHeader := r.Header.Get("Authorization")
+
+    var refreshToken *http.Cookie =new(http.Cookie)
     refreshToken, err := r.Cookie("refresh_token")
 
     if authHeader == "" && err != nil {
@@ -16,6 +19,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     var token string
     var user *User
 
+
     if authHeader != "" {
         token = authHeader[len("Bearer "):]
         user,err = GetUserFromToken(token)
@@ -24,6 +28,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     if user == nil && err != nil {
         return "", "トークンが期限切れです"
     }
+   
 
     if user == nil {
         user,err = GetUserFromRefreshToken(refreshToken.Value)
@@ -47,25 +52,28 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     } else {
         user.Limit = 1
         newAccessToken,err := GenerateToken(user)
-
+        log.Println( user)
         if err != nil {
             SetRefreshToken(w, user)
             return newAccessToken, ""
         }
-
+        if(refreshToken == nil){
+            SetRefreshToken(w, user)
+            return newAccessToken, ""
+        }
         decoded,err := GetUserFromRefreshToken(refreshToken.Value)
         if decoded == nil || err != nil {
             SetRefreshToken(w, user)
             return newAccessToken, ""
         }
-
+        log.Println("koko")
         remainingTime := decoded.Exp - time.Now().Unix()
         daysRemaining := remainingTime / 86400
 
         if daysRemaining < 7 {
             SetRefreshToken(w, decoded)
         }
-
+         log.Println("saigo")
         return newAccessToken, ""
     }
 }

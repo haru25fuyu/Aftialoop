@@ -27,7 +27,7 @@ const Login: React.FC = () => {
                 // 現在時刻にexpires_in（秒）を加えて、期限を計算
                 const expirationTime = Date.now() / 1000 + expiresIn;  // 秒単位で保存
 
-                localStorage.setItem('token', res.data.response.AccessToken);
+                localStorage.setItem('token', res.data.access_token);
                 localStorage.setItem('expirationTime', expirationTime);
 
                 navigate('/');

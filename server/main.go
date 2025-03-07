@@ -23,7 +23,7 @@ type TokenResponse struct {
 
 func main() {
 	r := mux.NewRouter()
-	
+
 	config.Init()
 
 	// CORS設定
@@ -44,14 +44,14 @@ func main() {
 	})
 
 	r.HandleFunc("/name", func(w http.ResponseWriter, r *http.Request) {
-		
+
 	})
 
 	// 仮登録
 	r.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
-		
+
 		//リクエストボディからパスワードとメールアドレスを取得
-		var user function.User
+		var user function.SqlUser
 		err := json.NewDecoder(r.Body).Decode(&user)
 		log.Println(user)
 		if err != nil {
@@ -65,7 +65,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレス、パスワードを入力してください"})
 			return
 		}
-		
+
 		sql_mail, err := function.EmailCheck(user.Email)
 		square_mail := function.CheckSquareEmail(user.Email)
 
@@ -81,8 +81,8 @@ func main() {
 			http.Error(w, "Could not hash password", http.StatusInternalServerError)
 			return
 		}
-		user.Limit = 24
 
+		// トークン生成
 		token, err := function.SetRegistrationToken(&user)
 		if err != nil {
 			log.Fatalf("Failed to set registration token: %s", err)
@@ -160,9 +160,8 @@ func main() {
 		}
 
 		//トークンの有効期限を確認
-		var user *function.User
-		user, err := function.GetUserFromToken(token)
-		if err != nil {			
+		_, err := function.GetUserFromToken(token)
+		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
@@ -170,30 +169,24 @@ func main() {
 
 		userData, err := function.GetUserFromRegistrationToken(token)
 		if err != nil {
-			log.Println(err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
-			return
-		}
-
-		if user == nil {
-			log.Println("ユーザーなし")
+			log.Println("エラーが発生しました", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
 		}
 
 		// 本登録処理（仮）
-		id, err := function.CreateCustomer(userData[0])
+		id, err := function.CreateCustomer(userData)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
 			return
 		}
 
-		userData[0].ID = id
-		prm,err := function.StructToMap(userData[0]);
+		userData.ID = id
+		prm, err := function.StructToMap(userData)
 		if err != nil {
+			log.Println("エラーが発生しました", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました", "error": err.Error()})
 			return
@@ -201,13 +194,15 @@ func main() {
 
 		err = function.SaveUser(prm)
 		if err != nil {
+			log.Println("エラーが発生しました", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
 			return
 		}
 
-		function.SaveProfile(userData[0].ID, map[string]interface{}{})
+		err = function.SaveProfile(userData.ID, map[string]interface{}{})
 		if err != nil {
+			log.Println("エラーが発生しました", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
 			return
@@ -227,7 +222,7 @@ func main() {
 
 	// ログイン
 	r.HandleFunc("/login", func(w http.ResponseWriter, r *http.Request) {
-		var query function.User
+		var query function.SqlUser
 		err := json.NewDecoder(r.Body).Decode(&query)
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -240,16 +235,19 @@ func main() {
 			return
 		}
 
-		user, err := function.GetUserData([]string{"email = ?"}, []interface{}{query.Email})
-		if user == nil || err != nil {
+		user, err := function.GetUserData([]string{"Email = ?"}, []interface{}{query.Email})
+		if user.Email == "" || err != nil {
+			log.Println("ユーザーが存在しません", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
 			return
 		}
 
 		// パスワード検証
-		err = function.ComparePassword(user[0].Email, query.Password)
+		log.Println(user.Email, query.Password)
+		err = function.ComparePassword(user.Password, query.Password)
 		if err != nil {
+			log.Println("パスワードが間違っています", err)
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
 			return
@@ -257,26 +255,18 @@ func main() {
 
 		// トークン生成
 		var token_data function.User
-		token_data.ID = user[0].ID
-		token_data.Email = user[0].Email
-		token_data.Name = user[0].Name
+		token_data.ID = user.ID
+		token_data.Email = user.Email
+		token_data.Name = user.Name
 		token_data.Limit = 1
-		token, erro := function.GenerateToken(&token_data)
+		token, err := function.GenerateToken(&token_data)
 
-		refresh_token, err := function.GenerateRefreshToken(&token_data)
-
-		if err != nil || erro != nil {
+		if err != nil {
 			http.Error(w, "Could not generate token", http.StatusInternalServerError)
 			return
 		}
-		//refresh_tokenをOnlyクッキーに
-		http.SetCookie(w, &http.Cookie{
-			Name:     "refresh_token",
-			Value:    refresh_token,
-			HttpOnly: true,
-			SameSite: http.SameSiteStrictMode,
-			Secure:   true,
-		})
+
+		function.SetRefreshToken(w, &token_data)
 
 		response := TokenResponse{
 			AccessToken: token,
@@ -291,12 +281,12 @@ func main() {
 	// マイページ表示
 	r.HandleFunc("/mypage", func(w http.ResponseWriter, r *http.Request) {
 		token, res := function.CheckUser(w, r)
-		if res != "" {
+		if res != "" || token == "" {
 			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": res})
 			return
 		}
-
+		log.Println(token)
 		// トークンを検証
 		var claims *function.User
 		claims, err := function.GetUserFromToken(token)
@@ -315,34 +305,41 @@ func main() {
 		errCh := make(chan error, 3) // 3つの非同期処理があるためバッファサイズ3
 
 		wg := new(sync.WaitGroup)
+
 		// 履歴取得
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			history, err = function.GetHistory(claims.ID, 0)
+			h, err := function.GetHistory(claims.ID, 0)
 			if err != nil {
 				errCh <- err
+				return
 			}
+			history = h
 		}()
 
 		// お気に入り取得
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			favorites, err = function.GetFavoriteItems(claims.ID, 0)
+			f, err := function.GetFavoriteItems(claims.ID, 0)
 			if err != nil {
 				errCh <- err
+				return
 			}
+			favorites = f
 		}()
 
 		// ユーザー情報取得
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			user, err = function.GetUserData([]string{"id"}, []interface{}{claims.ID})
+			u, err := function.GetUserData([]string{"id"}, []interface{}{claims.ID})
 			if err != nil {
 				errCh <- err
+				return
 			}
+			user = u
 		}()
 
 		// 全ての処理が完了するのを待つ
@@ -350,14 +347,12 @@ func main() {
 		close(errCh)
 
 		// エラーチェック
-		for e := range errCh {
-			if e != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
-				return
+		for err := range errCh {
+			if err != nil {
+				// エラーハンドリング
+				log.Println(err)
 			}
 		}
-
 		// レスポンスを返す
 		response := map[string]interface{}{
 			"history":   history,
@@ -488,23 +483,23 @@ func main() {
 		square_mail := function.CheckSquareEmail(email)
 		if sql_mail || square_mail {
 			// ユーザーが存在する場合はログイン処理
-			user, err := function.GetUserData([]string{"email = ?"}, []interface{}{email})
+			user, err := function.GetUserData([]string{"Email = ?"}, []interface{}{email})
 
-			if user == nil || err != nil {
+			if user.Email == "" || err != nil {
 				w.WriteHeader(http.StatusUnauthorized)
 				json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
 				return
 			}
 
-			err = function.UpdateUser(user[0].ID, map[string]interface{}{
+			err = function.UpdateUser(user.ID, map[string]interface{}{
 				"name":      payload.Name,
 				"google_id": payload.Id,
 			})
 
 			// トークン生成
 			var token_data function.User
-			token_data.ID = user[0].ID
-			token_data.Email = user[0].Email
+			token_data.ID = user.ID
+			token_data.Email = user.Email
 			token_data.Name = payload.Name
 			token_data.Limit = 1
 
@@ -535,9 +530,9 @@ func main() {
 		}
 
 		// ユーザーが存在しない場合はユーザーを作成
-		user := function.User{
-			Email:     email,
-			Name:      payload.Name,
+		user := function.SqlUser{
+			Email:    email,
+			Name:     payload.Name,
 			GoogleID: payload.Id,
 		}
 
@@ -574,9 +569,13 @@ func main() {
 		}
 
 		//　アクセストークンとリフレッシュトークンを生成
-		user.Limit = 1
+		var token_data function.User
+		token_data.ID = user.ID
+		token_data.Email = user.Email
+		token_data.Name = user.Name
+		token_data.Limit = 1
 
-		token, err = function.GenerateToken(&user)
+		token, err = function.GenerateToken(&token_data)
 
 		if err != nil {
 			http.Error(w, "Could not generate token", http.StatusInternalServerError)
@@ -584,7 +583,7 @@ func main() {
 		}
 
 		// refresh_tokenをOnlyクッキーに
-		err = function.SetRefreshToken(w, &user)
+		err = function.SetRefreshToken(w, &token_data)
 		if err != nil {
 			http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
 			return

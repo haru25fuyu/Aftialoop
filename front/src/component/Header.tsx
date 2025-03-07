@@ -9,18 +9,21 @@ export const Header: React.FC = () => {
     const [loginText, setLoginText] = useState("ログイン");
     const [loginImage, setLoginImage] = useState("/../data/login.jpeg");
     const [URL, setURL] = useState("/login");
-    useEffect(() => {
-        const refreshToken = localStorage.getItem('token');
-        if (refreshToken && refreshToken !== "undefined") {
+    useEffect(() => {        
+        const SetUser = () => {
+            const refreshToken = localStorage.getItem('token');
+            if (refreshToken && refreshToken !== "undefined") {
             //トークンをでコードして、ユーザー情報を取得
-            const decoded = jwtDecode<{ sub: string }>(refreshToken);
-            const name = decoded.name ? decoded.name : decoded.email;
-            const image = localStorage.getItem('userIcon')
-            const icon = (image && image !== "undefined") ? decoded.image : "/../data/user.png";
-            setLoginText(name);
-            setLoginImage(icon);
-            setURL("/mypage");
-        }
+                const decoded = jwtDecode<{ name: string, email: string, image: string }>(refreshToken);
+                const name = decoded.name ? decoded.name : decoded.email;
+                const image = localStorage.getItem('userIcon')
+                const icon = (image && image !== "undefined") ? decoded.image : "/../data/user.png";
+                setLoginText(name);
+                setLoginImage(icon);
+                setURL("/mypage");
+            }
+        };
+        SetUser();
     }, []);
     return (
         <div className="Header">

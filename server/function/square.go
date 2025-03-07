@@ -11,12 +11,12 @@ import (
 	option "github.com/square/square-go-sdk/option"
 )
 
-func CreateCustomer(user User) (string, error) {
+func CreateCustomer(user SqlUser) (string, error) {
 	response, err := config.SquareClient.Customers.Create(
 		context.TODO(),
 		&square.CreateCustomerRequest{
 			EmailAddress: square.String(
-				user.ID,
+				user.Email,
 			),
 			Nickname: square.String(
 				user.Name,

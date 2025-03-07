@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -32,83 +33,96 @@ func init() {
 
 func EmailCheck(email string) (bool, error) {
 	var count int
-	err := config.DB.Get(&count, "SELECT COUNT(*) FROM users WHERE email = ?", email)
+	err := config.DB.Get(&count, "SELECT COUNT(*) FROM users WHERE Email = ?", email)
 	if err != nil {
 		return false, err
 	}
 	return count > 0, nil
 }
 
-func SetRegistrationToken(user *User) (string, error) {
+func SetRegistrationToken(user *SqlUser) (string, error) {
+	user_data := User{
+		ID:    user.ID,
+		Name:  user.Name,
+		Email: user.Email,
+		Exp:   time.Now().Add(24 * time.Hour).Unix(),
+		Limit: 24,
+	}
 	user.ID = uuid.New().String()
-	token, err := GenerateToken(user)
+	token, err := GenerateToken(&user_data)
 	if err != nil {
 		return "", err
 	}
     //前に同じメールアドレスのやつを消す
-    _, err = config.DB.Exec("DELETE FROM user_registration_tokens WHERE email = ?", user.Email)
+    _, err = config.DB.Exec("DELETE FROM user_registration_tokens WHERE Email = ?", user.Email)
     if err != nil {
         return "", err
     }
-	_, err = config.DB.Exec("INSERT INTO user_registration_tokens (id,email, password, token, expires_at) VALUES (?,?, ?, ?, ?)", user.ID, user.Email, user.Password, token, time.Now().Add(24*time.Hour))
+	_, err = config.DB.Exec("INSERT INTO user_registration_tokens (ID,Email, Password, Token, ExpiresAt) VALUES (?,?, ?, ?, ?)", user.ID, user.Email, user.Password, token, time.Now().Add(24*time.Hour))
 	return token, err
 }
 
-func GetUserFromRegistrationToken(token string) ([]User, error) {
-	query := "SELECT email, password FROM user_registration_tokens WHERE token = ? AND expires_at > ?"
+func GetUserFromRegistrationToken(token string) (SqlUser, error) {
+	query := "SELECT Email, Password FROM user_registration_tokens WHERE Token = ? AND ExpiresAt > ? LIMIT 1"
 
-	var resurlt []User
-	err := config.DB.Get(&resurlt, query, token, time.Now())
+	var result SqlUser
+	err := config.DB.Get(&result, query, token, time.Now())
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("invalid token")
+			return result, fmt.Errorf("invalid token")
 		}
-		return nil, err
+		return result, err
 	}
-	return resurlt, nil
+	return result, nil
 }
 
 func DeleteRegistrationToken(token string) error {
-	_, err := config.DB.Exec("DELETE FROM user_registration_tokens WHERE token = ?", token)
+	_, err := config.DB.Exec("DELETE FROM user_registration_tokens WHERE Token = ?", token)
 	return err
 }
 
 func SaveUser(user map[string]interface{}) error {
-	// Generate columns and values
+	// カラム名と値のスライスを生成
 	columns := []string{}
 	values := []interface{}{}
 	for key, value := range user {
+		log.Println(key, value)
 		columns = append(columns, key)
 		values = append(values, value)
 	}
 
-	// SQL query
+	// プレースホルダの生成
 	placeholders := "?"
 	for i := 1; i < len(columns); i++ {
 		placeholders += ", ?"
 	}
-	query := fmt.Sprintf("INSERT INTO users (%s) VALUES (%s)", join(columns, ","), placeholders)
-
+	
+	// クエリの組み立て
+	query := fmt.Sprintf("INSERT INTO users (%s) VALUES (%s)", strings.Join(columns, ","), placeholders)
+	log.Println(query)
+	// クエリの実行
 	_, err := config.DB.Exec(query, values...)
 	return err
 }
 
-func GetUserData(where []string, values []interface{}) ([]User, error) {
-	query := "SELECT * FROM users"
-	if len(where) > 0 {
-		query += " WHERE " + join(where, " AND ")
-	}
-	var user []User
-	err := config.DB.Get(&user, query, values...)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
-		}
-		return nil, err
-	}
-	return user, nil
+
+func GetUserData(where []string, values []interface{}) (SqlUser, error) {
+    query := "SELECT ID, Email, Name, Password FROM users"
+    if len(where) > 0 {
+        query += " WHERE " + strings.Join(where, " AND ")
+    }
+    var user SqlUser
+    err := config.DB.Get(&user, query, values...)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return user, fmt.Errorf("user not found")
+        }
+        return user, err
+    }
+    return user, nil
 }
+
 
 func UpdateUser(id string, user map[string]interface{}) error {
 	setClauses := []string{}
@@ -118,7 +132,7 @@ func UpdateUser(id string, user map[string]interface{}) error {
 		values = append(values, value)
 	}
 
-	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", join(setClauses, ","))
+	query := fmt.Sprintf("UPDATE users SET %s WHERE ID = ?", join(setClauses, ","))
 	values = append(values, id)
 	_, err := config.DB.Exec(query, values...)
 	return err
@@ -126,7 +140,7 @@ func UpdateUser(id string, user map[string]interface{}) error {
 
 func SaveProfile(id string, profile map[string]interface{}) error {
 	// Generate columns and values
-	columns := []string{"user_id"}
+	columns := []string{"UserID"}
 	values := []interface{}{id}
 	for key, value := range profile {
 		columns = append(columns, key)
@@ -144,15 +158,15 @@ func SaveProfile(id string, profile map[string]interface{}) error {
 	return err
 }
 
-func GetProfile(id string) (map[string]interface{}, error) {
-	query := "SELECT * FROM profile WHERE user_id = ?"
-	var profile map[string]interface{}
+func GetProfile(id string) (Profile, error) {
+	query := "SELECT * FROM profile WHERE UserID = ?"
+	var profile Profile
 	err := config.DB.Get(&profile, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("profile not found")
+			return profile, fmt.Errorf("profile not found")
 		}
-		return nil, err
+		return profile, err
 	}
 	return profile, nil
 }
@@ -165,7 +179,7 @@ func UpdateProfile(id string, profile map[string]interface{}) error {
 		values = append(values, value)
 	}
 
-	query := fmt.Sprintf("UPDATE profile SET %s WHERE user_id = ?", join(setClauses, ","))
+	query := fmt.Sprintf("UPDATE profile SET %s WHERE UserID = ?", join(setClauses, ","))
 	values = append(values, id)
 	_, err := config.DB.Exec(query, values...)
 	return err
@@ -190,13 +204,13 @@ func GetUserDataAndProfile(where []string, values []interface{}) (map[string]int
 
 func SaveRefreshToken(token string, user_id string) error {
 	//　ユーザーIDが一致するトークンを削除
-	_, err := config.DB.Exec("DELETE FROM refresh_tokens WHERE user_id = ?", user_id)
+	_, err := config.DB.Exec("DELETE FROM refresh_tokens WHERE UserID = ?", user_id)
 	if err != nil {
 		return err
 	}
 
 	// 新しいリフレッシュトークンを保存
-	_, err = config.DB.Exec("INSERT INTO refresh_tokens (token, user_id, expires_at) VALUES (?, ?, ?)", token, user_id, time.Now().Add(14*24*time.Hour))
+	_, err = config.DB.Exec("INSERT INTO refresh_tokens (Token, UserId, ExpiresAt) VALUES (?, ?, ?)", token, user_id, time.Now().Add(14*24*time.Hour))
 	return err
 }
 
@@ -206,7 +220,7 @@ func GetFavoriteItems(user_id string, limit int) ([]map[string]interface{}, erro
 	if limit != 0 {
 		query_limit = "LIMIT " + string(limit)
 	}
-	query := "SELECT * FROM favorites INNER JOIN items ON favorites.item_id = items.id WHERE favorites.user_id = ? " + query_limit
+	query := "SELECT * FROM favorites INNER JOIN items ON favorites.ItemID = items.ID WHERE favorites.user_id = ? " + query_limit
 	var results []map[string]interface{}
 	err := config.DB.Select(&results, query, user_id)
 	return results, err
@@ -214,7 +228,7 @@ func GetFavoriteItems(user_id string, limit int) ([]map[string]interface{}, erro
 
 // お気に入りの追加
 func AddFavorite(user_id string, item_id string) error {
-	_, err := config.DB.Exec("INSERT INTO favorites (user_id, item_id) VALUES (?, ?)", user_id, item_id)
+	_, err := config.DB.Exec("INSERT INTO favorites (UserID, ItemID) VALUES (?, ?)", user_id, item_id)
 
 	if err != nil {
 		return err
@@ -224,7 +238,7 @@ func AddFavorite(user_id string, item_id string) error {
 
 // お気に入りの削除
 func DeleteFavorite(user_id string, item_id string) error {
-	_, err := config.DB.Exec("DELETE FROM favorites WHERE user_id = ? AND item_id = ?", user_id, item_id)
+	_, err := config.DB.Exec("DELETE FROM favorites WHERE UserID = ? AND ItemID = ?", user_id, item_id)
 
 	if err != nil {
 		return err
@@ -238,7 +252,7 @@ func GetHistory(user_id string, limit int) ([]map[string]interface{}, error) {
 	if limit != 0 {
 		query_limit = "LIMIT " + string(limit)
 	}
-	query := "SELECT * FROM histories INNER JOIN items ON histories.item_id = items.id WHERE histories.user_id = ? " + query_limit
+	query := "SELECT * FROM histories INNER JOIN items ON histories.ItemID = items.ID WHERE histories.UserID = ? " + query_limit
 	var results []map[string]interface{}
 	err := config.DB.Select(&results, query, user_id)
 	return results, err
@@ -246,7 +260,7 @@ func GetHistory(user_id string, limit int) ([]map[string]interface{}, error) {
 
 // 閲覧履歴の追加
 func AddHistory(user_id string, item_id string) error {
-	_, err := config.DB.Exec("INSERT INTO histories (user_id, item_id) VALUES (?, ?)", user_id, item_id)
+	_, err := config.DB.Exec("INSERT INTO histories (UserID, ItemID) VALUES (?, ?)", user_id, item_id)
 
 	if err != nil {
 		return err
@@ -257,7 +271,7 @@ func AddHistory(user_id string, item_id string) error {
 
 // 閲覧履歴の削除
 func DeleteHistory(user_id string, item_id string) error {
-	_, err := config.DB.Exec("DELETE FROM histories WHERE user_id = ? AND item_id = ?", user_id, item_id)
+	_, err := config.DB.Exec("DELETE FROM histories WHERE UserID = ? AND ItemID = ?", user_id, item_id)
 
 	if err != nil {
 		return err

@@ -13,18 +13,40 @@ import (
 	oauth2v2 "google.golang.org/api/oauth2/v2"
 )
 
-// ユーザー情報を格納する構造体
 type User struct {
-    ID       string `db:"id" json:"id"`
-    Name     string `db:"name" json:"name"`
-    Email    string `db:"email" json:"email"`
-    Password string `db:"password" json:"password"`
-    GoogleID string `db:"google_id"`
-    AppleID  string `db:"apple_id"`
-	Exp      int64
-	Limit    int
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Exp      int64  `json:"exp"`
+	Limit    int    `json:"limit"`
 }
 
+// ユーザー情報を格納する構造体
+type SqlUser struct {
+    ID       string `db:"ID" json:"id"`
+    Name     string `db:"Name" json:"name"`
+    Email    string `db:"Email" json:"email"`
+    Password string `db:"Password" json:"password"`
+    GoogleID string `db:"GoogleID"`
+    AppleID  string `db:"AppleID"`
+}
+
+type Item struct {
+	ID          string `db:"ID" json:"id"`
+	Name        string `db:"Name" json:"name"`
+	Description string `db:"Description" json:"description"`
+	Price       int    `db:"Price" json:"price"`
+	Point       int    `db:"Stock" json:"stock"`
+	Category  	int `db:"Category" json:"category"`
+}
+
+type Profile struct {
+	DateOfBirth string `db:"DateOfBirth" json:"date_of_birth"`
+	Gender	  string `db:"Gender json:genger"`
+	PhoneNumber string `db:"PhoneNumber" json:"phone_number"`
+	Bio string `db:"Bio" json:"bio"`
+	IconURL string `db:"IconURL" json:"Icon_url"`
+}
 // JWTを生成する関数
 func GenerateToken(user *User) (string, error) {
 	claims := jwt.MapClaims{
@@ -80,6 +102,9 @@ func GetUserFromToken(tokenString string) (*User, error) {
 
 // リフレッシュトークンからユーザー情報を取得する関数
 func GetUserFromRefreshToken(tokenString string) (*User, error) {
+	if(tokenString == ""){
+		return nil, fmt.Errorf("invalid token")
+	}
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
