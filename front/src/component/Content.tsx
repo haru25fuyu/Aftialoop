@@ -14,10 +14,22 @@ const BasicContent: React.FC<Props> = ({ item }) => {
         navigate("/payment?id=" + id);
     }
     return (
-        <div key={item.id} className="contents_item" onClick={() => navigator(item.id.toString())}>
-            < h3 > {item.name}</h3 >
-            <p>価格: {item.price}円</p>
-        </div >
+        <div
+            key={item.id}
+            className="contents_item flex flex-col items-center text-left h-[280px] overflow-hidden"
+            onClick={() => navigator(item.id.toString())}
+        >
+            <h3 className="text-center">{item.name}</h3>
+            <img src={item.image_url} alt={item.name} className="w-full max-w-xs h-[100px] object-contain" />
+            <div className="w-full grid grid-cols-2 gap-2">
+                <p className="text-gray-600">価格：</p>
+                <p>{item.price}円</p>
+                <p className="text-gray-600">ポイント：</p>
+                <p>{item.point}</p>
+            </div>
+
+        </div>
+
     )
 
 }
@@ -29,11 +41,24 @@ const LinkContent: React.FC<Props> = ({ item }) => {
     }
     return (
         <div key={item.id} className="contents_item" onClick={() => navigator()}>
-            {item.name}           
+            {item.name}
         </div >
     )
 
 }
 
+const ImageContent: React.FC<Props> = ({ item }) => {
+    return (
+        <div key={item.id} className="flex flex-col items-start">
+            <img src={item.image_url} alt={item.name} className="w-25 h-25 object-cover mb-4" />
+            <div className="flex flex-col items-start">
+                <b>{item.name}</b>
+                <p>価格: {item.price}円</p>
+                <p>ポイント: {item.point}</p>
+            </div>
+        </div>
+    )
+}
+
 export default BasicContent;
-export { LinkContent };
+export { LinkContent, ImageContent };

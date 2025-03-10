@@ -11,8 +11,8 @@
 
 /*logoを左端に揃える*/
 .logo {
-    width: auto;
-    height: 100%;
+    max-width: 20%;
+    height: auto;
     padding: 0;
     margin-left: 10px;
 }
@@ -47,7 +47,7 @@
     column-count: 2;
     /* リストを二列に分ける */
     column-gap: 10px;
-    /* 列間の隙間を設定 */    
+    /* 列間の隙間を設定 */
 }
 
 .right-margin {
@@ -124,6 +124,7 @@
     margin-top: 15px;
     font-size: 17px;
 }
+
 .login-link {
     display: flex;
     margin-left: auto;
@@ -144,6 +145,7 @@
         column-count: 1;
         /* リストを一列にする */
     }
+
     .Header {
         height: 140px;
     }
@@ -152,7 +154,7 @@
 
 @media (max-width: 800px) {
     .logo {
-        height: 70%;
+        /*height: 70%;*/
         justify-content: center;
     }
 
@@ -160,15 +162,17 @@
         margin-right: 10px;
         padding-top: 5px;
         font-size: 12px;
-       
+
     }
-    .login span{
+
+    .login span {
         display: none;
     }
+
     .login img {
         width: 30px;
         height: 30px;
-        
+
     }
 
     .Header {
@@ -177,7 +181,8 @@
 
     .title {
         font-size: 18px;
-    }   
+    }
+
     .header-list {
         font-size: 12px;
     }

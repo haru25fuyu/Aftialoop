@@ -12,7 +12,6 @@ import Login from './page/Login';
 //import PaymentComplete from './page/PaymentComplete';
 import MyPage from './page/MyPage';
 import PaymentRegistration from './page/PaymentRegistration';
-import Profile from './page/profile.tsx';
 import List from './page/List';
 
 
@@ -29,7 +28,6 @@ function App() {
         <Route path={`/login`} element={<Login />} />
         <Route path={`/mypage`} element={<MyPage />} />
         <Route path={`/payment/registration`} element={<PaymentRegistration />} />
-        <Route path={`/profile`} element={<Profile />} />
         <Route path={`/list`} element={<List />} />
       </Routes>
     </>
