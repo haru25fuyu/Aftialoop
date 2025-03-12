@@ -37,6 +37,9 @@ const MyPage: React.FC = () => {
             })
             .catch((err) => {
                 console.error(err);
+                //トークン情報を削除
+                localStorage.removeItem('token');
+                localStorage.removeItem('expirationTime');
                 navigate("/login");
             });
     }, []);
