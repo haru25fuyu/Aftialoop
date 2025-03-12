@@ -1,33 +1,36 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useEffect, useState } from 'react';
 import { jwtDecode } from "jwt-decode";
+import { UserRound, LogIn } from "lucide-react";
 import '../css/Header.css';
-
 
 export const Header: React.FC = () => {
     const [loginText, setLoginText] = useState("ログイン");
-    const [loginImage, setLoginImage] = useState("/../data/login.jpeg");
     const [URL, setURL] = useState("/login");
-    useEffect(() => {        
+    const [icon, setIcon] = useState<string | null>(null); // ✅ useState で管理
+
+    useEffect(() => {
         const SetUser = () => {
             const refreshToken = localStorage.getItem('token');
             if (refreshToken && refreshToken !== "undefined") {
-            //トークンをでコードして、ユーザー情報を取得
                 const decoded = jwtDecode<{ name: string, email: string, image: string }>(refreshToken);
                 const name = decoded.name ? decoded.name : decoded.email;
-                const image = localStorage.getItem('userIcon')
-                const icon = (image && image !== "undefined") ? decoded.image : "/../data/user.png";
+                const image = localStorage.getItem('userIcon');
+                const userIcon = image && image !== "undefined" ? decoded.image : null;
+
                 setLoginText(name);
-                setLoginImage(icon);
+                setLoginImage(userIcon || "/../data/login.jpeg");
+                setIcon(userIcon); // ✅ useState にセット
                 setURL("/mypage");
             }
         };
         SetUser();
     }, []);
+
     return (
         <div className="Header">
-            <img className='logo' src="/../data/animaloop_logo.jpg"></img>
+            <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
+
             <div className="list">
                 <span className='title'>MENU</span>
                 <ul className='header-list'>
@@ -39,7 +42,7 @@ export const Header: React.FC = () => {
             </div>
 
             <div className="list">
-                <span className='title'>CATWGORY</span>
+                <span className='title'>CATEGORY</span>
                 <ul className='header-list'>
                     <li><Link to="/List">カテゴリー１</Link></li>
                     <li><Link to="/List">カテゴリー２</Link></li>
@@ -55,7 +58,12 @@ export const Header: React.FC = () => {
                 </div>
                 <div className='login'>
                     <Link to={URL} className='login-link'>
-                        <span>{loginText}</span><img src={loginImage} />
+                        <span>{loginText}</span>
+                        {icon ? (
+                            <img src={icon} alt="プロフィール画像" className="w-12 h-12 rounded-full object-cover" />
+                        ) : (
+                            loginText === "ログイン" ? <LogIn className="text-gray-500 w-12 h-12 rounded-full object-cover" /> : <UserRound className="text-gray-500 w-12 h-12 rounded-full object-cover" />
+                        )}
                     </Link>
                 </div>
             </div>

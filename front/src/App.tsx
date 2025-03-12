@@ -13,6 +13,8 @@ import Login from './page/Login';
 import MyPage from './page/MyPage';
 import PaymentRegistration from './page/PaymentRegistration';
 import List from './page/List';
+import EditAddress from './page/EditAddress';
+import EditProfile from './page/EditProfile';
 
 
 function App() {
@@ -29,6 +31,8 @@ function App() {
         <Route path={`/mypage`} element={<MyPage />} />
         <Route path={`/payment/registration`} element={<PaymentRegistration />} />
         <Route path={`/list`} element={<List />} />
+        <Route path={`/edit/address`} element={<EditAddress />} />
+        <Route path={`/edit/profile`} element={<EditProfile />} />
       </Routes>
     </>
   )
