@@ -11,15 +11,25 @@ import { NODE_API } from '../conf/config';
 type Inputs = {
     name: string,
     email: string,
-    password: string
+    password: string,
+    password2: string // 再入力用
 }
 
 const SignUp: React.FC = () => {
-    const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
+    const { register, handleSubmit, formState: { errors }, watch } = useForm<Inputs>();
     const navigate = useNavigate();
 
+    const password = watch('password');
+    const password2 = watch('password2');
+
     const onSubmit = async (data: Inputs) => {
-        axios.post(NODE_API.URL + '/signup', data, { headers: NODE_API.HEADERS })
+        // パスワードが一致しない場合は処理をしない
+        if (password !== password2) {
+            alert('パスワードが一致しません');
+            return;
+        }
+
+        axios.post(NODE_API.URL + '/signup', { email: data.email, password: data.password }, { headers: NODE_API.HEADERS })
             .then((res) => {
                 if (!res.data.err_message) {
                     //仮登録完了ページに遷移
@@ -30,6 +40,7 @@ const SignUp: React.FC = () => {
                 console.error(err);
             });
     };
+
     return (
         <div>
             <Header />
@@ -38,7 +49,7 @@ const SignUp: React.FC = () => {
                 <div className="w-full max-w-md p-8 space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">サインアップ</h2>
                     <GoogleOAuth />
-                    <div className="text-center text-2xl">or</div>
+                    <div className="flex justify-center items-center"><hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' /></div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">メールアドレス</label>
@@ -57,6 +68,17 @@ const SignUp: React.FC = () => {
                                 className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
                             {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password.message}</p>}
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700">パスワード再入力</label>
+                            <input
+                                type="password"
+                                {...register('password2', { required: 'パスワード再入力は必須です' })}
+                                className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                            />
+                            {password && password2 && password !== password2 && (
+                                <p className="mt-2 text-sm text-red-600">パスワードが一致しません</p>
+                            )}
                         </div>
                         <div>
                             <button

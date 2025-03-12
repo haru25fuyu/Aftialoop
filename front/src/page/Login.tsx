@@ -42,10 +42,10 @@ const Login: React.FC = () => {
             <Header />
 
             <div className="flex justify-center items-center mt-8 max-md:mt-0">
-                <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
+                <div className="w-full max-w-md p-5 space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">ログイン</h2>
                     <GoogleOAuth />
-                    <div className="text-center text-l">or</div>
+                    <div className="flex justify-center items-center"><hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' /></div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         <div>
                             <label className="block text-sm font-medium text-gray-700">メールアドレス</label>
