@@ -31,8 +31,8 @@ function App() {
         <Route path={`/mypage`} element={<MyPage />} />
         <Route path={`/payment/registration`} element={<PaymentRegistration />} />
         <Route path={`/list`} element={<List />} />
-        <Route path={`/edit/address`} element={<EditAddress />} />
-        <Route path={`/edit/profile`} element={<EditProfile />} />
+        <Route path={`/address/edit`} element={<EditAddress />} />
+        <Route path={`/profile/edit`} element={<EditProfile />} />
       </Routes>
     </>
   )

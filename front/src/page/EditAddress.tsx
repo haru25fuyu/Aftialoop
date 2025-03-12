@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
@@ -7,52 +7,32 @@ import { Header } from '../component/Header';
 
 import { NODE_API } from '../conf/config';
 
+
+
 type Inputs = {
+    ID: string,
     postCode: string,
     pref: string,
     address1: string
-}
-
-interface AddressFormData {
-    postCode: string;
-    pref: string;
-    address1: string;
+    address2: string
 }
 
 const EditAddress: React.FC = () => {
-    const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
+    const { register, handleSubmit, setValue, formState: { errors } } = useForm<Inputs>();
     const navigate = useNavigate();
-    const [formData, setFormData] = useState<AddressFormData>({
-        postCode: '',
-        pref: '',
-        address1: '',
-    });
-
-    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const { name, value } = e.target;
-        setFormData((prevData) => ({
-            ...prevData,
-            [name]: value
-        }));
-    };
 
     const complementAddress = () => {
         if (typeof window !== 'undefined' && window.AjaxZip3) {
-            // AjaxZip3のzip2addr関数を呼び出し、住所を補完する
             window.AjaxZip3.zip2addr(
                 'postCode',
-                '', // 通常は空文字で問題ない
-                'pref', // 都道府県
-                'address1',  // 市区町村や番地
-                'address2',  // 番地以降の住所
-                'address3'   // 住所が補完された後、フォーカスを移す先
+                '',
+                'pref',
+                'address1',
             );
-            // 住所が補完された後、Reactの状態を更新する
-            setFormData((prevData) => ({
-                ...prevData,
-                pref: (document.getElementById('pref') as HTMLInputElement).value,
-                address1: (document.getElementById('address1') as HTMLInputElement).value
-            }));
+
+            // AjaxZip3 により DOM の input 値が更新された後、React Hook Form に反映
+            setValue('pref', (document.getElementById('pref') as HTMLInputElement).value);
+            setValue('address1', (document.getElementById('address1') as HTMLInputElement).value);
         }
     };
 
@@ -60,7 +40,7 @@ const EditAddress: React.FC = () => {
         //データのpostCoswにハイフンが含まれている場合、ハイフンを削除
         data.postCode = data.postCode.replace(/-/g, '');
         console.log(data);
-        axios.post(NODE_API.URL + '/edit/address', data, { headers: NODE_API.HEADERS })
+        axios.post(NODE_API.URL + '/address/edit', data, { headers: NODE_API.HEADERS })
             .then((res) => {
                 console.log(res.data);
                 const expiresIn = res.data.expires_in;
@@ -93,9 +73,6 @@ const EditAddress: React.FC = () => {
                                     type="text"
                                     {...register('postCode', { required: '必須項目です' })}
                                     className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                    value={formData.postCode}
-                                    name='postCode'
-                                    onChange={handleChange}
                                     onBlur={complementAddress}
                                     onKeyUp={complementAddress}
                                 />
@@ -107,10 +84,7 @@ const EditAddress: React.FC = () => {
                                     type="text"
                                     {...register('pref', { required: '必須項目です' })}
                                     className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
-                                    name='pref'
                                     id="pref"
-                                    value={formData.pref}
-                                    onChange={handleChange}
                                 />
                             </div>
                             <div>
@@ -122,14 +96,13 @@ const EditAddress: React.FC = () => {
                                     className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                     name='address1'
                                     id="address1"
-                                    value={formData.address1}
-                                    onChange={handleChange}
                                 />
                             </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">番地・建物名</label>
                                 <input
                                     type="text"
+                                    {...register('address2')}
                                     className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                 />
                             </div>

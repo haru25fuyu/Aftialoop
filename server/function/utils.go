@@ -41,12 +41,33 @@ type Item struct {
 }
 
 type Profile struct {
-	DateOfBirth string `db:"DateOfBirth" json:"date_of_birth"`
+	DateOfBirth string `db:"DateOfBirth" json:"birth"`
 	Gender	  string `db:"Gender json:genger"`
-	PhoneNumber string `db:"PhoneNumber" json:"phone_number"`
+	PhoneNumber string `db:"PhoneNumber" json:"phone"`
 	Bio string `db:"Bio" json:"bio"`
-	IconURL string `db:"IconURL" json:"Icon_url"`
+	IconURL string `db:"IconURL" json:"image"`
 }
+
+type RequestUserProfile struct {
+	ID string `json:"id"`
+	Name string `json:"name"`
+	Email string `json:"email"`
+	DateOfBirth string `json:"birth"`
+	Gender	  string `json:"gender"`
+	PhoneNumber string `json:"phone"`
+	Bio string `json:"bio"`
+	IconURL string `json:"image"`
+}
+
+type Address struct {
+	ID string `db:"AddressID" json:"id"`
+	UserID string `db:"UserID" json:"usserid"`
+	PostalCode string `db:"PostalCode" json:"postCode"`
+	Pref string `db:"Pref" json:"pref"`
+	Address1 string `db:"Address1" json:"address1"`
+	Address2 string `db:"Address2" json:"address2"`
+}
+
 // JWTを生成する関数
 func GenerateToken(user *User) (string, error) {
 	claims := jwt.MapClaims{

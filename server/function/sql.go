@@ -128,6 +128,9 @@ func UpdateUser(id string, user map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
 	for key, value := range user {
+		if(key == "ID"){
+			continue
+		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
 		values = append(values, value)
 	}
@@ -280,6 +283,76 @@ func DeleteHistory(user_id string, item_id string) error {
 	return nil
 }
 
+// 住所の更新
+func UpdateAddress(id string, address map[string]interface{}) error {
+	setClauses := []string{}
+	values := []interface{}{}
+	for key, value := range address {
+		if(key == "AddressID" || key == "UserID"){
+			continue
+		}
+		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
+		values = append(values, value)
+	}
+	query := fmt.Sprintf("UPDATE Addresses SET %s WHERE AddressID = ?", join(setClauses, ","))
+	values = append(values, id)
+	_, err := config.DB.Exec(query, values...)
+	return err
+}
+
+//住所の新規保存
+func SaveAddress(address map[string]interface{}) error {
+	// Generate columns and values
+	columns := []string{}
+	values := []interface{}{}
+	for key, value := range address {
+		if(key == "AddressID"){
+			continue
+		}
+		columns = append(columns, key)
+		values = append(values, value)
+	}
+
+	// SQL query
+	placeholders := "?"
+	for i := 1; i < len(columns); i++ {
+		placeholders += ", ?"
+	}
+	query := fmt.Sprintf("INSERT INTO addresses (%s) VALUES (%s)", join(columns, ","), placeholders)
+
+	_, err := config.DB.Exec(query, values...)
+	return err
+}
+
+// 住所の取得
+func GetAddress(id string) (Address, error) {
+	query := "SELECT * FROM addresses WHERE AddressID = ?"
+	var address Address
+	err := config.DB.Get(&address, query, id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return address, fmt.Errorf("address not found")
+		}
+		return address, err
+	}
+	return address, nil
+}
+
+// 住所の削除
+func DeleteAddress(id string) error {
+	_, err := config.DB.Exec("DELETE FROM addresses WHERE AddressID = ?", id)
+	return err
+}
+
+//住所リストの取得
+func GetAddressList(user_id string) ([]Address, error) {
+	query := "SELECT * FROM addresses WHERE UserID = ?"
+	var addresses []Address
+	err := config.DB.Select(&addresses, query, user_id)
+	return addresses, err
+}
+
+// スライスを結合する関数
 func join(arr []string, separator string) string {
 	result := ""
 	for i, val := range arr {

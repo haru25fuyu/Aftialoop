@@ -416,8 +416,48 @@ func main() {
 		json.NewEncoder(w).Encode(userData)
 	})
 
+	// ユーザー情報取得
+	r.HandleFunc("/profile/get", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// ユーザー情報取得
+		userData, erro := function.GetUserDataAndProfile([]string{"id"}, []interface{}{claims.ID})
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			return
+		}
+
+		// プロフィール情報取得
+		profileData, erro := function.GetProfile(claims.ID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			return
+		}
+
+		// ユーザー情報とプロフィール情報を結合
+		userData["profile"] = profileData
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(userData)
+	})
+
 	// ユーザー情報更新
-	r.HandleFunc("/update-customer/data", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/profile/edit", func(w http.ResponseWriter, r *http.Request) {
 		token, err := function.CheckUser(w, r)
 		if err != "" {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -434,20 +474,51 @@ func main() {
 		}
 
 		//リクエストボディから更新情報を取得
-		var user function.User
-		erro = json.NewDecoder(r.Body).Decode(&user)
+		var request function.RequestUserProfile
+		erro = json.NewDecoder(r.Body).Decode(&request)
 		if erro != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		values := map[string]interface{}{
-			"email": user.Email,
-			"name":  user.Name,
+		// ユーザー情報を取得
+		user := function.SqlUser{
+			ID: claims.ID,
+			Name: request.Name,
+			Email: request.Email,
 		}
 
+		profile := function.Profile{
+			DateOfBirth: request.DateOfBirth,
+			Gender: request.Gender,
+			PhoneNumber: request.PhoneNumber,
+			Bio: request.Bio,
+			IconURL: request.IconURL,
+		}
+
+		user_map, erro := function.StructToMap(user)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			return
+		}
 		// ユーザー情報更新
-		erro = function.UpdateUser(claims.ID, values)
+		erro = function.UpdateUser(claims.ID, user_map)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			return
+		}
+
+		profile_map, erro := function.StructToMap(profile)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			return
+		}
+
+		// プロフィール情報更新
+		erro = function.UpdateProfile(claims.ID, profile_map)
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
@@ -457,6 +528,145 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "ユーザー情報を更新しました"})
 	})
+	
+	// アドレスの更新
+	r.HandleFunc("/address/edit", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		//リクエストボディから更新情報を取得
+		var address function.Address
+		erro = json.NewDecoder(r.Body).Decode(&address)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		address_map, erro := function.StructToMap(address)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			return
+		}
+
+		if(address.ID == ""){
+			// アドレスの新規保存
+			address_map["UserID"] = claims.ID
+			erro = function.SaveAddress(address_map)
+		}else{
+			// アドレスの更新
+			erro = function.UpdateAddress(address.ID, address_map)
+		}
+	
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "住所を更新しました"})
+	})
+
+	// アドレスの取得
+	r.HandleFunc("/address/get", func(w http.ResponseWriter, r *http.Request) {
+		_, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		//　postからIDを取得
+		var address function.Address
+		erro := json.NewDecoder(r.Body).Decode(&address)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// アドレスの取得
+		addressData, erro := function.GetAddress(address.ID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(addressData)
+	})
+
+	// アドレスの削除
+	r.HandleFunc("/address/delete", func(w http.ResponseWriter, r *http.Request) {
+		_, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		
+		//　postからIDを取得
+		var address function.Address
+		erro := json.NewDecoder(r.Body).Decode(&address)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		
+		// アドレスの削除
+		erro = function.DeleteAddress(address.ID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "住所を削除しました"})
+	})
+
+	//アドレスリストの取得
+	r.HandleFunc("/address/list", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// アドレスリストの取得
+		addressData, erro := function.GetAddressList(claims.ID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			return
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(addressData)
+	})
+
 
 	//googleログインGo
 	r.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {

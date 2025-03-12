@@ -9,6 +9,7 @@ import { Header } from '../component/Header';
 import { NODE_API } from '../conf/config';
 
 type Inputs = {
+    id: string,
     name: string,
     email: string,
     image: File,
@@ -46,7 +47,7 @@ const EditProfile: React.FC = () => {
         data.phone = data.phone.replace(/-/g, '');
         data.image = selectedFile || new File([], 'dummy');
         console.log(data);
-        axios.post(NODE_API.URL + '/edit/profile', data, { headers: NODE_API.HEADERS })
+        axios.post(NODE_API.URL + '/profile/edit', data, { headers: NODE_API.HEADERS })
             .then((res) => {
                 console.log(res.data);
                 navigate('/');
