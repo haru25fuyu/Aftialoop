@@ -717,8 +717,14 @@ func main() {
 			return
 		}
 
+		response := map[string]interface{}{
+			"address": addressData,
+			"count": len(addressData),
+			"token": token,
+		}
+
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(addressData)
+		json.NewEncoder(w).Encode(response)
 	})
 
 	//googleログインGo
