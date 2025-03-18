@@ -15,6 +15,7 @@ import PaymentRegistration from './page/PaymentRegistration';
 import List from './page/List';
 import EditAddress from './page/EditAddress';
 import EditProfile from './page/EditProfile';
+import Profile from './page/Profile';
 
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
         <Route path={`/list`} element={<List />} />
         <Route path={`/address/edit`} element={<EditAddress />} />
         <Route path={`/profile/edit`} element={<EditProfile />} />
+        <Route path={`/profile`} element={<Profile />} />
       </Routes>
     </>
   )

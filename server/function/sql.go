@@ -136,7 +136,9 @@ func UpdateUser(id string, user map[string]interface{}) error {
 	}
 
 	query := fmt.Sprintf("UPDATE users SET %s WHERE ID = ?", join(setClauses, ","))
+	log.Println(query)
 	values = append(values, id)
+	log.Println(values)
 	_, err := config.DB.Exec(query, values...)
 	return err
 }
@@ -162,7 +164,7 @@ func SaveProfile(id string, profile map[string]interface{}) error {
 }
 
 func GetProfile(id string) (Profile, error) {
-	query := "SELECT * FROM profile WHERE UserID = ?"
+	query := "SELECT DateOfBirth,Gender,PhoneNumber,Bio,IconURL FROM profile WHERE UserID = ?"
 	var profile Profile
 	err := config.DB.Get(&profile, query, id)
 	if err != nil {

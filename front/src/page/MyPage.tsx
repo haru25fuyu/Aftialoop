@@ -33,14 +33,19 @@ const MyPage: React.FC = () => {
             }
         )
             .then((res) => {
-                console.log(res.data);            
+                console.log(res.data.access_token);
+                //トークン保存
+                // 現在時刻にexpires_in（秒）を加えて、期限を計算
+                const expirationTime = Date.now() / 1000 + 3600;
+                localStorage.setItem('token', res.data.access_token);
+                localStorage.setItem('expirationTime', expirationTime.toString());
             })
             .catch((err) => {
                 console.error(err);
                 //トークン情報を削除
                 localStorage.removeItem('token');
                 localStorage.removeItem('expirationTime');
-                navigate("/login");
+                navigate("/login", { state: { page: "/mypage" } });
             });
     }, []);
 

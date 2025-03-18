@@ -42,7 +42,7 @@ type Item struct {
 
 type Profile struct {
 	DateOfBirth string `db:"DateOfBirth" json:"birth"`
-	Gender	  string `db:"Gender json:genger"`
+	Gender	  string `db:"Gender" json:genger"`
 	PhoneNumber string `db:"PhoneNumber" json:"phone"`
 	Bio string `db:"Bio" json:"bio"`
 	IconURL string `db:"IconURL" json:"image"`
@@ -56,7 +56,6 @@ type RequestUserProfile struct {
 	Gender	  string `json:"gender"`
 	PhoneNumber string `json:"phone"`
 	Bio string `json:"bio"`
-	IconURL string `json:"image"`
 }
 
 type Address struct {

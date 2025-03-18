@@ -19,7 +19,7 @@ export const Header: React.FC = () => {
                 const userIcon = image && image !== "undefined" ? decoded.image : null;
 
                 setLoginText(name);
-                setLoginImage(userIcon || "/../data/login.jpeg");
+                //setLoginImage(userIcon || "/../data/login.jpeg");
                 setIcon(userIcon); // ✅ useState にセット
                 setURL("/mypage");
             }

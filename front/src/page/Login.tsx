@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import axios from 'axios';
-import { useNavigate , Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
@@ -17,6 +17,8 @@ type Inputs = {
 const Login: React.FC = () => {
     const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
     const navigate = useNavigate();
+    const location = useLocation();
+    const [error, setError] = useState('');
 
     const onSubmit = async (data: Inputs) => {
         console.log(data);
@@ -30,11 +32,11 @@ const Login: React.FC = () => {
                 localStorage.setItem('token', res.data.access_token);
                 localStorage.setItem('expirationTime', expirationTime);
 
-                navigate('/');
+                navigate(location.state?.page || '/');
             })
             .catch((err) => {
                 console.error(err);
-
+                setError(err.response.data.err_message);
             });
     };
     return (
@@ -47,6 +49,7 @@ const Login: React.FC = () => {
                     <GoogleOAuth />
                     <div className="flex justify-center items-center"><hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' /></div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
                         <div>
                             <label className="block text-sm font-medium text-gray-700">メールアドレス</label>
                             <input

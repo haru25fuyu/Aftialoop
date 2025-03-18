@@ -20,14 +20,59 @@ type Inputs = {
     gender: string
 }
 
+type Get = {
+    id: string,
+    name: string,
+    email: string,
+    image: string,
+    password: string
+    phone: string,
+    bio: string,
+    birth: string,
+    gender: string
+}
+
 const EditProfile: React.FC = () => {
     const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
     const navigate = useNavigate();
     const [preview, setPreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+    const [user, setUser] = useState<Get>({
+        id: '',
+        name: '',
+        email: '',
+        image: '',
+        password: '',
+        phone: '',
+        bio: '',
+        birth: '',
+        gender: ''
+    });
 
     useEffect(() => {
-
+        // ユーザー情報を取得
+        setToken(localStorage.getItem('token'));
+        if (!token || token === 'undefined') {
+            navigate("/login", { state: { page: 'Profile' } });
+        }
+        axios.post(NODE_API.URL + '/profile/get', {}, {
+            headers: {
+                Authorization: `Bearer ${token}`,
+                ...NODE_API.HEADERS,
+            }
+        })
+            .then((res) => {
+                setUser(res.data);
+                setPreview(res.data.image);
+            })
+            .catch((err) => {
+                console.error(err);
+                localStorage.removeItem('token');
+                localStorage.removeItem('expirationTime');
+                navigate("/login", { state: { page: "/profile" } });
+            });
+        console.log(user);
     }, []);
 
     // 画像選択のハンドラー
@@ -46,11 +91,31 @@ const EditProfile: React.FC = () => {
     const onSubmit = async (data: Inputs) => {
         data.phone = data.phone.replace(/-/g, '');
         data.image = selectedFile || new File([], 'dummy');
-        console.log(data);
-        axios.post(NODE_API.URL + '/profile/edit', data, { headers: NODE_API.HEADERS })
+
+        // FormDataオブジェクトを作成
+        const formData = new FormData();
+        const jsonData = {
+            name: data.name,
+            email: data.email,
+            phone: data.phone,
+            bio: data.bio,
+            gender: data.gender,
+            birth: data.birth,
+        };
+        // JSONデータをFormDataに追加
+        formData.append('data', JSON.stringify(jsonData));
+        // 画像をFormDataに追加
+        formData.append('image', data.image);
+
+        axios.post(NODE_API.URL + '/profile/edit', formData, {
+            headers: {
+                "Content-Type": "multipart/form-data", // Content-Typeを指定
+                "Authorization": "Bearer " + token,
+            }
+        })
             .then((res) => {
                 console.log(res.data);
-                navigate('/');
+                navigate('/profile', { replace: true, state: { chenge: true } });
             })
             .catch((err) => {
                 console.error(err);
@@ -102,6 +167,7 @@ const EditProfile: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700">ユーザーネーム</label>
                             <input
                                 type="name"
+                                defaultValue={user.name}
                                 {...register('name', { required: 'ユーザーネームは必須です' })}
                                 className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
@@ -111,6 +177,7 @@ const EditProfile: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700">メールアドレス</label>
                             <input
                                 type="email"
+                                defaultValue={user.email}
                                 {...register('email', { required: 'メールアドレスは必須です' })}
                                 className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
@@ -120,6 +187,7 @@ const EditProfile: React.FC = () => {
                             <label className="block text-sm font-medium text-gray-700">電話番号</label>
                             <input
                                 type="number"
+                                defaultValue={user.phone}
                                 {...register('phone', { required: '電話番号は必須です' })}
                                 className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
@@ -133,7 +201,7 @@ const EditProfile: React.FC = () => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700">自己紹介(オークション用)</label>
                             <textarea
-
+                                defaultValue={user.bio}
                                 {...register('bio')}
                                 className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                             />
@@ -145,6 +213,7 @@ const EditProfile: React.FC = () => {
                                 <label className="flex items-center space-x-1">
                                     <input
                                         type="radio"
+                                        checked={user.gender === "1"}
                                         className="w-4 h-4"
                                         value={1}
                                         {...register('gender')}
@@ -155,6 +224,7 @@ const EditProfile: React.FC = () => {
                                     <input
                                         type="radio"
                                         className="w-4 h-4"
+                                        checked={user.gender === "2"}
                                         value={2}
                                         {...register('gender')}
                                     />
@@ -164,6 +234,7 @@ const EditProfile: React.FC = () => {
                                     <input
                                         type="radio"
                                         className="w-4 h-4"
+                                        checked={user.gender !== "1" && user.gender !== "2"}
                                         value={1}
                                         {...register('gender')}
                                     />

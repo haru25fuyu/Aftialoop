@@ -5,8 +5,10 @@ import (
 	"animaloop/function"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/gorilla/mux"
@@ -355,9 +357,10 @@ func main() {
 		}
 		// レスポンスを返す
 		response := map[string]interface{}{
-			"history":   history,
-			"favorites": favorites,
-			"user":      user,
+			"history":      history,
+			"favorites":    favorites,
+			"user":         user,
+			"access_token": token,
 		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
@@ -434,10 +437,10 @@ func main() {
 		}
 
 		// ユーザー情報取得
-		userData, erro := function.GetUserDataAndProfile([]string{"id"}, []interface{}{claims.ID})
+		userData, erro := function.GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "userデータの取得に失敗しました: " + erro.Error()})
 			return
 		}
 
@@ -445,90 +448,141 @@ func main() {
 		profileData, erro := function.GetProfile(claims.ID)
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "profileデータの取得に失敗しました: " + erro.Error()})
 			return
 		}
 
 		// ユーザー情報とプロフィール情報を結合
-		userData["profile"] = profileData
+		response := map[string]interface{}{
+			"Name":         userData.Name,
+			"Email":        userData.Email,
+			"DateOfBirth":  profileData.DateOfBirth,
+			"Gender":       profileData.Gender,
+			"PhoneNumber":  profileData.PhoneNumber,
+			"Bio":          profileData.Bio,
+			"IconURL":      profileData.IconURL,
+			"access_token": token,
+		}
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(userData)
+		json.NewEncoder(w).Encode(response)
 	})
 
 	// ユーザー情報更新
 	r.HandleFunc("/profile/edit", func(w http.ResponseWriter, r *http.Request) {
-		token, err := function.CheckUser(w, r)
-		if err != "" {
+		// 1. multipart/form-dataのリクエストを処理するために、最初にリクエストの解析を行う
+		err := r.ParseMultipartForm(10 << 20) // 例えば最大10MBのフォームデータを許可
+		if err != nil {
+			http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
+			return
+		}
+
+		token, erro := function.CheckUser(w, r)
+		if erro != "" {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
 			return
 		}
 
 		// トークンからIdを取得
-		claims, erro := function.GetUserFromToken(token)
-		if erro != nil {
+		claims, err := function.GetUserFromToken(token)
+		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
 			return
 		}
 
-		//リクエストボディから更新情報を取得
+		// 2. フォームデータのJSON部分を取得
 		var request function.RequestUserProfile
-		erro = json.NewDecoder(r.Body).Decode(&request)
-		if erro != nil {
+		err = json.Unmarshal([]byte(r.FormValue("data")), &request) // "data"はJSON部分のキー名と仮定
+		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
+		file, _, err := r.FormFile("image")
+		if err != nil {
+			http.Error(w, "Failed to upload file", http.StatusBadRequest)
+			return
+		}
+
+		// 3. 保存先ディレクトリを指定
+		dir := "./account_data/img/"
+		// ディレクトリが存在しない場合、作成する
+		if _, err := os.Stat(dir); os.IsNotExist(err) {
+			err := os.MkdirAll(dir, os.ModePerm) // ディレクトリ作成
+			if err != nil {
+				http.Error(w, "Failed to create directory", http.StatusInternalServerError)
+				return
+			}
+		}
+
+		fileName := fmt.Sprintf("icon_%s.png", claims.ID)
+		path := dir + fileName
+		outFile, err := os.Create(path)
+		if err != nil {
+			http.Error(w, "Failed to save file", http.StatusInternalServerError)
+			return
+		}
+		defer outFile.Close()
+
+		// 6. ファイルデータを保存
+		_, err = io.Copy(outFile, file)
+		if err != nil {
+			http.Error(w, "Failed to write file", http.StatusInternalServerError)
+			return
+		}
+
+		log.Println(file)
+
 		// ユーザー情報を取得
 		user := function.SqlUser{
-			ID: claims.ID,
-			Name: request.Name,
+			ID:    claims.ID,
+			Name:  request.Name,
 			Email: request.Email,
 		}
 
 		profile := function.Profile{
 			DateOfBirth: request.DateOfBirth,
-			Gender: request.Gender,
+			Gender:      request.Gender,
 			PhoneNumber: request.PhoneNumber,
-			Bio: request.Bio,
-			IconURL: request.IconURL,
+			Bio:         request.Bio,
+			IconURL:     path,
 		}
 
-		user_map, erro := function.StructToMap(user)
-		if erro != nil {
+		user_map, err := function.StructToMap(user)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "map変換に失敗しました"})
 			return
 		}
 		// ユーザー情報更新
-		erro = function.UpdateUser(claims.ID, user_map)
-		if erro != nil {
+		err = function.UpdateUser(claims.ID, user_map)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーユーザーデータの更新に失敗しました： " + err.Error()})
 			return
 		}
 
-		profile_map, erro := function.StructToMap(profile)
-		if erro != nil {
+		profile_map, err := function.StructToMap(profile)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "map変換に失敗しました"})
 			return
 		}
 
 		// プロフィール情報更新
-		erro = function.UpdateProfile(claims.ID, profile_map)
-		if erro != nil {
+		err = function.UpdateProfile(claims.ID, profile_map)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "プロフィールの更新に失敗しました： " + err.Error()})
 			return
 		}
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "ユーザー情報を更新しました"})
 	})
-	
+
 	// アドレスの更新
 	r.HandleFunc("/address/edit", func(w http.ResponseWriter, r *http.Request) {
 		token, err := function.CheckUser(w, r)
@@ -561,15 +615,15 @@ func main() {
 			return
 		}
 
-		if(address.ID == ""){
+		if address.ID == "" {
 			// アドレスの新規保存
 			address_map["UserID"] = claims.ID
 			erro = function.SaveAddress(address_map)
-		}else{
+		} else {
 			// アドレスの更新
 			erro = function.UpdateAddress(address.ID, address_map)
 		}
-	
+
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
@@ -617,7 +671,7 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
 			return
 		}
-		
+
 		//　postからIDを取得
 		var address function.Address
 		erro := json.NewDecoder(r.Body).Decode(&address)
@@ -625,7 +679,7 @@ func main() {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		
+
 		// アドレスの削除
 		erro = function.DeleteAddress(address.ID)
 		if erro != nil {
@@ -666,7 +720,6 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(addressData)
 	})
-
 
 	//googleログインGo
 	r.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {
