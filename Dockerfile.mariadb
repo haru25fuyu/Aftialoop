@@ -1,0 +1,18 @@
+# MariaDB の公式イメージをベースにする
+FROM mariadb:latest
+
+# 設定ファイルのコピー
+COPY ./conf/my.cnf /etc/my.cnf
+COPY ./conf/my.cnf.d/ /etc/my.cnf.d/
+
+# データファイルをボリュームとして保持
+VOLUME ["/var/lib/mysql"]
+
+# 環境変数で root パスワードを設定（docker-composeでも可）
+ENV MYSQL_ROOT_PASSWORD=rootpassword
+
+# ポートを公開
+EXPOSE 3306
+
+# MariaDB を起動
+CMD ["mariadbd"]
