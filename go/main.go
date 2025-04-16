@@ -719,8 +719,8 @@ func main() {
 
 		response := map[string]interface{}{
 			"address": addressData,
-			"count": len(addressData),
-			"token": token,
+			"count":   len(addressData),
+			"token":   token,
 		}
 
 		w.WriteHeader(http.StatusOK)
@@ -729,8 +729,16 @@ func main() {
 
 	//googleログインGo
 	r.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {
-		// トークンを取得
-		token := r.URL.Query().Get("token")
+		// トークンを取得(psotリクエスト)
+		var get function.Token
+		// Decode 成功＋Tokenあり を同時にチェック！
+		if err := json.NewDecoder(r.Body).Decode(&get); err != nil || get.Token == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
+			return
+		}
+		var token = get.Token
+
 		if token == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
@@ -746,7 +754,7 @@ func main() {
 		}
 
 		// トークンのデータを取得
-		email := payload.Email
+		email := payload["email"].(string)
 		//並列でメールアドレスをチェックする
 		sql_mail, err := function.EmailCheck(email)
 		square_mail := function.CheckSquareEmail(email)
@@ -761,15 +769,15 @@ func main() {
 			}
 
 			err = function.UpdateUser(user.ID, map[string]interface{}{
-				"name":      payload.Name,
-				"google_id": payload.Id,
+				"name":      payload["name"].(string),
+				"google_id": payload["sub"].(string),
 			})
 
 			// トークン生成
 			var token_data function.User
 			token_data.ID = user.ID
 			token_data.Email = user.Email
-			token_data.Name = payload.Name
+			token_data.Name = payload["name"].(string)
 			token_data.Limit = 1
 
 			token, err := function.GenerateToken(&token_data)
@@ -801,8 +809,8 @@ func main() {
 		// ユーザーが存在しない場合はユーザーを作成
 		user := function.SqlUser{
 			Email:    email,
-			Name:     payload.Name,
-			GoogleID: payload.Id,
+			Name:     payload["name"].(string),
+			GoogleID: payload["sub"].(string),
 		}
 
 		// スクエアのカスタマーを作成

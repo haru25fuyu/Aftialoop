@@ -1,12 +1,11 @@
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import axios from 'axios';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
 
-import { NODE_API } from '../conf/config';
+import api from '../conf/api';
 
 type Inputs = {
     name: string,
@@ -22,7 +21,7 @@ const Login: React.FC = () => {
 
     const onSubmit = async (data: Inputs) => {
         console.log(data);
-        axios.post(NODE_API.URL + '/login', data, { headers: NODE_API.HEADERS })
+        api.post('/login', data)
             .then((res) => {
                 console.log(res.data);
                 const expiresIn = res.data.expires_in;

@@ -1,11 +1,10 @@
 import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 
-import { NODE_API } from '../conf/config';
+import api from '../conf/api';
 
 
 type Address = {
@@ -22,7 +21,7 @@ const EditAddress: React.FC = () => {
     let address_list: Address[] = [];
 
     useEffect(() => {
-        axios.get(NODE_API.URL + '/address/list', { headers: NODE_API.HEADERS })
+        api.get('/address/list')
             .then((res) => {
                 console.log(res.data);
                 address_list = res.data.address_list;
@@ -36,7 +35,7 @@ const EditAddress: React.FC = () => {
         //データのpostCoswにハイフンが含まれている場合、ハイフンを削除
         data.postCode = data.postCode.replace(/-/g, '');
         console.log(data);
-        axios.post(NODE_API.URL + '/address/edit', data, { headers: NODE_API.HEADERS })
+        api.post('/address/edit', data)
             .then((res) => {
                 console.log(res.data);
                 const expiresIn = res.data.expires_in;

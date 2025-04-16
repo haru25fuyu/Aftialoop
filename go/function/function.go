@@ -11,7 +11,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 
     var refreshToken *http.Cookie =new(http.Cookie)
     refreshToken, err := r.Cookie("refresh_token")
-
+    log.Println("リフレッシュトークン：", refreshToken)
     if authHeader == "" && err != nil {
         return "" , "トークンが有りません";
     }

@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
 import { useNavigate } from "react-router-dom";
-import axios from "axios";
 
 import Header from "../component/Header";
 import Footer from "../component/Footer";
 
-import { NODE_API } from "../conf/config";
+import api from "../conf/api";
 
 interface Token {
     token: string;
@@ -23,14 +22,7 @@ const SquarePayment: React.FC = () => {
         }
 
         //APIdで顧客IDを取得
-        axios.post(NODE_API.URL + "/get-customer",{},
-                {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                        ...NODE_API.HEADERS,
-                    },
-                }
-            )
+        api.post("/get-customer", { token: token })
             .then((res) => {
                 console.log(res.data);
                 setCustomerId(res.data.customerId);
@@ -46,7 +38,7 @@ const SquarePayment: React.FC = () => {
     const saveCard = async (token: string) => {
         console.log("トークン:", token);
         try {
-            const response = await axios.post(NODE_API.URL + "/api/save-card", { token: token, customerId: customerId });
+            const response = await api.post("/api/save-card", { token: token, customerId: customerId });
 
             // レスポンスが正常であれば customerId を更新
             if (response.data.customerId) {
@@ -54,7 +46,7 @@ const SquarePayment: React.FC = () => {
             }
         } catch (error) {
             // axios ではエラーが出た場合、response でエラーの詳細にアクセスできます
-            if (axios.isAxiosError(error)) {
+            if (api.isAxiosError(error)) {
                 console.error("Axiosエラー:", error.response?.data || error.message);
             } else {
                 console.error("保存エラー:", error);

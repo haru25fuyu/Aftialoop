@@ -26,6 +26,12 @@ var googleOAuthClientSecret string;
 
 // MySQL接続情報
 var DB *sqlx.DB
+var DB_user = "admin"
+var DB_password = "hU3!K1%26LOSfK"
+var DB_host = "localhost"
+var DB_port = "3306"
+var DB_name = "Animaloop"
+var DB_charset = "utf8mb4"
 
 var MAILJET_API_KEY, MAILJET_API_SECRET, SQUARE_ACCESS_TOKEN string
 var SECRET_KEY, SECRET_REFRESH_KEY []byte
@@ -36,7 +42,7 @@ var SquareClient = client.NewClient()
 func Init() {
 	// MySQL接続
 	var err error
-	dsn := "app-user:q+b4(F}{bH\"LzSQm@tcp(localhost:3306)/Animaloop"
+	dsn := DB_user + ":" + DB_password + "@tcp(" + DB_host + ":" + DB_port + ")/" + DB_name + "?charset=" + DB_charset
 	DB, err = sqlx.Open("mysql", dsn)
 	if err != nil {
 		log.Fatal("MySQL接続エラー:", err)

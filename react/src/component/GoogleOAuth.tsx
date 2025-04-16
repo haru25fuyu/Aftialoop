@@ -1,26 +1,26 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { GoogleLogin } from "@react-oauth/google";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import { NODE_API } from "../conf/config";
+import api from "../conf/api.ts";
 
 export const GoogleOAuth = () => {
     const navigate = useNavigate(); // ✅ useNavigate をコンポーネント内で定義
 
-    const handleLoginSuccess = (response: any) => {
+    const handleLoginSuccess = (response: { credential?: string }) => {
+        if (!response.credential) {
+            console.error("ログイン失敗: credential が undefined です");
+            return;
+        }
         console.log("ログイン成功:", response);
         const token = { token: response.credential };
 
-        axios
-            .post(NODE_API.URL + "/api/auth/google", token, {
-                headers: NODE_API.HEADER,
-            })
+        api.post("/auth/google", token,)
             .then((res) => {
-                console.log("ログイン成功:", res.data.response);
+                console.log("ログイン成功:", res.data.access_token);
                 const expiresIn = res.data.expires_in;
                 const expirationTime = Date.now() / 1000 + expiresIn; // 秒単位で保存
 
-                localStorage.setItem("token", res.data.response.AccessToken);
+                localStorage.setItem("token", res.data.access_token);
                 localStorage.setItem("expirationTime", expirationTime);
 
                 navigate("/"); // ✅ 認証成功後にリダイレクト
@@ -32,8 +32,8 @@ export const GoogleOAuth = () => {
             });
     };
 
-    const handleLoginFailure = (error: any) => {
-        console.error("ログイン失敗:", error);
+    const handleLoginFailure = () => {
+        console.error("ログイン失敗");
     };
 
     return (

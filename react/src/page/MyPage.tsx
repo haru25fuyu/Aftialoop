@@ -1,7 +1,6 @@
 // PaymentForm.tsx
 import React from 'react';
 import { useEffect } from 'react';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 import Header from '../component/Header';
@@ -10,7 +9,7 @@ import ContentsList from '../component/ContentsList';
 import { Content } from '../types/Content';
 import BasicContent, { LinkContent } from '../component/Content';
 
-import { NODE_API } from '../conf/config';
+import api from '../conf/api';
 
 const MyPage: React.FC = () => {
     const navigate = useNavigate();
@@ -22,16 +21,7 @@ const MyPage: React.FC = () => {
         }
 
         //注文履歴とお気に入りリストの取得
-        axios.post(
-            NODE_API.URL + '/mypage',
-            {},
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`,
-                    ...NODE_API.HEADERS,
-                }
-            }
-        )
+        api.post('/mypage', { token: token })
             .then((res) => {
                 console.log(res.data.access_token);
                 //トークン保存

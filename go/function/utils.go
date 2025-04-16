@@ -6,11 +6,9 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/MicahParks/keyfunc"
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
-	"golang.org/x/net/context"
-	"golang.org/x/oauth2"
-	oauth2v2 "google.golang.org/api/oauth2/v2"
 )
 
 type User struct {
@@ -66,6 +64,18 @@ type Address struct {
 	Address1 string `db:"Address1" json:"address1"`
 	Address2 string `db:"Address2" json:"address2"`
 }
+
+type GoogleClaims struct {
+    Email string `json:"email"`
+    Name  string `json:"name"`
+    Sub   string `json:"sub"`
+}
+
+type Token struct {
+	Token string `db:"Token" json:"token"`
+}
+
+const jwksURL = "https://www.googleapis.com/oauth2/v3/certs"
 
 // JWTを生成する関数
 func GenerateToken(user *User) (string, error) {
@@ -164,29 +174,25 @@ func ComparePassword(hashedPassword, password string) error {
 }
 
 // サーバー側でアクセストークンを使ってユーザー情報を取得する関数
-func GetGoogleUserInfo(tokenString string) (*oauth2v2.Userinfo, error) {
-    // OAuth2のクライアントを作成
-    ctx := context.Background()
-
-	token := &oauth2.Token{
-        AccessToken: tokenString,
-    }
-
-    client := oauth2.NewClient(ctx, oauth2.StaticTokenSource(token))
-
-    // Google OAuth2 APIサービスのインスタンスを作成
-    service, err := oauth2v2.New(client)
+func GetGoogleUserInfo(tokenString string) (map[string]interface{}, error) {
+    // 公開鍵セット（JWKS）を取得
+    jwks, err := keyfunc.Get(jwksURL, keyfunc.Options{})
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("JWKS取得失敗: %w", err)
     }
 
-    // ユーザー情報を取得
-    userInfo, err := service.Userinfo.Get().Do()
+    // JWTを検証付きでパース
+    token, err := jwt.Parse(tokenString, jwks.Keyfunc)
     if err != nil {
-        return nil, err
+        return nil, fmt.Errorf("トークン検証失敗: %w", err)
     }
 
-    return userInfo, nil
+    if !token.Valid {
+        return nil, fmt.Errorf("トークンが無効です")
+    }
+
+    claims := token.Claims.(jwt.MapClaims)
+    return claims, nil
 }
 
 // 構造体をマップに変換する関数

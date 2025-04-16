@@ -1,12 +1,12 @@
 import React from 'react';
 import { useLocation } from "react-router-dom";
-import axios from 'axios';
 
 import { Content } from '../types/Content.ts';
 import { ContentsList } from '../component/ContentsList.tsx';
 import { ImageContent } from '../component/Content.tsx';
 import Header from '../component/Header.tsx';
 import MainImage from '../component/MainImage.tsx';
+import api from '../conf/api.ts';
 
 import '../css/List.css';
 
@@ -16,7 +16,7 @@ const List: React.FC = () => {
     const type = query.get('type');
 
     const contents: Content[] = [];
-    axios.get(`http://localhost:3000/list?type=${type}`).then((res) => {
+    api.get(`list?type=${type}`).then((res) => {
         contents.push(res.data);
         console.log(contents);
     }).catch((err) => {

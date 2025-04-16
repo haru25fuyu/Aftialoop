@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import axios from 'axios';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { UserRound } from "lucide-react";
 
 import { Header } from '../component/Header';
 
-import { NODE_API } from '../conf/config';
+import api from '../conf/api';
 
 type Inputs = {
     id: string,
@@ -42,12 +41,7 @@ const Profile: React.FC = () => {
         if (!token || token === 'undefined') {
             navigate("/login");
         }
-        axios.post(NODE_API.URL + '/profile/get', {}, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                ...NODE_API.HEADERS,
-            }
-        })
+        api.post('/profile/get', { token: token })
             .then((res) => {
                 setUser(res.data);
 

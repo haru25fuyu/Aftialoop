@@ -1,11 +1,10 @@
 import React from 'react';
 import { useEffect } from 'react';
-import axios from 'axios';
 
 import { Header } from '../component/Header.tsx';
 import { Footer } from '../component/Footer.tsx';
 
-import { NODE_API } from '../conf/config';
+import api from '../conf/api.ts';
 
 const RegisterConfirm: React.FC = () => {
     useEffect(() => {
@@ -14,7 +13,7 @@ const RegisterConfirm: React.FC = () => {
         const token = url.searchParams.get('token');
         
         //本登録APIの呼び出し
-        axios.get(NODE_API.URL + '/register/confirm?token=' + token, { headers: NODE_API.HEADERS })            .then((res) => {
+        api.get('/register/confirm?token=' + token).then((res) => {
                 console.log(res.data);
             })
             .catch((err) => {

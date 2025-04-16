@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "proxy": "https://node.animaloop.jp",
+  "proxy": "https://go.animaloop.jp",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

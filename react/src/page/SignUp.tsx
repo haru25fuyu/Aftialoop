@@ -6,7 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
 
-import { NODE_API } from '../conf/config';
+import { API } from '../conf/config';
 
 type Inputs = {
     name: string,
@@ -29,7 +29,7 @@ const SignUp: React.FC = () => {
             return;
         }
 
-        axios.post(NODE_API.URL + '/signup', { email: data.email, password: data.password }, { headers: NODE_API.HEADERS })
+        axios.post(API.URL + '/signup', { email: data.email, password: data.password }, { headers: API.HEADERS })
             .then((res) => {
                 if (!res.data.err_message) {
                     //仮登録完了ページに遷移

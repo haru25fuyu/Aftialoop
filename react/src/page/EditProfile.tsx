@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
 import { Camera, UserRound } from "lucide-react"; 
 
 import { Header } from '../component/Header';
 
-import { NODE_API } from '../conf/config';
+import api from '../conf/api';
 
 type Inputs = {
     id: string,
@@ -56,12 +55,7 @@ const EditProfile: React.FC = () => {
         if (!token || token === 'undefined') {
             navigate("/login", { state: { page: 'Profile' } });
         }
-        axios.post(NODE_API.URL + '/profile/get', {}, {
-            headers: {
-                Authorization: `Bearer ${token}`,
-                ...NODE_API.HEADERS,
-            }
-        })
+        api.post('/profile/get', {},)
             .then((res) => {
                 setUser(res.data);
                 setPreview(res.data.image);
@@ -107,12 +101,7 @@ const EditProfile: React.FC = () => {
         // 画像をFormDataに追加
         formData.append('image', data.image);
 
-        axios.post(NODE_API.URL + '/profile/edit', formData, {
-            headers: {
-                "Content-Type": "multipart/form-data", // Content-Typeを指定
-                "Authorization": "Bearer " + token,
-            }
-        })
+        api.post('/profile/edit', formData)
             .then((res) => {
                 console.log(res.data);
                 navigate('/profile', { replace: true, state: { chenge: true } });

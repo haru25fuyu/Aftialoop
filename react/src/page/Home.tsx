@@ -9,7 +9,7 @@ import { Content } from '../types/Content';
 import { Header } from '../component/Header';
 import BasicContent from '../component/Content';
 import { ContentsList } from '../component/ContentsList';
-import { Footer } from '../component/Footer';
+import { Footer } from '../component/Footer.tsx';
 import MainImage from '../component/MainImage.tsx';
 
 const Home: React.FC = () => {
