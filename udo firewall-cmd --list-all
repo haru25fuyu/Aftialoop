@@ -1,0 +1,19 @@
+[0;1;32m●[0m httpd.service - The Apache HTTP Server
+     Loaded: loaded (]8;;file://vm-9301790b-ec.novalocal/usr/lib/systemd/system/httpd.service/usr/lib/systemd/system/httpd.service]8;;; [0;1;32menabled[0m; preset: [0;1;38;5;185mdisabled[0m)
+     Active: [0;1;32mactive (running)[0m since Mon 2025-04-14 00:34:10 JST; 2min 58s ago
+       Docs: ]8;;man:httpd.service(8)man:httpd.service(8)]8;;
+   Main PID: 314271 (httpd)
+     Status: "Total requests: 0; Idle/Busy workers 100/0;Requests/sec: 0; Bytes served/sec:   0 B/sec"
+      Tasks: 177 (limit: 23176)
+     Memory: 38.1M
+        CPU: 216ms
+     CGroup: /system.slice/httpd.service
+             ├─[0;38;5;245m314271 /usr/sbin/httpd -DFOREGROUND[0m
+             ├─[0;38;5;245m314274 /usr/sbin/httpd -DFOREGROUND[0m
+             ├─[0;38;5;245m314275 /usr/sbin/httpd -DFOREGROUND[0m
+             ├─[0;38;5;245m314276 /usr/sbin/httpd -DFOREGROUND[0m
+             └─[0;38;5;245m314277 /usr/sbin/httpd -DFOREGROUND[0m
+
+Apr 14 00:34:10 vm-9301790b-ec.novalocal systemd[1]: Starting The Apache HTTP Server...
+Apr 14 00:34:10 vm-9301790b-ec.novalocal httpd[314271]: Server configured, listening on: port 443, port 80
+Apr 14 00:34:10 vm-9301790b-ec.novalocal systemd[1]: Started The Apache HTTP Server.

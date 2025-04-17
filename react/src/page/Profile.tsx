@@ -6,6 +6,7 @@ import { UserRound } from "lucide-react";
 import { Header } from '../component/Header';
 
 import api from '../conf/api';
+import CONFIG from '../conf/config';
 
 type Inputs = {
     id: string,
@@ -41,10 +42,20 @@ const Profile: React.FC = () => {
         if (!token || token === 'undefined') {
             navigate("/login");
         }
-        api.post('/profile/get', { token: token })
+        api.post('/profile/get')
             .then((res) => {
-                setUser(res.data);
-
+                setUser({
+                    id: res.data.ID || "",
+                    name: res.data.Name || "",
+                    email: res.data.Email || "",
+                    image: CONFIG.BASE_URL + res.data.IconURL || "",
+                    password: "",
+                    phone: res.data.PhoneNumber || "",
+                    bio: res.data.Bio || "",
+                    birth: res.data.DateOfBirth || "",
+                    gender: res.data.Gender || ""
+                });
+                console.log(user);
             })
             .catch((err) => {
                 console.error(err);
@@ -53,7 +64,6 @@ const Profile: React.FC = () => {
                 navigate("/login", { state: { page: "/profile" } }
                 );
             });
-        console.log(user);
     }, []);
 
     return (
@@ -69,7 +79,7 @@ const Profile: React.FC = () => {
                             {/* 画像プレビューがある場合はプレビュー画像、ない場合はアイコンを表示 */}
                             {user.image ? (
                                 <img
-                                    src={user.image}
+                                    src={user.image + "?t=" + new Date().getTime()}
                                     alt="プレビュー"
                                     className="w-full h-full object-cover transition-opacity group-hover:opacity-70"
                                 />

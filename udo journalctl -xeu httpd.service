@@ -1,0 +1,16 @@
+[0;1;31m×[0m httpd.service - The Apache HTTP Server
+     Loaded: loaded (]8;;file://vm-9301790b-ec.novalocal/usr/lib/systemd/system/httpd.service/usr/lib/systemd/system/httpd.service]8;;; [0;1;32menabled[0m; preset: [0;1;38;5;185mdisabled[0m)
+     Active: [0;1;31mfailed[0m (Result: exit-code) since Mon 2025-04-14 00:54:22 JST; 37s ago
+   Duration: 9min 19.776s
+       Docs: ]8;;man:httpd.service(8)man:httpd.service(8)]8;;
+    Process: 314880 ExecStart=/usr/sbin/httpd $OPTIONS -DFOREGROUND [0;1;31m(code=exited, status=1/FAILURE)[0m
+   Main PID: 314880 (code=exited, status=1/FAILURE)
+     Status: "Reading configuration..."
+        CPU: 42ms
+
+Apr 14 00:54:22 vm-9301790b-ec.novalocal systemd[1]: Starting The Apache HTTP Server...
+Apr 14 00:54:22 vm-9301790b-ec.novalocal httpd[314880]: AH00526: Syntax error on line 5 of /etc/httpd/conf.d/ssl.conf:
+Apr 14 00:54:22 vm-9301790b-ec.novalocal httpd[314880]: Cannot define multiple Listeners on the same IP:port
+Apr 14 00:54:22 vm-9301790b-ec.novalocal systemd[1]: [0;1;39m[0;1;31m[0;1;39mhttpd.service: Main process exited, code=exited, status=1/FAILURE[0m
+Apr 14 00:54:22 vm-9301790b-ec.novalocal systemd[1]: [0;1;38;5;185m[0;1;39m[0;1;38;5;185mhttpd.service: Failed with result 'exit-code'.[0m
+Apr 14 00:54:22 vm-9301790b-ec.novalocal systemd[1]: [0;1;31m[0;1;39m[0;1;31mFailed to start The Apache HTTP Server.[0m

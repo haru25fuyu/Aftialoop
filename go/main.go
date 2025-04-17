@@ -31,7 +31,7 @@ func main() {
 	// CORS設定
 	corsOptions := cors.New(cors.Options{
 		AllowedOrigins:       config.AllowedOrigins,
-		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE"},
+		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:       []string{"Content-Type", "Authorization"},
 		AllowCredentials:     true,
 		OptionsSuccessStatus: http.StatusOK,
@@ -447,6 +447,7 @@ func main() {
 		// プロフィール情報取得
 		profileData, erro := function.GetProfile(claims.ID)
 		if erro != nil {
+			log.Println("DB取得失敗:", erro)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "profileデータの取得に失敗しました: " + erro.Error()})
 			return
@@ -463,6 +464,8 @@ func main() {
 			"IconURL":      profileData.IconURL,
 			"access_token": token,
 		}
+
+		log.Println("ユーザー情報取得:", response)
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
@@ -492,45 +495,48 @@ func main() {
 			return
 		}
 
-		// 2. フォームデータのJSON部分を取得
 		var request function.RequestUserProfile
-		err = json.Unmarshal([]byte(r.FormValue("data")), &request) // "data"はJSON部分のキー名と仮定
+		err = json.Unmarshal([]byte(r.FormValue("data")), &request)
 		if err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		file, _, err := r.FormFile("image")
-		if err != nil {
-			http.Error(w, "Failed to upload file", http.StatusBadRequest)
-			return
-		}
+		// 初期値は空文字で
+		var iconPath string
 
-		// 3. 保存先ディレクトリを指定
-		dir := "./account_data/img/"
-		// ディレクトリが存在しない場合、作成する
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			err := os.MkdirAll(dir, os.ModePerm) // ディレクトリ作成
+		// 画像がアップロードされているか確認
+		file, _, err := r.FormFile("image")
+		if err == nil {
+			// 画像があるときだけ保存処理
+			defer file.Close()
+
+			dir := "./account_data/icon/"
+			react_dir := "/static/icon/"
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+					http.Error(w, "Failed to create directory", http.StatusInternalServerError)
+					return
+				}
+			}
+
+			fileName := fmt.Sprintf("icon_%s.png", claims.ID)
+			iconPath = react_dir + fileName
+
+			outFile, err := os.Create(dir + fileName)
 			if err != nil {
-				http.Error(w, "Failed to create directory", http.StatusInternalServerError)
+				http.Error(w, "Failed to save file", http.StatusInternalServerError)
 				return
 			}
-		}
+			defer outFile.Close()
 
-		fileName := fmt.Sprintf("icon_%s.png", claims.ID)
-		path := dir + fileName
-		outFile, err := os.Create(path)
-		if err != nil {
-			http.Error(w, "Failed to save file", http.StatusInternalServerError)
-			return
-		}
-		defer outFile.Close()
-
-		// 6. ファイルデータを保存
-		_, err = io.Copy(outFile, file)
-		if err != nil {
-			http.Error(w, "Failed to write file", http.StatusInternalServerError)
-			return
+			if _, err := io.Copy(outFile, file); err != nil {
+				http.Error(w, "Failed to write file", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			// 画像が送信されていない場合は何もしない
+			log.Println("✅ No image uploaded, keeping existing IconURL")
 		}
 
 		log.Println(file)
@@ -542,12 +548,20 @@ func main() {
 			Email: request.Email,
 		}
 
+		// 既存プロフィールを取得（←これがキモ！）
+		existingProfile, _ := function.GetProfile(claims.ID)
+
 		profile := function.Profile{
 			DateOfBirth: request.DateOfBirth,
 			Gender:      request.Gender,
 			PhoneNumber: request.PhoneNumber,
 			Bio:         request.Bio,
-			IconURL:     path,
+			IconURL:     existingProfile.IconURL, // デフォは今のやつ
+		}
+
+		// もし画像が新しくアップロードされてたら、差し替え
+		if iconPath != "" {
+			profile.IconURL = iconPath
 		}
 
 		user_map, err := function.StructToMap(user)
@@ -731,12 +745,15 @@ func main() {
 	r.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {
 		// トークンを取得(psotリクエスト)
 		var get function.Token
+
 		// Decode 成功＋Tokenあり を同時にチェック！
-		if err := json.NewDecoder(r.Body).Decode(&get); err != nil || get.Token == "" {
+		err := json.NewDecoder(r.Body).Decode(&get)
+		if err != nil || get.Token == "" {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 			return
 		}
+		log.Println("googleトークン：", get.Token)
 		var token = get.Token
 
 		if token == "" {
@@ -875,6 +892,10 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
 	})
+
+	r.PathPrefix("/static/icon/").Handler(
+		http.StripPrefix("/static/icon/", http.FileServer(http.Dir("./account_data/icon"))),
+	)
 
 	// サーバーを起動
 	log.Fatal(http.ListenAndServe(":4000", handler))

@@ -4,25 +4,31 @@ import (
 	"log"
 	"net/http"
 	"time"
+    "strings"
 )
 
 func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     authHeader := r.Header.Get("Authorization")
 
-    var refreshToken *http.Cookie =new(http.Cookie)
     refreshToken, err := r.Cookie("refresh_token")
-    log.Println("リフレッシュトークン：", refreshToken)
+    log.Println("🧪 リフレッシュトークン:", refreshToken)
+    if err != nil {
+        log.Println("❌ リフレッシュトークン取得失敗:", err)
+    } else {
+        log.Println("✅ リフレッシュトークン：", refreshToken.Value)
+    }
+    
     if authHeader == "" && err != nil {
-        return "" , "トークンが有りません";
+        return "", "トークンが有りません"
     }
 
     var token string
     var user *User
 
 
-    if authHeader != "" {
-        token = authHeader[len("Bearer "):]
-        user,err = GetUserFromToken(token)
+    if strings.HasPrefix(authHeader, "Bearer ") {
+        token = strings.TrimPrefix(authHeader, "Bearer ")
+        user, err = GetUserFromToken(token)
     }
 
     if user == nil && err != nil {
@@ -66,14 +72,12 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
             SetRefreshToken(w, user)
             return newAccessToken, ""
         }
-        log.Println("koko")
         remainingTime := decoded.Exp - time.Now().Unix()
         daysRemaining := remainingTime / 86400
 
         if daysRemaining < 7 {
             SetRefreshToken(w, decoded)
         }
-         log.Println("saigo")
         return newAccessToken, ""
     }
 }

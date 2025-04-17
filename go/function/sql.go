@@ -144,7 +144,6 @@ func UpdateUser(id string, user map[string]interface{}) error {
 }
 
 func SaveProfile(id string, profile map[string]interface{}) error {
-	// Generate columns and values
 	columns := []string{"UserID"}
 	values := []interface{}{id}
 	for key, value := range profile {
@@ -152,12 +151,12 @@ func SaveProfile(id string, profile map[string]interface{}) error {
 		values = append(values, value)
 	}
 
-	// SQL query
-	placeholders := "?"
-	for i := 1; i < len(columns); i++ {
-		placeholders += ", ?"
+	placeholders := make([]string, len(columns))
+	for i := range placeholders {
+		placeholders[i] = "?"
 	}
-	query := fmt.Sprintf("INSERT INTO profile (%s) VALUES (%s)", join(columns, ","), placeholders)
+
+	query := fmt.Sprintf("INSERT INTO profile (%s) VALUES (%s)", join(columns, ","), join(placeholders, ","))
 
 	_, err := config.DB.Exec(query, values...)
 	return err
@@ -169,7 +168,15 @@ func GetProfile(id string) (Profile, error) {
 	err := config.DB.Get(&profile, query, id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return profile, fmt.Errorf("profile not found")
+			saveErr := SaveProfile(id, map[string]interface{}{})
+			if saveErr != nil {
+				return profile, fmt.Errorf("プロフィール作成に失敗しました: %v", saveErr)
+			}
+			// 再度取得
+			err = config.DB.Get(&profile, query, id)
+			if err != nil {
+				return profile, fmt.Errorf("プロフィール取得に失敗しました: %v", err)
+			}
 		}
 		return profile, err
 	}

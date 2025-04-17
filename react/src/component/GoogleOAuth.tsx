@@ -14,7 +14,7 @@ export const GoogleOAuth = () => {
         console.log("ログイン成功:", response);
         const token = { token: response.credential };
 
-        api.post("/auth/google", token,)
+        api.post("/auth/google", token)
             .then((res) => {
                 console.log("ログイン成功:", res.data.access_token);
                 const expiresIn = res.data.expires_in;

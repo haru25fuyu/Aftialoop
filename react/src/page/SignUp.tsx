@@ -1,12 +1,11 @@
 import React from 'react';
 import { useForm } from 'react-hook-form';
-import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
 
-import { API } from '../conf/config';
+import api from '../conf/api';
 
 type Inputs = {
     name: string,
@@ -29,7 +28,7 @@ const SignUp: React.FC = () => {
             return;
         }
 
-        axios.post(API.URL + '/signup', { email: data.email, password: data.password }, { headers: API.HEADERS })
+        api.post('/signup', { email: data.email, password: data.password })
             .then((res) => {
                 if (!res.data.err_message) {
                     //仮登録完了ページに遷移

@@ -1,17 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
-import { Camera, UserRound } from "lucide-react"; 
+import { Camera, UserRound } from "lucide-react";
+import axios from 'axios';
 
 import { Header } from '../component/Header';
 
 import api from '../conf/api';
+import CONFIG from '../conf/config';
 
 type Inputs = {
     id: string,
     name: string,
     email: string,
-    image: File,
+    image: string | File,
     password: string
     phone: string,
     bio: string,
@@ -32,7 +34,7 @@ type Get = {
 }
 
 const EditProfile: React.FC = () => {
-    const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
+    const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<Inputs>();
     const navigate = useNavigate();
     const [preview, setPreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -57,8 +59,22 @@ const EditProfile: React.FC = () => {
         }
         api.post('/profile/get', {},)
             .then((res) => {
-                setUser(res.data);
-                setPreview(res.data.image);
+                const userData = {
+                    id: res.data.ID || "",
+                    name: res.data.Name || "",
+                    email: res.data.Email || "",
+                    image: CONFIG.BASE_URL + res.data.IconURL || "",
+                    password: "",
+                    phone: res.data.PhoneNumber || "",
+                    bio: res.data.Bio || "",
+                    birth: res.data.DateOfBirth || "",
+                    gender: res.data.Gender || ""
+                };
+                setUser(userData);
+                setPreview(userData.image);
+                reset(userData);
+                setValue("gender", userData.gender);
+                console.log(res.data);
             })
             .catch((err) => {
                 console.error(err);
@@ -99,9 +115,17 @@ const EditProfile: React.FC = () => {
         // JSONデータをFormDataに追加
         formData.append('data', JSON.stringify(jsonData));
         // 画像をFormDataに追加
-        formData.append('image', data.image);
+        if (selectedFile) {
+            formData.append('image', selectedFile);
+        }
 
-        api.post('/profile/edit', formData)
+        axios.post(CONFIG.BASE_URL + '/profile/edit', formData, {
+            headers: {
+                Authorization: `Bearer ${localStorage.getItem("token")}`,
+                // Content-Type は指定しない（axiosが自動で付ける）
+            },
+            withCredentials: true, // ← Cookieも使ってるなら忘れず
+        })
             .then((res) => {
                 console.log(res.data);
                 navigate('/profile', { replace: true, state: { chenge: true } });
@@ -123,7 +147,7 @@ const EditProfile: React.FC = () => {
                                 {/* 画像プレビューがある場合はプレビュー画像、ない場合はアイコンを表示 */}
                                 {preview ? (
                                     <img
-                                        src={preview}
+                                        src={preview.startsWith("http") ? preview + "?t=" + new Date().getTime() : preview}
                                         alt="プレビュー"
                                         className="w-full h-full object-cover transition-opacity group-hover:opacity-70"
                                     />
@@ -202,9 +226,8 @@ const EditProfile: React.FC = () => {
                                 <label className="flex items-center space-x-1">
                                     <input
                                         type="radio"
-                                        checked={user.gender === "1"}
                                         className="w-4 h-4"
-                                        value={1}
+                                        value="1"
                                         {...register('gender')}
                                     />
                                     <span>男性</span>
@@ -213,8 +236,7 @@ const EditProfile: React.FC = () => {
                                     <input
                                         type="radio"
                                         className="w-4 h-4"
-                                        checked={user.gender === "2"}
-                                        value={2}
+                                        value="2"
                                         {...register('gender')}
                                     />
                                     <span>女性</span>
@@ -223,8 +245,7 @@ const EditProfile: React.FC = () => {
                                     <input
                                         type="radio"
                                         className="w-4 h-4"
-                                        checked={user.gender !== "1" && user.gender !== "2"}
-                                        value={1}
+                                        value="3"
                                         {...register('gender')}
                                     />
                                     <span>未回答</span>

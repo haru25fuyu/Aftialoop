@@ -21,7 +21,7 @@ const MyPage: React.FC = () => {
         }
 
         //注文履歴とお気に入りリストの取得
-        api.post('/mypage', { token: token })
+        api.post('/mypage')
             .then((res) => {
                 console.log(res.data.access_token);
                 //トークン保存

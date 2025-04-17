@@ -1,5 +1,5 @@
 /**
- * Swiper Custom Element 11.2.1
+ * Swiper Custom Element 11.2.6
  * Most modern mobile touch slider and framework with hardware accelerated transitions
  * https://swiperjs.com
  *
@@ -7,22 +7,22 @@
  *
  * Released under the MIT License
  *
- * Released on: January 10, 2025
+ * Released on: March 19, 2025
  */
 
 (function () {
   'use strict';
 
   /**
-   * SSR Window 4.0.2
+   * SSR Window 5.0.0
    * Better handling for window object in SSR environment
    * https://github.com/nolimits4web/ssr-window
    *
-   * Copyright 2021, Vladimir Kharlampidi
+   * Copyright 2025, Vladimir Kharlampidi
    *
    * Licensed under MIT
    *
-   * Released on: December 13, 2021
+   * Released on: February 12, 2025
    */
   /* eslint-disable no-param-reassign */
   function isObject$2(obj) {
@@ -35,7 +35,8 @@
     if (src === void 0) {
       src = {};
     }
-    Object.keys(src).forEach(key => {
+    const noExtend = ['__proto__', 'constructor', 'prototype'];
+    Object.keys(src).filter(key => noExtend.indexOf(key) < 0).forEach(key => {
       if (typeof target[key] === 'undefined') target[key] = src[key];else if (isObject$2(src[key]) && isObject$2(target[key]) && Object.keys(src[key]).length > 0) {
         extend$2(target[key], src[key]);
       }
@@ -359,7 +360,7 @@
       if (el === elementToCheck) {
         return true;
       }
-      elementsQueue.push(...elementToCheck.children, ...(elementToCheck.shadowRoot?.children || []), ...(elementToCheck.assignedElements?.() || []));
+      elementsQueue.push(...elementToCheck.children, ...(elementToCheck.shadowRoot ? elementToCheck.shadowRoot.children : []), ...(elementToCheck.assignedElements ? elementToCheck.assignedElements() : []));
     }
   }
   function elementIsChildOf(el, parent) {
@@ -1981,6 +1982,11 @@
       }
       return true;
     }
+    const browser = getBrowser();
+    const isSafari = browser.isSafari;
+    if (isVirtual && !initial && isSafari && swiper.isElement) {
+      swiper.virtual.update(false, false, slideIndex);
+    }
     swiper.setTransition(speed);
     swiper.setTranslate(translate);
     swiper.updateActiveIndex(slideIndex);
@@ -2154,8 +2160,9 @@
     }
     const normalizedTranslate = normalize(translate);
     const normalizedSnapGrid = snapGrid.map(val => normalize(val));
+    const isFreeMode = params.freeMode && params.freeMode.enabled;
     let prevSnap = snapGrid[normalizedSnapGrid.indexOf(normalizedTranslate) - 1];
-    if (typeof prevSnap === 'undefined' && params.cssMode) {
+    if (typeof prevSnap === 'undefined' && (params.cssMode || isFreeMode)) {
       let prevSnapIndex;
       snapGrid.forEach((snap, snapIndex) => {
         if (normalizedTranslate >= snap) {
@@ -2164,7 +2171,7 @@
         }
       });
       if (typeof prevSnapIndex !== 'undefined') {
-        prevSnap = snapGrid[prevSnapIndex > 0 ? prevSnapIndex - 1 : prevSnapIndex];
+        prevSnap = isFreeMode ? snapGrid[prevSnapIndex] : snapGrid[prevSnapIndex > 0 ? prevSnapIndex - 1 : prevSnapIndex];
       }
     }
     let prevIndex = 0;
@@ -2288,7 +2295,7 @@
     slideToClickedSlide
   };
 
-  function loopCreate(slideRealIndex) {
+  function loopCreate(slideRealIndex, initial) {
     const swiper = this;
     const {
       params,
@@ -2336,7 +2343,8 @@
     }
     swiper.loopFix({
       slideRealIndex,
-      direction: params.centeredSlides ? undefined : 'next'
+      direction: params.centeredSlides ? undefined : 'next',
+      initial
     });
   }
 
@@ -2347,6 +2355,7 @@
       direction,
       setTranslate,
       activeSlideIndex,
+      initial,
       byController,
       byMousewheel
     } = _temp === void 0 ? {} : _temp;
@@ -2361,7 +2370,8 @@
       params
     } = swiper;
     const {
-      centeredSlides
+      centeredSlides,
+      initialSlide
     } = params;
     swiper.allowSlidePrev = true;
     swiper.allowSlideNext = true;
@@ -2397,14 +2407,16 @@
     loopedSlides += params.loopAdditionalSlides;
     swiper.loopedSlides = loopedSlides;
     const gridEnabled = swiper.grid && params.grid && params.grid.rows > 1;
-    if (slides.length < slidesPerView + loopedSlides) {
-      showWarning('Swiper Loop Warning: The number of slides is not enough for loop mode, it will be disabled and not function properly. You need to add more slides (or make duplicates) or lower the values of slidesPerView and slidesPerGroup parameters');
+    if (slides.length < slidesPerView + loopedSlides || swiper.params.effect === 'cards' && slides.length < slidesPerView + loopedSlides * 2) {
+      showWarning('Swiper Loop Warning: The number of slides is not enough for loop mode, it will be disabled or not function properly. You need to add more slides (or make duplicates) or lower the values of slidesPerView and slidesPerGroup parameters');
     } else if (gridEnabled && params.grid.fill === 'row') {
       showWarning('Swiper Loop Warning: Loop mode is not compatible with grid.fill = `row`');
     }
     const prependSlidesIndexes = [];
     const appendSlidesIndexes = [];
-    let activeIndex = swiper.activeIndex;
+    const cols = gridEnabled ? Math.ceil(slides.length / params.grid.rows) : slides.length;
+    const isInitialOverflow = initial && cols - initialSlide < slidesPerView && !centeredSlides;
+    let activeIndex = isInitialOverflow ? initialSlide : swiper.activeIndex;
     if (typeof activeSlideIndex === 'undefined') {
       activeSlideIndex = swiper.getSlideIndex(slides.find(el => el.classList.contains(params.slideActiveClass)));
     } else {
@@ -2414,7 +2426,6 @@
     const isPrev = direction === 'prev' || !direction;
     let slidesPrepended = 0;
     let slidesAppended = 0;
-    const cols = gridEnabled ? Math.ceil(slides.length / params.grid.rows) : slides.length;
     const activeColIndex = gridEnabled ? slides[activeSlideIndex].column : activeSlideIndex;
     const activeColIndexWithShift = activeColIndex + (centeredSlides && typeof setTranslate === 'undefined' ? -slidesPerView / 2 + 0.5 : 0);
     // prepend last slides before start
@@ -2436,6 +2447,9 @@
       }
     } else if (activeColIndexWithShift + slidesPerView > cols - loopedSlides) {
       slidesAppended = Math.max(activeColIndexWithShift - (cols - loopedSlides * 2), slidesPerGroup);
+      if (isInitialOverflow) {
+        slidesAppended = Math.max(slidesAppended, slidesPerView - cols + initialSlide + 1);
+      }
       for (let i = 0; i < slidesAppended; i += 1) {
         const index = i - Math.floor(i / cols) * cols;
         if (gridEnabled) {
@@ -2451,6 +2465,14 @@
     requestAnimationFrame(() => {
       swiper.__preventObserver__ = false;
     });
+    if (swiper.params.effect === 'cards' && slides.length < slidesPerView + loopedSlides * 2) {
+      if (appendSlidesIndexes.includes(activeSlideIndex)) {
+        appendSlidesIndexes.splice(appendSlidesIndexes.indexOf(activeSlideIndex), 1);
+      }
+      if (prependSlidesIndexes.includes(activeSlideIndex)) {
+        prependSlidesIndexes.splice(prependSlidesIndexes.indexOf(activeSlideIndex), 1);
+      }
+    }
     if (isPrev) {
       prependSlidesIndexes.forEach(index => {
         slides[index].swiperLoopMoveDOM = true;
@@ -2551,7 +2573,7 @@
       params,
       slidesEl
     } = swiper;
-    if (!params.loop || swiper.virtual && swiper.params.virtual.enabled) return;
+    if (!params.loop || !slidesEl || swiper.virtual && swiper.params.virtual.enabled) return;
     swiper.recalcSlides();
     const newSlidesOrder = [];
     swiper.slides.forEach(slideEl => {
@@ -2807,7 +2829,9 @@
           data.isMoved = false;
           return;
         }
-      } else if (pageX < touches.startX && swiper.translate <= swiper.maxTranslate() || pageX > touches.startX && swiper.translate >= swiper.minTranslate()) {
+      } else if (rtl && (pageX > touches.startX && -swiper.translate <= swiper.maxTranslate() || pageX < touches.startX && -swiper.translate >= swiper.minTranslate())) {
+        return;
+      } else if (!rtl && (pageX < touches.startX && swiper.translate <= swiper.maxTranslate() || pageX > touches.startX && swiper.translate >= swiper.minTranslate())) {
         return;
       }
     }
@@ -2909,7 +2933,7 @@
     }
     let loopFixed;
     new Date().getTime();
-    if (data.isMoved && data.allowThresholdMove && prevTouchesDirection !== swiper.touchesDirection && isLoop && allowLoopFix && Math.abs(diff) >= 1) {
+    if (params._loopSwapReset !== false && data.isMoved && data.allowThresholdMove && prevTouchesDirection !== swiper.touchesDirection && isLoop && allowLoopFix && Math.abs(diff) >= 1) {
       Object.assign(touches, {
         startX: pageX,
         startY: pageY,
@@ -4273,7 +4297,7 @@
 
       // Create loop
       if (swiper.params.loop) {
-        swiper.loopCreate();
+        swiper.loopCreate(undefined, true);
       }
 
       // Attach events
@@ -4453,7 +4477,7 @@
       }
       return slideEl;
     }
-    function update(force, beforeInit) {
+    function update(force, beforeInit, forceActiveIndex) {
       const {
         slidesPerView,
         slidesPerGroup,
@@ -4478,7 +4502,7 @@
       if (!swiper.params.cssMode) {
         swiper.updateActiveIndex();
       }
-      const activeIndex = swiper.activeIndex || 0;
+      const activeIndex = typeof forceActiveIndex === 'undefined' ? swiper.activeIndex || 0 : forceActiveIndex;
       let offsetProp;
       if (swiper.rtlTranslate) offsetProp = 'right';else offsetProp = swiper.isHorizontal() ? 'left' : 'top';
       let slidesAfter;
@@ -6824,6 +6848,8 @@
       mousePanStart.y = e.clientY;
       image.startX = newX;
       image.startY = newY;
+      image.currentX = newX;
+      image.currentY = newY;
     }
     function zoomIn(e) {
       const zoom = swiper.zoom;
@@ -6881,6 +6907,7 @@
         touchX = image.touchesStart.x;
         touchY = image.touchesStart.y;
       }
+      const prevScale = currentScale;
       const forceZoomRatio = typeof e === 'number' ? e : null;
       if (currentScale === 1 && forceZoomRatio) {
         touchX = undefined;
@@ -6906,8 +6933,13 @@
         translateMinY = Math.min(slideHeight / 2 - scaledHeight / 2, 0);
         translateMaxX = -translateMinX;
         translateMaxY = -translateMinY;
-        translateX = diffX * zoom.scale;
-        translateY = diffY * zoom.scale;
+        if (prevScale > 0 && forceZoomRatio && typeof image.currentX === 'number' && typeof image.currentY === 'number') {
+          translateX = image.currentX * zoom.scale / prevScale;
+          translateY = image.currentY * zoom.scale / prevScale;
+        } else {
+          translateX = diffX * zoom.scale;
+          translateY = diffY * zoom.scale;
+        }
         if (translateX < translateMinX) {
           translateX = translateMinX;
         }
@@ -6928,6 +6960,8 @@
         gesture.originX = 0;
         gesture.originY = 0;
       }
+      image.currentX = translateX;
+      image.currentY = translateY;
       gesture.imageWrapEl.style.transitionDuration = '300ms';
       gesture.imageWrapEl.style.transform = `translate3d(${translateX}px, ${translateY}px,0)`;
       gesture.imageEl.style.transitionDuration = '300ms';
@@ -6960,6 +6994,8 @@
       }
       zoom.scale = 1;
       currentScale = 1;
+      image.currentX = undefined;
+      image.currentY = undefined;
       image.touchesStart.x = undefined;
       image.touchesStart.y = undefined;
       gesture.imageWrapEl.style.transitionDuration = '300ms';
@@ -8225,6 +8261,10 @@
       initialized = true;
       const SwiperClass = swiper.constructor;
       if (thumbsParams.swiper instanceof SwiperClass) {
+        if (thumbsParams.swiper.destroyed) {
+          initialized = false;
+          return false;
+        }
         swiper.thumbs.swiper = thumbsParams.swiper;
         Object.assign(swiper.thumbs.swiper.originalParams, {
           watchSlidesProgress: true,
@@ -9750,14 +9790,17 @@
       setTransition,
       perspective: () => true,
       overwriteParams: () => ({
+        _loopSwapReset: false,
         watchSlidesProgress: true,
+        loopAdditionalSlides: swiper.params.cardsEffect.rotate ? 3 : 2,
+        centeredSlides: true,
         virtualTranslate: !swiper.params.cssMode
       })
     });
   }
 
   /**
-   * Swiper 11.2.1
+   * Swiper 11.2.6
    * Most modern mobile touch slider and framework with hardware accelerated transitions
    * https://swiperjs.com
    *
@@ -9765,7 +9808,7 @@
    *
    * Released under the MIT License
    *
-   * Released on: January 10, 2025
+   * Released on: March 19, 2025
    */
 
 
@@ -10092,7 +10135,7 @@
   }
 
   /**
-   * Swiper Custom Element 11.2.1
+   * Swiper Custom Element 11.2.6
    * Most modern mobile touch slider and framework with hardware accelerated transitions
    * https://swiperjs.com
    *
@@ -10100,7 +10143,7 @@
    *
    * Released under the MIT License
    *
-   * Released on: January 10, 2025
+   * Released on: March 19, 2025
    */
 
 
@@ -10227,8 +10270,7 @@
     }
     initialize() {
       var _this = this;
-      if (this.initialized) return;
-      this.initialized = true;
+      if (this.swiper && this.swiper.initialized) return;
       const {
         params: swiperParams,
         passedParams
@@ -10263,7 +10305,7 @@
       });
     }
     connectedCallback() {
-      if (this.initialized && this.nested && this.closest('swiper-slide') && this.closest('swiper-slide').swiperLoopMoveDOM) {
+      if (this.swiper && this.swiper.initialized && this.nested && this.closest('swiper-slide') && this.closest('swiper-slide').swiperLoopMoveDOM) {
         return;
       }
       if (this.init === false || this.getAttribute('init') === 'false') {
@@ -10278,7 +10320,6 @@
       if (this.swiper && this.swiper.destroy) {
         this.swiper.destroy();
       }
-      this.initialized = false;
     }
     updateSwiperOnPropChange(propName, propValue) {
       const {
@@ -10307,7 +10348,7 @@
       });
     }
     attributeChangedCallback(attr, prevValue, newValue) {
-      if (!this.initialized) return;
+      if (!(this.swiper && this.swiper.initialized)) return;
       if (prevValue === 'true' && newValue === null) {
         newValue = false;
       }
@@ -10329,7 +10370,7 @@
       set(value) {
         if (!this.passedParams) this.passedParams = {};
         this.passedParams[paramName] = value;
-        if (!this.initialized) return;
+        if (!(this.swiper && this.swiper.initialized)) return;
         this.updateSwiperOnPropChange(paramName, value);
       }
     });
@@ -10356,6 +10397,9 @@
       this.render();
     }
     connectedCallback() {
+      if (this.swiperLoopMoveDOM) {
+        return;
+      }
       this.initialize();
     }
   }
