@@ -3,54 +3,27 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 
 import { Header } from '../component/Header';
+import { AddressContent } from '../component/Content';
 
 import api from '../conf/api';
+import { Address } from '../types/Content';
 
-
-type Address = {
-    ID: string,
-    postCode: string,
-    pref: string,
-    address1: string
-    address2: string
-}
-
-const EditAddress: React.FC = () => {
+const AddressList: React.FC = () => {
     const { register, handleSubmit, setValue, formState: { errors } } = useForm<Inputs>();
     const navigate = useNavigate();
-    let address_list: Address[] = [];
+    const [address, setAddress] = React.useState<Address[]>([])
 
     useEffect(() => {
         api.get('/address/list')
             .then((res) => {
-                console.log(res.data);
-                address_list = res.data.address_list;
+                setAddress(res.data.address);
+                console.log("住所一覧取得:", address);
             })
             .catch((err) => {
-                console.error(err);
+                console.error("住所一覧エラー:", err);
             });
     }, []);
 
-    const onSubmit = async (data: Address) => {
-        //データのpostCoswにハイフンが含まれている場合、ハイフンを削除
-        data.postCode = data.postCode.replace(/-/g, '');
-        console.log(data);
-        api.post('/address/edit', data)
-            .then((res) => {
-                console.log(res.data);
-                const expiresIn = res.data.expires_in;
-                // 現在時刻にexpires_in（秒）を加えて、期限を計算
-                const expirationTime = Date.now() / 1000 + expiresIn;  // 秒単位で保存
-
-                localStorage.setItem('token', res.data.access_token);
-                localStorage.setItem('expirationTime', expirationTime);
-
-                navigate('/');
-            })
-            .catch((err) => {
-                console.error(err);
-            });
-    };
     return (
         <div>
             <header>
@@ -61,27 +34,24 @@ const EditAddress: React.FC = () => {
                     <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
                         <h2 className="text-2xl font-bold text-center text-gray-900">お届け先の設定</h2>
                         <div className="space-y-6">
-                            {address_list.map((address) => {
-                            }}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">郵便番号</label>
+                            <div className="contents-list flex flex-wrap justify-center gap-4">
+                                {address.map((item) => (
+                                    <div
+                                        key={item.ID}
+                                        onClick={() => navigate(`/address/edit?id=${item.ID}`)}
+                                        className="cursor-pointer contents_item flex flex-col items-start text-left h-[280px] overflow-hidden hover:bg-gray-100 transition"
+                                    >
+                                        <div className="flex flex-col items-start">
+                                            <p>{item.PostCode}</p>
+                                            <b>{item.Pref}</b>
+                                            <p>{item.Address1}</p>
+                                            <p>{item.Address2}</p>
+                                            <p>{item.Address3}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
 
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700" >都道府県</label>
-
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">住所</label>
-
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700">番地・建物名</label>
-
-                            </div>
-                            <div>
-                               
-                            </div>
                         </div>
                         <hr />
                     </div>
@@ -92,4 +62,4 @@ const EditAddress: React.FC = () => {
     );
 };
 
-export default EditAddress;
+export default AddressList;

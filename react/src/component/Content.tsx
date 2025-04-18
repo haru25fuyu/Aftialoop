@@ -1,11 +1,15 @@
 import '../css/BasicContent.css';
 import React from 'react';
 
-import { Content } from '../types/Content';
+import { Address, Content } from '../types/Content';
 import { useNavigate } from 'react-router-dom';
 
 type Props = {
     item: Content;
+};
+
+type AddressProps = {
+    item: Address;
 };
 
 const BasicContent: React.FC<Props> = ({ item }) => {
@@ -60,5 +64,17 @@ const ImageContent: React.FC<Props> = ({ item }) => {
     )
 }
 
+const AddressContent: React.FC<AddressProps> = ({ item }) => {
+    return (
+        <div key={item.id} className="flex flex-col items-start">
+            <p>{item.podt_code}</p>
+            <b>{item.pref}</b>
+            <p>{item.adress1}</p>
+            <p>{item.adress2}</p>
+            <p>{item.adress2}</p>
+        </div>
+    )
+}
+
 export default BasicContent;
-export { LinkContent, ImageContent };
+export { LinkContent, ImageContent, AddressContent };

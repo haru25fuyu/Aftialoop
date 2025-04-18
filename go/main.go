@@ -640,7 +640,7 @@ func main() {
 
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました" + erro.Error()})
 			return
 		}
 
@@ -669,7 +669,7 @@ func main() {
 		addressData, erro := function.GetAddress(address.ID)
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})
 			return
 		}
 
@@ -727,7 +727,7 @@ func main() {
 		addressData, erro := function.GetAddressList(claims.ID)
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})
 			return
 		}
 

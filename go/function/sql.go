@@ -297,13 +297,13 @@ func UpdateAddress(id string, address map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
 	for key, value := range address {
-		if(key == "AddressID" || key == "UserID"){
+		if(key == "ID" || key == "UserID"){
 			continue
 		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
 		values = append(values, value)
 	}
-	query := fmt.Sprintf("UPDATE Addresses SET %s WHERE AddressID = ?", join(setClauses, ","))
+	query := fmt.Sprintf("UPDATE addresses SET %s WHERE ID = ?", join(setClauses, ","))
 	values = append(values, id)
 	_, err := config.DB.Exec(query, values...)
 	return err
@@ -315,7 +315,7 @@ func SaveAddress(address map[string]interface{}) error {
 	columns := []string{}
 	values := []interface{}{}
 	for key, value := range address {
-		if(key == "AddressID"){
+		if(key == "ID"){
 			continue
 		}
 		columns = append(columns, key)
@@ -335,7 +335,7 @@ func SaveAddress(address map[string]interface{}) error {
 
 // 住所の取得
 func GetAddress(id string) (Address, error) {
-	query := "SELECT * FROM addresses WHERE AddressID = ?"
+	query := "SELECT ID,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE ID = ?"
 	var address Address
 	err := config.DB.Get(&address, query, id)
 	if err != nil {
@@ -349,13 +349,25 @@ func GetAddress(id string) (Address, error) {
 
 // 住所の削除
 func DeleteAddress(id string) error {
-	_, err := config.DB.Exec("DELETE FROM addresses WHERE AddressID = ?", id)
+	_, err := config.DB.Exec("DELETE FROM addresses WHERE ID = ?", id)
 	return err
+}
+
+func SetDefaultAddress(userID, addressID string) error {
+    // 全部 false に
+    _, err := db.Exec("UPDATE addresses SET IsDefault = false WHERE UserID = ?", userID)
+    if err != nil {
+        return err
+    }
+
+    // 指定のアドレスだけ true に
+    _, err = db.Exec("UPDATE addresses SET IsDefault = true WHERE ID = ?", addressID)
+    return err
 }
 
 //住所リストの取得
 func GetAddressList(user_id string) ([]Address, error) {
-	query := "SELECT * FROM addresses WHERE UserID = ?"
+	query := "SELECT ID,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE UserID = ?"
 	var addresses []Address
 	err := config.DB.Select(&addresses, query, user_id)
 	return addresses, err

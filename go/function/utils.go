@@ -57,12 +57,14 @@ type RequestUserProfile struct {
 }
 
 type Address struct {
-	ID string `db:"AddressID" json:"id"`
-	UserID string `db:"UserID" json:"usserid"`
-	PostalCode string `db:"PostalCode" json:"postCode"`
-	Pref string `db:"Pref" json:"pref"`
-	Address1 string `db:"Address1" json:"address1"`
-	Address2 string `db:"Address2" json:"address2"`
+	ID string `db:"ID" json:"ID"`
+	UserID string `db:"UserID" json:"UserID"`
+	PostCode string `db:"PostCode" json:"PostCode"`
+	Pref string `db:"Pref" json:"Pref"`
+	Address1 string `db:"Address1" json:"Address1"`
+	Address2 string `db:"Address2" json:"Address2"`
+	Address3 string `db:"Address3" json:"Address3"`
+	IsDefault bool   `db:"IsDefault" json:"IsDefault"`
 }
 
 type GoogleClaims struct {

@@ -6,3 +6,12 @@ export interface Content {
   price: number;
   image_url: string;
 }
+
+export interface Address {
+  ID: string;
+  PostCode: string;
+  Pref: string;
+  Address1: string;
+  Address2: string;
+  Address3: string;
+}
