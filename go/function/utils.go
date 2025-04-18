@@ -47,18 +47,20 @@ type Profile struct {
 }
 
 type RequestUserProfile struct {
-	ID string `json:"id"`
-	Name string `json:"name"`
-	Email string `json:"email"`
-	DateOfBirth string `json:"birth"`
-	Gender	  string `json:"gender"`
-	PhoneNumber string `json:"phone"`
-	Bio string `json:"bio"`
+	ID          string `json:"id" db:"ID"`
+	Name        string `json:"name" db:"Name"`
+	Email       string `json:"email" db:"Email"`
+	DateOfBirth string `json:"birth" db:"DateOfBirth"`
+	Gender      string `json:"gender" db:"Gender"`
+	PhoneNumber string `json:"phone" db:"PhoneNumber"`
+	Bio         string `json:"bio" db:"Bio"`
+	IconURL     string `json:"image" db:"IconURL"`
 }
-
 type Address struct {
 	ID string `db:"ID" json:"ID"`
 	UserID string `db:"UserID" json:"UserID"`
+	Name string `db:"Name" json:"Name"`
+	Phone string `db:"Phone" json:"Phone"`
 	PostCode string `db:"PostCode" json:"PostCode"`
 	Pref string `db:"Pref" json:"Pref"`
 	Address1 string `db:"Address1" json:"Address1"`

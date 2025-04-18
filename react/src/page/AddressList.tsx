@@ -9,7 +9,7 @@ import api from '../conf/api';
 import { Address } from '../types/Content';
 
 const AddressList: React.FC = () => {
-    const { register, handleSubmit, setValue, formState: { errors } } = useForm<Inputs>();
+    const { register, handleSubmit, setValue, formState: { errors } } = useForm<Address>();
     const navigate = useNavigate();
     const [address, setAddress] = React.useState<Address[]>([])
 
@@ -35,6 +35,14 @@ const AddressList: React.FC = () => {
                         <h2 className="text-2xl font-bold text-center text-gray-900">お届け先の設定</h2>
                         <div className="space-y-6">
                             <div className="contents-list flex flex-wrap justify-center gap-4">
+                                <div
+                                    onClick={() => navigate(`/address/edit`)}
+                                    className="cursor-pointer contents_item flex flex-col items-start text-left h-[280px] overflow-hidden hover:bg-gray-100 transition"
+                                >
+                                    <div className="flex flex-col items-start">
+                                        <p className="text-gray-500">新しいお届け先を追加</p>
+                                    </div>
+                                </div>
                                 {address.map((item) => (
                                     <div
                                         key={item.ID}
@@ -42,6 +50,8 @@ const AddressList: React.FC = () => {
                                         className="cursor-pointer contents_item flex flex-col items-start text-left h-[280px] overflow-hidden hover:bg-gray-100 transition"
                                     >
                                         <div className="flex flex-col items-start">
+                                            <p>{item.Name}</p>
+                                            <p>{item.Phone}</p>
                                             <p>{item.PostCode}</p>
                                             <b>{item.Pref}</b>
                                             <p>{item.Address1}</p>

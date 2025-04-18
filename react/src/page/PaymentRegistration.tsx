@@ -22,13 +22,23 @@ const SquarePayment: React.FC = () => {
         }
 
         //APIdで顧客IDを取得
-        api.post("/get-customer", { token: token })
+        api.post("/customer/data",)
             .then((res) => {
                 console.log(res.data);
-                setCustomerId(res.data.customerId);
+                if (!res.data.user.ID) {
+                    // IDが取れなかったら強制ログアウト
+                    localStorage.removeItem("token");
+                    localStorage.removeItem("expirationTime");
+                    navigate("/login");
+                } else {
+                    setCustomerId(res.data.user.ID);
+                    localStorage.setItem("token", res.data.token); // トークン更新あれば保存
+                }
             })
             .catch((err) => {
                 console.error(err);
+                localStorage.removeItem("token");
+                localStorage.removeItem("expirationTime");
                 navigate("/login");
             });
     }, []);
@@ -65,7 +75,7 @@ const SquarePayment: React.FC = () => {
                     <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
                         <h2 className="text-2xl font-bold text-center text-gray-900">クレジットカード情報の登録</h2>
                         <PaymentForm
-                            applicationId="sq0idp-Ah717xTCqVPpRZf3qjUGcg"
+                            applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
                             locationId="LJ05QCSPT544X"
                             cardTokenizeResponseReceived={(token: Token) => saveCard(token.token)}
                         >

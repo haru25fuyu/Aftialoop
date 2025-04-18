@@ -4,13 +4,13 @@ import api from '../conf/api';
 import { useNavigate, Link } from 'react-router-dom';
 
 import { Header } from '../component/Header';
-import { Address} from '../types/Content';
+import { Address } from '../types/Content';
 
 
 
 
 const EditAddress: React.FC = () => {
-    const { register, handleSubmit, setValue, formState: { errors },reset } = useForm<Address>();
+    const { register, handleSubmit, setValue, formState: { errors }, reset } = useForm<Address>();
     const navigate = useNavigate();
 
     useEffect(() => {
@@ -18,7 +18,7 @@ const EditAddress: React.FC = () => {
         const params = new URLSearchParams(window.location.search);
         const id = params.get('id');
         if (id) {
-            api.post(`/address/get`, { id: id})
+            api.post(`/address/get`, { id: id })
                 .then((res) => {
                     reset(res.data);
                     console.log(res.data);
@@ -46,21 +46,11 @@ const EditAddress: React.FC = () => {
 
     const onSubmit = async (data: Address) => {
         //データのpostCodeにハイフンが含まれている場合、ハイフンを削除
-        data.PostCode = data.PostCode.replace(/-/g, '');
         console.log(data);
-        api.post('/address/edit', data)
         data.PostCode = data.PostCode.replace(/-/g, '');
         api.post('/address/edit', data)
-            .then((res) => {
-                console.log(res.data);
-                const expiresIn = res.data.expires_in;
-                // 現在時刻にexpires_in（秒）を加えて、期限を計算
-                const expirationTime = Date.now() / 1000 + expiresIn;  // 秒単位で保存
-
-                localStorage.setItem('token', res.data.access_token);
-                localStorage.setItem('expirationTime', expirationTime);
-
-                navigate('/');
+            .then(() => {
+                navigate('/addresses');
             })
             .catch((err) => {
                 console.error(err);
@@ -76,6 +66,27 @@ const EditAddress: React.FC = () => {
                     <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
                         <h2 className="text-2xl font-bold text-center text-gray-900">お届け先の設定</h2>
                         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700" >氏名<span className='text-red-500'>※必須</span></label>
+                                {errors.Pref && <p className="mt-2 text-sm text-red-600">{errors.Pref.message}</p>}
+                                <input
+                                    type="text"
+                                    {...register('Name', { required: '必須項目です' })}
+                                    className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                    id="Pref"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">電話番号<span className='text-red-500'>※必須</span></label>
+                                {errors.PostCode && <p className="mt-2 text-sm text-red-600">{errors.PostCode.message}</p>}
+                                <input
+                                    type="text"
+                                    {...register('Phone', { required: '必須項目です' })}
+                                    className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                    onBlur={complementAddress}
+                                    onKeyUp={complementAddress}
+                                />
+                            </div>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700">郵便番号<span className='text-red-500'>※必須</span></label>
                                 {errors.PostCode && <p className="mt-2 text-sm text-red-600">{errors.PostCode.message}</p>}
@@ -121,6 +132,14 @@ const EditAddress: React.FC = () => {
                                 <input
                                     type="text"
                                     {...register('Address3')}
+                                    className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700">デフォルトにする</label>
+                                <input
+                                    type="checkbox"
+                                    {...register('IsDefault')}
                                     className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                                 />
                             </div>

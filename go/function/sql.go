@@ -53,11 +53,11 @@ func SetRegistrationToken(user *SqlUser) (string, error) {
 	if err != nil {
 		return "", err
 	}
-    //前に同じメールアドレスのやつを消す
-    _, err = config.DB.Exec("DELETE FROM user_registration_tokens WHERE Email = ?", user.Email)
-    if err != nil {
-        return "", err
-    }
+	//前に同じメールアドレスのやつを消す
+	_, err = config.DB.Exec("DELETE FROM user_registration_tokens WHERE Email = ?", user.Email)
+	if err != nil {
+		return "", err
+	}
 	_, err = config.DB.Exec("INSERT INTO user_registration_tokens (ID,Email, Password, Token, ExpiresAt) VALUES (?,?, ?, ?, ?)", user.ID, user.Email, user.Password, token, time.Now().Add(24*time.Hour))
 	return token, err
 }
@@ -97,7 +97,7 @@ func SaveUser(user map[string]interface{}) error {
 	for i := 1; i < len(columns); i++ {
 		placeholders += ", ?"
 	}
-	
+
 	// クエリの組み立て
 	query := fmt.Sprintf("INSERT INTO users (%s) VALUES (%s)", strings.Join(columns, ","), placeholders)
 	log.Println(query)
@@ -106,29 +106,27 @@ func SaveUser(user map[string]interface{}) error {
 	return err
 }
 
-
 func GetUserData(where []string, values []interface{}) (SqlUser, error) {
-    query := "SELECT ID, Email, Name, Password FROM users"
-    if len(where) > 0 {
-        query += " WHERE " + strings.Join(where, " AND ")
-    }
-    var user SqlUser
-    err := config.DB.Get(&user, query, values...)
-    if err != nil {
-        if err == sql.ErrNoRows {
-            return user, fmt.Errorf("user not found")
-        }
-        return user, err
-    }
-    return user, nil
+	query := "SELECT ID, Email, Name, Password FROM users"
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+	var user SqlUser
+	err := config.DB.Get(&user, query, values...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return user, fmt.Errorf("user not found")
+		}
+		return user, err
+	}
+	return user, nil
 }
-
 
 func UpdateUser(id string, user map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
 	for key, value := range user {
-		if(key == "ID"){
+		if key == "ID" {
 			continue
 		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
@@ -197,19 +195,21 @@ func UpdateProfile(id string, profile map[string]interface{}) error {
 	return err
 }
 
-func GetUserDataAndProfile(where []string, values []interface{}) (map[string]interface{}, error) {
-	query := "SELECT u.*, p.* FROM users u LEFT JOIN profile p ON u.id = p.user_id"
+func GetUserDataAndProfile(where []string, values []interface{}) (RequestUserProfile, error) {
+	query := `SELECT u.ID,u.Name,u.Email, p.DateOfBirth,p.Gender,p.PhoneNumber,p.Bio,p.IconURL 
+	          FROM users u LEFT JOIN profile p ON u.ID = p.UserId`
+
 	if len(where) > 0 {
 		query += " WHERE " + join(where, " AND ")
 	}
 
-	var user map[string]interface{}
+	var user RequestUserProfile
 	err := config.DB.Get(&user, query, values...)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("user not found")
+			return RequestUserProfile{}, fmt.Errorf("user not found")
 		}
-		return nil, err
+		return RequestUserProfile{}, err
 	}
 	return user, nil
 }
@@ -297,7 +297,7 @@ func UpdateAddress(id string, address map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
 	for key, value := range address {
-		if(key == "ID" || key == "UserID"){
+		if key == "ID" || key == "UserID" || key == "IsDefault" {
 			continue
 		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
@@ -309,13 +309,13 @@ func UpdateAddress(id string, address map[string]interface{}) error {
 	return err
 }
 
-//住所の新規保存
+// 住所の新規保存
 func SaveAddress(address map[string]interface{}) error {
 	// Generate columns and values
 	columns := []string{}
 	values := []interface{}{}
 	for key, value := range address {
-		if(key == "ID"){
+		if key == "ID" || key == "IsDefault" {
 			continue
 		}
 		columns = append(columns, key)
@@ -335,7 +335,7 @@ func SaveAddress(address map[string]interface{}) error {
 
 // 住所の取得
 func GetAddress(id string) (Address, error) {
-	query := "SELECT ID,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE ID = ?"
+	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE ID = ?"
 	var address Address
 	err := config.DB.Get(&address, query, id)
 	if err != nil {
@@ -354,20 +354,20 @@ func DeleteAddress(id string) error {
 }
 
 func SetDefaultAddress(userID, addressID string) error {
-    // 全部 false に
-    _, err := db.Exec("UPDATE addresses SET IsDefault = false WHERE UserID = ?", userID)
-    if err != nil {
-        return err
-    }
+	// 全部 false に
+	_, err := config.DB.Exec("UPDATE addresses SET IsDefault = false WHERE UserID = ?", userID)
+	if err != nil {
+		return err
+	}
 
-    // 指定のアドレスだけ true に
-    _, err = db.Exec("UPDATE addresses SET IsDefault = true WHERE ID = ?", addressID)
-    return err
+	// 指定のアドレスだけ true に
+	_, err = config.DB.Exec("UPDATE addresses SET IsDefault = true WHERE ID = ?", addressID)
+	return err
 }
 
-//住所リストの取得
+// 住所リストの取得
 func GetAddressList(user_id string) ([]Address, error) {
-	query := "SELECT ID,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE UserID = ?"
+	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE UserID = ?"
 	var addresses []Address
 	err := config.DB.Select(&addresses, query, user_id)
 	return addresses, err

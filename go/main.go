@@ -390,7 +390,7 @@ func main() {
 	})
 
 	// ユーザー情報取得
-	r.HandleFunc("/get-customer/data", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/customer/data", func(w http.ResponseWriter, r *http.Request) {
 		token, err := function.CheckUser(w, r)
 
 		if err != "" {
@@ -408,15 +408,20 @@ func main() {
 		}
 
 		// IDを返す
-		userData, erro := function.GetUserDataAndProfile([]string{"id"}, []interface{}{claims.ID})
+		userData, erro := function.GetUserDataAndProfile([]string{"u.ID=?"}, []interface{}{claims.ID})
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
 			return
 		}
 
+		response := map[string]interface{}{
+			"user":  userData,
+			"token": token,
+		}
+
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(userData)
+		json.NewEncoder(w).Encode(response)
 	})
 
 	// ユーザー情報取得
@@ -636,6 +641,11 @@ func main() {
 		} else {
 			// アドレスの更新
 			erro = function.UpdateAddress(address.ID, address_map)
+		}
+
+		if address.IsDefault == true {
+			// デフォルトアドレスの更新
+			erro = function.SetDefaultAddress(claims.ID, address.ID)
 		}
 
 		if erro != nil {

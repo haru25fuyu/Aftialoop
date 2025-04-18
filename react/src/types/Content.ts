@@ -9,9 +9,12 @@ export interface Content {
 
 export interface Address {
   ID: string;
+  Name: string;
+  Phone: string;
   PostCode: string;
   Pref: string;
   Address1: string;
   Address2: string;
   Address3: string;
+  IsDefault: boolean;
 }
