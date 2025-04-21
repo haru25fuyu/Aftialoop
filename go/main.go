@@ -751,6 +751,41 @@ func main() {
 		json.NewEncoder(w).Encode(response)
 	})
 
+	r.HandleFunc("/api/card/save", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// リクエストボディからカード情報を取得
+		var card function.RequestCard
+		erro := json.NewDecoder(r.Body).Decode(&card)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Println(card)
+
+		// カード情報を保存
+		card_map, erro := function.CreateCard(card)
+		if erro!= nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの保存に失敗しました"})
+			return
+		}
+		log.Println(card_map)
+
+		// レスポンス
+		response := map[string]interface{}{
+			"card": card_map,
+			"token": token,
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	})
+
 	//googleログインGo
 	r.HandleFunc("/auth/google", func(w http.ResponseWriter, r *http.Request) {
 		// トークンを取得(psotリクエスト)

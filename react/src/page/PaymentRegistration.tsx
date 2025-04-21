@@ -25,13 +25,13 @@ const SquarePayment: React.FC = () => {
         api.post("/customer/data",)
             .then((res) => {
                 console.log(res.data);
-                if (!res.data.user.ID) {
+                if (!res.data.user.id) {
                     // IDが取れなかったら強制ログアウト
                     localStorage.removeItem("token");
                     localStorage.removeItem("expirationTime");
                     navigate("/login");
                 } else {
-                    setCustomerId(res.data.user.ID);
+                    setCustomerId(res.data.user.id);
                     localStorage.setItem("token", res.data.token); // トークン更新あれば保存
                 }
             })
@@ -45,12 +45,12 @@ const SquarePayment: React.FC = () => {
 
 
     // axios を使用したカード情報保存処理
-    const saveCard = async (token: string) => {
+    const saveCard = async (token: string, verificationToken: string) => {
         console.log("トークン:", token);
         try {
-            const response = await api.post("/api/save-card", { token: token, customerId: customerId });
+            const response = await api.post("/api/card/save", { token: token, customerId: customerId, verificationToken: verificationToken });
 
-            // レスポンスが正常であれば customerId を更新
+            // レスポンスが正常であれば 成功メッセージを表示
             if (response.data.customerId) {
                 alert("カードが保存されました！");
             }
@@ -77,9 +77,12 @@ const SquarePayment: React.FC = () => {
                         <PaymentForm
                             applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
                             locationId="LJ05QCSPT544X"
-                            cardTokenizeResponseReceived={(token: Token) => saveCard(token.token)}
+                            cardTokenizeResponseReceived={({ token, verificationToken }) => {
+                                saveCard(token, verificationToken);
+                            }}
                         >
                             <CreditCard />
+
                         </PaymentForm>
 
                     </div>

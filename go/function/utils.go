@@ -79,6 +79,13 @@ type Token struct {
 	Token string `db:"Token" json:"token"`
 }
 
+type RequestCard struct {
+	Token             string `json:"token"`
+	VerificationToken string `json:"verificationToken"`
+	CustomerID       string `json:"customerID"`
+	Name              string `json:"name"`
+}
+
 const jwksURL = "https://www.googleapis.com/oauth2/v3/certs"
 
 // JWTを生成する関数

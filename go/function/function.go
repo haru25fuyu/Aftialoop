@@ -11,11 +11,8 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
     authHeader := r.Header.Get("Authorization")
 
     refreshToken, err := r.Cookie("refresh_token")
-    log.Println("🧪 リフレッシュトークン:", refreshToken)
     if err != nil {
         log.Println("❌ リフレッシュトークン取得失敗:", err)
-    } else {
-        log.Println("✅ リフレッシュトークン：", refreshToken.Value)
     }
     
     if authHeader == "" && err != nil {

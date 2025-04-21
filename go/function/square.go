@@ -9,6 +9,7 @@ import (
 	square "github.com/square/square-go-sdk"
 	client "github.com/square/square-go-sdk/client"
 	option "github.com/square/square-go-sdk/option"
+	"github.com/google/uuid"
 )
 
 func CreateCustomer(user SqlUser) (string, error) {
@@ -39,7 +40,7 @@ func CheckSquareEmail(email string) bool {
 			square.Environments.Sandbox,
 		),
 		option.WithToken(
-			config.SQUARE_ACCESS_TOKEN,
+			SQUARE_SANDBOX_TOKEN,
 		),
 	)
 	response, err := client.Customers.Search(
@@ -74,4 +75,40 @@ func CheckSquareEmail(email string) bool {
 		return false
 	}
 	return false
+}
+
+func CreateCard(card RequestCard) (string, error) {
+	client := client.NewClient(
+		option.WithBaseURL(
+			square.Environments.Sandbox,
+		),
+		option.WithToken(
+			SQUARE_SANDBOX_TOKEN,
+		),
+	)
+	
+	response, err :=client.Cards.Create(
+		context.TODO(),
+		&square.CreateCardRequest{
+			IdempotencyKey:  uuid.New().String(),
+			Card: &square.Card{
+                CustomerID: square.String(
+                    card.CustomerID,
+                ),
+				CardholderName: square.String(
+					card.Name,
+				),
+			},
+			SourceID: card.Token,
+			VerificationToken: square.String(
+				card.VerificationToken,
+			),
+		},
+	)
+	if err != nil {
+		log.Fatalf("Error creating card: %v", err)
+		return "", err
+	}
+	
+	return *response.Card.ID, nil
 }
