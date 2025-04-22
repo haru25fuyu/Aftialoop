@@ -6,10 +6,8 @@ import (
 	"fmt"
 	"log"
 
-	square "github.com/square/square-go-sdk"
-	client "github.com/square/square-go-sdk/client"
-	option "github.com/square/square-go-sdk/option"
 	"github.com/google/uuid"
+	square "github.com/square/square-go-sdk"
 )
 
 func CreateCustomer(user SqlUser) (string, error) {
@@ -35,15 +33,7 @@ func CreateCustomer(user SqlUser) (string, error) {
 }
 
 func CheckSquareEmail(email string) bool {
-	client := client.NewClient(
-		option.WithBaseURL(
-			square.Environments.Sandbox,
-		),
-		option.WithToken(
-			SQUARE_SANDBOX_TOKEN,
-		),
-	)
-	response, err := client.Customers.Search(
+	response, err := config.SquareClient.Customers.Search(
 		context.TODO(),
 		&square.SearchCustomersRequest{
 			Query: &square.CustomerQuery{
@@ -78,23 +68,14 @@ func CheckSquareEmail(email string) bool {
 }
 
 func CreateCard(card RequestCard) (string, error) {
-	client := client.NewClient(
-		option.WithBaseURL(
-			square.Environments.Sandbox,
-		),
-		option.WithToken(
-			SQUARE_SANDBOX_TOKEN,
-		),
-	)
-	
-	response, err :=client.Cards.Create(
+	response, err := config.SquareClient.Cards.Create(
 		context.TODO(),
 		&square.CreateCardRequest{
-			IdempotencyKey:  uuid.New().String(),
+			IdempotencyKey: uuid.New().String(),
 			Card: &square.Card{
-                CustomerID: square.String(
-                    card.CustomerID,
-                ),
+				CustomerID: square.String(
+					card.CustomerID,
+				),
 				CardholderName: square.String(
 					card.Name,
 				),
@@ -109,6 +90,37 @@ func CreateCard(card RequestCard) (string, error) {
 		log.Fatalf("Error creating card: %v", err)
 		return "", err
 	}
-	
+
 	return *response.Card.ID, nil
+}
+
+func ChargeCard(customerID, cardID string, amount int64) error {
+	resp, err := config.SquareClient.Payments.Create(
+        context.TODO(),
+        &square.CreatePaymentRequest{
+            AmountMoney: &square.Money{
+                Amount: square.Int64(
+                    amount,
+                ),
+                Currency: square.CurrencyJpy.Ptr(),
+            },
+            IdempotencyKey: uuid.New().String(),
+            SourceID: cardID,
+            Autocomplete: square.Bool(
+                true,
+            ),
+            CustomerID: square.String(
+                customerID,
+            ),
+        },
+    )
+	if err != nil {
+		return fmt.Errorf("支払い失敗: %v", err)
+	}
+	if err != nil {
+		return fmt.Errorf("支払い失敗: %v", err)
+	}
+
+	log.Printf("支払い成功！取引ID: %s", resp.Payment.ID)
+	return nil
 }

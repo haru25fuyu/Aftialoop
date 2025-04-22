@@ -17,6 +17,7 @@ import EditAddress from './page/EditAddress';
 import EditProfile from './page/EditProfile';
 import Profile from './page/Profile';
 import AddressList from './page/AddressList';
+import Item from './page/Item';
 
 
 function App() {
@@ -37,7 +38,8 @@ function App() {
         <Route path={`/addresses`} element={<AddressList />} />
         <Route path={`/profile/edit`} element={<EditProfile />} />
         <Route path={`/profile`} element={<Profile />} />
-      </Routes>
+        <Route path={`/item`} element={<Item />} />
+      </Routes> 
     </>
   )
 }

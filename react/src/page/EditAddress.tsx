@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useEffect } from 'react';
+import { useForm  } from 'react-hook-form';
 import api from '../conf/api';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate,useLocation } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { Address } from '../types/Content';
@@ -15,7 +15,8 @@ const EditAddress: React.FC = () => {
 
     useEffect(() => {
         // URL から ID を取得
-        const params = new URLSearchParams(window.location.search);
+        const location = useLocation();
+        const params = new URLSearchParams(location.search);
         const id = params.get('id');
         if (id) {
             api.post(`/address/get`, { id: id })
