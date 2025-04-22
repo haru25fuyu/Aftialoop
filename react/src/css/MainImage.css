@@ -16,7 +16,7 @@
     border-radius: 6% 0 0 6% / 50% 0 0 50%;
     max-width: 850x;
     /* 目的の幅 */
-    height: 400px;
+    height: 600px;
     /* 目的の高さ */
     object-fit: cover;
 }
@@ -24,7 +24,7 @@
 .overlay {
     position: absolute;
     right: 0;
-    top: 435px;
+    bottom: 100px;
     /* 半透明の背景 */
     color: rgb(255, 88, 88);
     /* テキストの色 */
@@ -36,6 +36,9 @@
 
 .overlay h1 {
     margin: 0;
+    font-family: "DM Sans", sans-serif;
+	font-weight:800;
+
 }
 
 @media (max-width: 900px) {
@@ -79,4 +82,13 @@
 
 @media (max-width: 400px) {
    
+}
+
+/*フォント 英語*/
+
+.dm-sans-<uniquifier> {
+  font-family: "DM Sans", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: <weight>;
+  font-style: normal;
 }

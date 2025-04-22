@@ -11,8 +11,10 @@
 
 .news h3 {
     font-size: 1.5rem;
-    margin: 0;
+    margin: 0 0 30px;
     padding: 0;
+  font-family: "M PLUS 2", sans-serif;
+
 }
 
 .news ul {
@@ -33,10 +35,12 @@
     padding: 0.5rem;
     border-bottom: 1px solid #ccc;
 }
-
+.news li:first-child{
+	border-top: 1px solid #ccc;
+}
 .recommend {
     width: 100%;
-    height: 300px;
+    height: 500px;
     display: flex;
 }
 
@@ -62,12 +66,18 @@
     height: 100%;
     /*文字を高さの中央に*/
     background-image: url("../data/background.png");
+	background-color:rgba(255,255,255,0.8);
+	background-blend-mode:lighten;
     background-size: cover;
     background-position: center;
+	vertical-align: middle;
+
 }
 
 .content h3 {
     font-size: 2.5rem;
+  font-family: "M PLUS 2", sans-serif;
+
 }
 
 .slider {
@@ -153,4 +163,18 @@ h3 {
     .recommend img {
         width: 55%;
     }
+}
+
+/* フォント日本語 */
+.m-plus-2-<uniquifier> {
+  font-family: "M PLUS 2", sans-serif;
+  font-optical-sizing: auto;
+  font-weight: <weight>;
+  font-style: normal;
+}
+/* フォント英語 */
+.special-gothic-expanded-one-regular {
+  font-family: "Special Gothic Expanded One", sans-serif;
+  font-weight: 400;
+  font-style: normal;
 }
