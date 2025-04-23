@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 
@@ -21,6 +21,17 @@ const SignUp: React.FC = () => {
     const password = watch('password');
     const password2 = watch('password2');
 
+    useEffect(() => {
+        const script = document.createElement("script");
+        script.src = "https://www.google.com/recaptcha/enterprise.js?render=6LdfsiErAAAAAGMJXAu77lrtv5GMfiU2FU0fWRgY";
+        script.async = true;
+        document.body.appendChild(script);
+
+        return () => {
+            document.body.removeChild(script);
+        };
+    }, []);
+
     const onSubmit = async (data: Inputs) => {
         // パスワードが一致しない場合は処理をしない
         if (password !== password2) {
@@ -28,7 +39,13 @@ const SignUp: React.FC = () => {
             return;
         }
 
-        api.post('/signup', { email: data.email, password: data.password })
+
+        // reCAPTCHAの取得とか、API通信とかを書く
+        const token = await grecaptcha.enterprise.execute('6LdfsiErAAAAAGMJXAu77lrtv5GMfiU2FU0fWRgY', { action: 'LOGIN' });
+        console.log(token);
+
+
+        api.post('/signup', { email: data.email, password: data.password, GoogleID: token })
             .then((res) => {
                 if (!res.data.err_message) {
                     //仮登録完了ページに遷移

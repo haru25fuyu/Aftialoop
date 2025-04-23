@@ -1,6 +1,7 @@
-import React, { useState,useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 import { Content } from '../types/Content';
+import api from '../conf/api';
 
 
 interface DirectCheckoutModalProps {
@@ -9,24 +10,36 @@ interface DirectCheckoutModalProps {
   onClose: () => void;
 }
 
-const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen, onClose}) => {
+const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen, onClose }) => {
   const [paymentMethod, setPaymentMethod] = useState('point');
   const [error, setError] = useState('');
+  const [customerId, setCustomerId] = useState<string | null>(null);
 
   useEffect(() => {
-    //　ユーザー情報を取得(デフォルトアドレス、ポイント残高,決済方法など)
+    // ユーザー情報を取得(デフォルトアドレス、ポイント残高,決済方法など)
     // ここでAPIを呼び出してデフォルトアドレスやポイント残高を取得する処理を追加
-    
+
     const fetchUserData = async () => {
-      try {
-        const response = await fetch('/api/userdata');
-        const data = await response.json();
 
+      api.post("/customer/data",)
+        .then((res) => {
+          console.log(res.data);
+          if (!res.data.user.id) {
+            // IDが取れなかったら強制ログアウト
+            localStorage.removeItem("token");
+            localStorage.removeItem("expirationTime");
+            //navigate("/login");
+          } else {
+            setCustomerId(res.data.user.id);
+            localStorage.setItem("token", res.data.token); // トークン更新あれば保存
+          }
+        })
+        .catch((err) => {
+          console.error(err);
+          localStorage.removeItem("token");
+          localStorage.removeItem("expirationTime");
+        });
 
-
-      } catch (error) {
-        console.error('ユーザー情報の取得に失敗しました:', error);
-      }
     };
 
     if (isOpen) {
@@ -40,6 +53,7 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
   const canUsePoints = 100 >= price;
 
   const handleSubmit = () => {
+    // 購入処理を実装
     setError('');
     if (paymentMethod === 'point') {
       if (!canUsePoints) {
@@ -52,6 +66,20 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
     } else {
       // クレカ（Square）決済処理（仮）
       console.log('クレジットカードで支払い');
+      // ここでSquareのAPIを呼び出して決済処理を行う
+      api.post('/api/card/charge', {
+        amount: price,
+        cardID: 'ccof:CA4SEBS9lZA3FcTpxqULD7CdghYoAg',
+        customerID: customerId,
+      })
+        .then((res) => {
+          console.log('決済成功:', res.data);
+          // 決済成功後の処理を追加
+        })
+        .catch((err) => {
+          console.error('決済失敗:', err);
+          setError('決済に失敗しました。');
+        });
       onClose();
     }
   };

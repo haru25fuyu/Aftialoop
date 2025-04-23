@@ -33,10 +33,18 @@ var DB_port = "3306"
 var DB_name = "Animaloop"
 var DB_charset = "utf8mb4"
 
+var FromEmail = "haru25fuyu@Animaloop.jp"
+var FromName = "Animaloop"
+var FromEmailPassword =	"Animaloop1234"
+
 var MAILJET_API_KEY, MAILJET_API_SECRET, SQUARE_ACCESS_TOKEN string
 var SECRET_KEY, SECRET_REFRESH_KEY []byte
 
 var SquareClient = client.NewClient()
+
+var ProjectID = "animaloop-1745409062037"
+var RecaptchaKey = "6LdfsiErAAAAAGMJXAu77lrtv5GMfiU2FU0fWRgY"
+var RecaptchaAction = "LOGIN"
 
 
 func Init() {

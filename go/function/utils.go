@@ -25,7 +25,7 @@ type SqlUser struct {
     Name     string `db:"Name" json:"name"`
     Email    string `db:"Email" json:"email"`
     Password string `db:"Password" json:"password"`
-    GoogleID string `db:"GoogleID"`
+    GoogleID string `db:"GoogleID" json:"GoogleID"` 
     AppleID  string `db:"AppleID"`
 }
 
@@ -84,6 +84,12 @@ type RequestCard struct {
 	VerificationToken string `json:"verificationToken"`
 	CustomerID       string `json:"customerID"`
 	Name              string `json:"name"`
+}
+
+type RequestCharge struct {
+	CustomerID string `db:"CustomerID" json:"customerID"`
+	CardID     string `db:"CardID" json:"cardID"`
+	Amount     int64    `db:"Amount" json:"amount"`
 }
 
 const jwksURL = "https://www.googleapis.com/oauth2/v3/certs"

@@ -1,103 +1,165 @@
 package function
 
 import (
+	"animaloop/config"
+	"context"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
-    "strings"
+
+	recaptcha "cloud.google.com/go/recaptchaenterprise/v2/apiv1"
+	recaptchapb "cloud.google.com/go/recaptchaenterprise/v2/apiv1/recaptchaenterprisepb"
 )
 
 func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
-    authHeader := r.Header.Get("Authorization")
+	authHeader := r.Header.Get("Authorization")
 
-    refreshToken, err := r.Cookie("refresh_token")
-    if err != nil {
-        log.Println("❌ リフレッシュトークン取得失敗:", err)
-    }
-    
-    if authHeader == "" && err != nil {
-        return "", "トークンが有りません"
-    }
+	refreshToken, err := r.Cookie("refresh_token")
+	if err != nil {
+		log.Println("❌ リフレッシュトークン取得失敗:", err)
+	}
 
-    var token string
-    var user *User
+	if authHeader == "" && err != nil {
+		return "", "トークンが有りません"
+	}
 
+	var token string
+	var user *User
 
-    if strings.HasPrefix(authHeader, "Bearer ") {
-        token = strings.TrimPrefix(authHeader, "Bearer ")
-        user, err = GetUserFromToken(token)
-    }
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		token = strings.TrimPrefix(authHeader, "Bearer ")
+		user, err = GetUserFromToken(token)
+	}
 
-    if user == nil && err != nil {
-        return "", "トークンが期限切れです"
-    }
-   
+	if user == nil && err != nil {
+		return "", "トークンが期限切れです"
+	}
 
-    if user == nil {
-        user,err = GetUserFromRefreshToken(refreshToken.Value)
-        if user == nil || err != nil {
-            return "", "アクセストークンが期限切れです"
-        } else {
-            newAccessToken,err := GenerateToken(user)
-            if err != nil {
-                return "", "サーバーエラー"
-            }
-            remainingTime := user.Exp - time.Now().Unix()
-            daysRemaining := remainingTime / 86400
+	if user == nil {
+		user, err = GetUserFromRefreshToken(refreshToken.Value)
+		if user == nil || err != nil {
+			return "", "アクセストークンが期限切れです"
+		} else {
+			newAccessToken, err := GenerateToken(user)
+			if err != nil {
+				return "", "サーバーエラー"
+			}
+			remainingTime := user.Exp - time.Now().Unix()
+			daysRemaining := remainingTime / 86400
 
-            if daysRemaining < 7 {
-                SetRefreshToken(w, user)
-                return newAccessToken, ""
-            }
+			if daysRemaining < 7 {
+				SetRefreshToken(w, user)
+				return newAccessToken, ""
+			}
 
-            return newAccessToken, ""
-        }
-    } else {
-        user.Limit = 1
-        newAccessToken,err := GenerateToken(user)
-        log.Println( user)
-        if err != nil {
-            SetRefreshToken(w, user)
-            return newAccessToken, ""
-        }
-        if(refreshToken == nil){
-            SetRefreshToken(w, user)
-            return newAccessToken, ""
-        }
-        decoded,err := GetUserFromRefreshToken(refreshToken.Value)
-        if decoded == nil || err != nil {
-            SetRefreshToken(w, user)
-            return newAccessToken, ""
-        }
-        remainingTime := decoded.Exp - time.Now().Unix()
-        daysRemaining := remainingTime / 86400
+			return newAccessToken, ""
+		}
+	} else {
+		user.Limit = 1
+		newAccessToken, err := GenerateToken(user)
+		log.Println(user)
+		if err != nil {
+			SetRefreshToken(w, user)
+			return newAccessToken, ""
+		}
+		if refreshToken == nil {
+			SetRefreshToken(w, user)
+			return newAccessToken, ""
+		}
+		decoded, err := GetUserFromRefreshToken(refreshToken.Value)
+		if decoded == nil || err != nil {
+			SetRefreshToken(w, user)
+			return newAccessToken, ""
+		}
+		remainingTime := decoded.Exp - time.Now().Unix()
+		daysRemaining := remainingTime / 86400
 
-        if daysRemaining < 7 {
-            SetRefreshToken(w, decoded)
-        }
-        return newAccessToken, ""
-    }
+		if daysRemaining < 7 {
+			SetRefreshToken(w, decoded)
+		}
+		return newAccessToken, ""
+	}
 }
 
 func SetRefreshToken(w http.ResponseWriter, user *User) error {
 	expires_at := time.Now().Add(24 * time.Hour * 14)
 
-    refreshToken, err := GenerateRefreshToken(user)
-    if err != nil {
-        return err
-    }
+	refreshToken, err := GenerateRefreshToken(user)
+	if err != nil {
+		return err
+	}
 
 	//新しいアクセストークンをクッキーに保存
 	http.SetCookie(w, &http.Cookie{
-		Name: "refresh_token",
-		Value: refreshToken,
-		Expires: expires_at,
+		Name:     "refresh_token",
+		Value:    refreshToken,
+		Expires:  expires_at,
 		HttpOnly: true,
 		SameSite: http.SameSiteNoneMode,
-		Secure: true,	
+		Secure:   true,
 	})
 
-    SaveRefreshToken(refreshToken, user.ID)
+	SaveRefreshToken(refreshToken, user.ID)
 
 	return nil
+}
+
+func CreateAssessment( token string) {
+
+	// reCAPTCHA クライアントを作成する。
+	ctx := context.Background()
+	client, err := recaptcha.NewClient(ctx)
+	if err != nil {
+		fmt.Printf("Error creating reCAPTCHA client:" + err.Error())
+		return
+	}
+	defer client.Close()
+
+	// 追跡するイベントのプロパティを設定する。
+	event := &recaptchapb.Event{
+		Token:   token,
+		SiteKey: config.RecaptchaKey,
+	}
+
+	assessment := &recaptchapb.Assessment{
+		Event: event,
+	}
+
+	// 評価リクエストを作成する。
+	request := &recaptchapb.CreateAssessmentRequest{
+		Assessment: assessment,
+		Parent:     fmt.Sprintf("projects/%s", config.ProjectID),
+	}
+
+	response, err := client.CreateAssessment(
+		ctx,
+		request)
+
+	if err != nil {
+		fmt.Printf("Error calling CreateAssessment: %v", err.Error())
+	}
+
+	// トークンが有効かどうかを確認する。
+	if !response.TokenProperties.Valid {
+		fmt.Printf("The CreateAssessment() call failed because the token was invalid for the following reasons: %v",
+			response.TokenProperties.InvalidReason)
+		return
+	}
+
+	// 想定どおりのアクションが実行されたかどうかを確認する。
+	if response.TokenProperties.Action != config.RecaptchaAction {
+		fmt.Printf("The action attribute in your reCAPTCHA tag does not match the action you are expecting to score")
+		return
+	}
+
+	// リスクスコアと理由を取得する。
+	// 評価の解釈の詳細については、以下を参照:
+	// https://cloud.google.com/recaptcha-enterprise/docs/interpret-assessment
+	fmt.Printf("The reCAPTCHA score for this token is:  %v", response.RiskAnalysis.Score)
+
+	for _, reason := range response.RiskAnalysis.Reasons {
+		fmt.Printf(reason.String() + "\n")
+	}
 }

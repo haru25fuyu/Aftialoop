@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/mailjet/mailjet-apiv3-go"
@@ -52,15 +53,18 @@ func main() {
 	// 仮登録
 	r.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
 
+		
 		//リクエストボディからパスワードとメールアドレスを取得
 		var user function.SqlUser
 		err := json.NewDecoder(r.Body).Decode(&user)
-		log.Println(user)
 		if err != nil {
 			log.Println("エラーが発生しました")
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
+		log.Println(config.RecaptchaAction)
+		function.CreateAssessment(user.GoogleID)
+		user.GoogleID = ""
 
 		if user.Email == "" || user.Password == "" {
 			w.WriteHeader(http.StatusBadRequest)
@@ -770,7 +774,7 @@ func main() {
 
 		// カード情報を保存
 		card_map, erro := function.CreateCard(card)
-		if erro!= nil {
+		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの保存に失敗しました"})
 			return
@@ -779,11 +783,95 @@ func main() {
 
 		// レスポンス
 		response := map[string]interface{}{
-			"card": card_map,
+			"card":  card_map,
 			"token": token,
 		}
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
+	})
+
+	// クレジットカードでの支払い
+	r.HandleFunc("/api/card/charge", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		//　トークンからIDを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// リクエストボディから支払い情報を取得
+		var charge function.RequestCharge
+		erro = json.NewDecoder(r.Body).Decode(&charge)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Println(charge)
+		// 支払い処理
+		url,erro := function.ChargeCard(claims.ID, charge.CardID, charge.Amount)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "支払いに失敗しました" + erro.Error()})
+			return
+		}
+		log.Println("支払い成功")
+
+		// 購入履歴を保存
+
+		htmlContent := fmt.Sprintf(`<h3>%s様</h3><br />
+		<P>ご購入ありがとうございます。</p><br />
+		<p>以下の内容でお支払いが完了しました。</p><br />
+		<p>金額: %d円</p><br />
+		<p>購入日時: %s</p><br />
+		<p>お支払い方法: クレジットカード</p><br />
+		<p>領収書は以下のリンクからダウンロードできます。</p><br />
+		<p><a href="%s">領収書をダウンロードする</a></p><br />
+		<p>ご不明な点がございましたら、お気軽にお問い合わせください。</p><br />
+		<p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
+		<p>Animaloopサポートチーム</p>
+		`, claims.Name, charge.Amount,url,time.Now().Format("2006-01-02 15:04:05"))
+		
+		
+		// 支払い完了メールを送
+		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_SECRET)
+		// メールの内容を設定
+		messagesInfo := []mailjet.InfoMessagesV31{
+			{
+				From: &mailjet.RecipientV31{
+					Email: config.FromEmail,
+					Name:  config.FromName,
+				},
+				To: &mailjet.RecipientsV31{
+					mailjet.RecipientV31{
+						Email: claims.Email,
+						Name:  claims.Name,
+					},
+				},
+				Subject:  "Payment Confirmation",
+				TextPart: "Dear " + claims.Name + ", your payment was successful!",
+				HTMLPart: htmlContent,
+			},
+		}
+		// メール送信
+		messages := mailjet.MessagesV31{Info: messagesInfo}
+		res, erro := mailjetClient.SendMailV31(&messages)
+
+		if erro != nil {
+			log.Fatalf("Failed to send email: %s", erro)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールの送信に失敗しました"})
+			return
+		}
+		log.Printf("Email sent: %+v", res)
+		log.Println("支払い完了メール送信成功")
 	})
 
 	//googleログインGo

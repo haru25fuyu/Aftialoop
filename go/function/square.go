@@ -94,7 +94,8 @@ func CreateCard(card RequestCard) (string, error) {
 	return *response.Card.ID, nil
 }
 
-func ChargeCard(customerID, cardID string, amount int64) error {
+func ChargeCard(customerID, cardID string, amount int64) (string,error) {
+	fmt.Println("SourceID:", customerID)
 	resp, err := config.SquareClient.Payments.Create(
         context.TODO(),
         &square.CreatePaymentRequest{
@@ -105,7 +106,7 @@ func ChargeCard(customerID, cardID string, amount int64) error {
                 Currency: square.CurrencyJpy.Ptr(),
             },
             IdempotencyKey: uuid.New().String(),
-            SourceID: cardID,
+			SourceID: cardID,
             Autocomplete: square.Bool(
                 true,
             ),
@@ -114,13 +115,6 @@ func ChargeCard(customerID, cardID string, amount int64) error {
             ),
         },
     )
-	if err != nil {
-		return fmt.Errorf("支払い失敗: %v", err)
-	}
-	if err != nil {
-		return fmt.Errorf("支払い失敗: %v", err)
-	}
-
-	log.Printf("支払い成功！取引ID: %s", resp.Payment.ID)
-	return nil
+	
+	return *resp.Payment.ReceiptURL, err
 }
