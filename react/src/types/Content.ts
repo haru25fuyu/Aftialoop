@@ -5,6 +5,7 @@ export interface Content {
   point: number;
   price: number;
   image_url: string;
+  quantity?: number; 
 }
 
 export interface Address {

@@ -2,14 +2,9 @@ import React, { useState, useEffect } from "react";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
 import { useNavigate } from "react-router-dom";
 
-import Header from "../component/Header";
-import Footer from "../component/Footer";
-
 import api from "../conf/api";
 
-interface Token {
-    token: string;
-}
+
 
 const SquarePayment: React.FC = () => {
     const [customerId, setCustomerId] = useState<string | null>(null);
@@ -67,30 +62,22 @@ const SquarePayment: React.FC = () => {
 
     return (
         <>
-            <header>
-                <Header />
-            </header>
-            <main>
-                <div className="flex justify-center items-center mt-8 max-md:mt-0">
-                    <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
-                        <h2 className="text-2xl font-bold text-center text-gray-900">クレジットカード情報の登録</h2>
-                        <PaymentForm
-                            applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
-                            locationId="LJ05QCSPT544X"
-                            cardTokenizeResponseReceived={({ token, verificationToken }) => {
-                                saveCard(token, verificationToken);
-                            }}
-                        >
-                            <CreditCard />
+            <div className="flex justify-center items-center mt-8 max-md:mt-0">
+                <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">
+                    <h2 className="text-2xl font-bold text-center text-gray-900">クレジットカード情報の登録</h2>
+                    <PaymentForm
+                        applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
+                        locationId="LJ05QCSPT544X"
+                        cardTokenizeResponseReceived={({ token, verificationToken }) => {
+                            saveCard(token, verificationToken);
+                        }}
+                    >
+                        <CreditCard />
 
-                        </PaymentForm>
+                    </PaymentForm>
 
-                    </div>
                 </div>
-            </main>
-            <footer>
-                <Footer />
-            </footer>
+            </div>
         </>
     );
 };

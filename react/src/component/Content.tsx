@@ -8,10 +8,6 @@ type Props = {
     item: Content;
 };
 
-type AddressProps = {
-    item: Address;
-};
-
 const BasicContent: React.FC<Props> = ({ item }) => {
     const navigate = useNavigate();
     const navigator = (id: string) => {
@@ -64,17 +60,5 @@ const ImageContent: React.FC<Props> = ({ item }) => {
     )
 }
 
-const AddressContent: React.FC<AddressProps> = ({ item }) => {
-    return (
-        <div key={item.id} className="flex flex-col items-start">
-            <p>{item.podt_code}</p>
-            <b>{item.pref}</b>
-            <p>{item.adress1}</p>
-            <p>{item.adress2}</p>
-            <p>{item.adress2}</p>
-        </div>
-    )
-}
-
 export default BasicContent;
-export { LinkContent, ImageContent, AddressContent };
+export { LinkContent, ImageContent };

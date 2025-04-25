@@ -5,6 +5,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Header } from '../component/Header';
 import { AddressContent } from '../component/Content';
 
+import EditAddress from '../modal/EditAddress';
+
 import api from '../conf/api';
 import { Address } from '../types/Content';
 
@@ -12,6 +14,8 @@ const AddressList: React.FC = () => {
     const { register, handleSubmit, setValue, formState: { errors } } = useForm<Address>();
     const navigate = useNavigate();
     const [address, setAddress] = React.useState<Address[]>([])
+    const [isModalOpen, setIsModalOpen] = React.useState(false);
+    const [selectedAddressId, setSelectedAddressId] = React.useState<number | null>(null);
 
     useEffect(() => {
         api.get('/address/list')
@@ -26,6 +30,12 @@ const AddressList: React.FC = () => {
 
     return (
         <div>
+            {isModalOpen && (
+                <EditAddress
+                    initialId={selectedAddressId}
+                    onClose={() => setIsModalOpen(false)}
+                />
+            )}
             <header>
                 <Header />
             </header>
@@ -46,7 +56,10 @@ const AddressList: React.FC = () => {
                                 {address.map((item) => (
                                     <div
                                         key={item.ID}
-                                        onClick={() => navigate(`/address/edit?id=${item.ID}`)}
+                                        onClick={() => {
+                                            setSelectedAddressId(item.ID);
+                                            setIsModalOpen(true);
+                                        }}
                                         className="cursor-pointer contents_item flex flex-col items-start text-left h-[280px] overflow-hidden hover:bg-gray-100 transition"
                                     >
                                         <div className="flex flex-col items-start">

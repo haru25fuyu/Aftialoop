@@ -65,6 +65,7 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
       onClose();
     } else {
       // クレカ（Square）決済処理（仮）
+      // 住所と何を買ったかもサーバーに送る
       console.log('クレジットカードで支払い');
       // ここでSquareのAPIを呼び出して決済処理を行う
       api.post('/api/card/charge', {
