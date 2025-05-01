@@ -11,13 +11,14 @@ import Login from './page/Login';
 //import PaymentForm from './page/PaymentForm';
 //import PaymentComplete from './page/PaymentComplete';
 import MyPage from './page/MyPage';
-import PaymentRegistration from './page/PaymentRegistration';
+import PaymentList from './page/PaymentList';
 import List from './page/List';
 import EditAddress from './page/EditAddress';
 import EditProfile from './page/EditProfile';
 import Profile from './page/Profile';
 import AddressList from './page/AddressList';
 import Item from './page/Item';
+import Cart from './page/Cart';
 
 
 function App() {
@@ -32,13 +33,14 @@ function App() {
         <Route path={`/register/confirm`} element={<RegisterConfirm />} />
         <Route path={`/login`} element={<Login />} />
         <Route path={`/mypage`} element={<MyPage />} />
-        <Route path={`/payment/registration`} element={<PaymentRegistration />} />
+        <Route path={`/payment/List`} element={< PaymentList />} />
         <Route path={`/list`} element={<List />} />
         <Route path={`/address/edit`} element={<EditAddress />} />
-        <Route path={`/addresses`} element={<AddressList />} />
+        <Route path={`/address/list`} element={<AddressList />} />
         <Route path={`/profile/edit`} element={<EditProfile />} />
         <Route path={`/profile`} element={<Profile />} />
         <Route path={`/item`} element={<Item />} />
+        <Route path={`/cart`} element={<Cart />} />
       </Routes> 
     </>
   )

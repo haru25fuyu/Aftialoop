@@ -53,7 +53,6 @@ func main() {
 	// 仮登録
 	r.HandleFunc("/signup", func(w http.ResponseWriter, r *http.Request) {
 
-		
 		//リクエストボディからパスワードとメールアドレスを取得
 		var user function.SqlUser
 		err := json.NewDecoder(r.Body).Decode(&user)
@@ -298,6 +297,7 @@ func main() {
 		claims, err := function.GetUserFromToken(token)
 		if err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
+			log.Println(err)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
 			return
 		}
@@ -816,7 +816,7 @@ func main() {
 		}
 		log.Println(charge)
 		// 支払い処理
-		url,erro := function.ChargeCard(claims.ID, charge.CardID, charge.Amount)
+		url, erro := function.ChargeCard(claims.ID, charge.CardID, charge.Amount)
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "支払いに失敗しました" + erro.Error()})
@@ -837,9 +837,8 @@ func main() {
 		<p>ご不明な点がございましたら、お気軽にお問い合わせください。</p><br />
 		<p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
 		<p>Animaloopサポートチーム</p>
-		`, claims.Name, charge.Amount,url,time.Now().Format("2006-01-02 15:04:05"))
-		
-		
+		`, claims.Name, charge.Amount, url, time.Now().Format("2006-01-02 15:04:05"))
+
 		// 支払い完了メールを送
 		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_SECRET)
 		// メールの内容を設定
@@ -872,6 +871,235 @@ func main() {
 		}
 		log.Printf("Email sent: %+v", res)
 		log.Println("支払い完了メール送信成功")
+	})
+
+	// クレジットの住所の保存
+	r.HandleFunc("/api/card/address", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// リクエストボディから住所とクレジットカード情報を取得
+		var user_data function.RequestCardWithAddress
+		erro = json.NewDecoder(r.Body).Decode(&user_data)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Println(user_data)
+
+		erro = function.SaveOrUpdateCardAddress(claims.ID, user_data.CardID, user_data.AddressID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの保存に失敗しました: " + erro.Error()})
+			return
+		}
+		log.Println("カードと住所の保存成功")
+
+		// カード情報を取得
+		cardData, erro := function.LoadUserAndCards(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
+			return
+		}
+
+		// レスポンス
+		response := map[string]interface{}{
+			"card":    cardData,
+			"count":   len(cardData),
+			"message": "カードと住所を保存しました",
+			"token":   token,
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+
+	})
+
+	//　クレジットカードリストの取得
+	r.HandleFunc("/api/card/list", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		cardData, erro := function.LoadUserAndCards(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
+			return
+		}
+
+		response := map[string]interface{}{
+			"card":  cardData,
+			"count": len(cardData),
+			"token": token,
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// クレジットカードの削除
+	r.HandleFunc("/api/card/delete", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+
+		// リクエストボディから削除するカードのIDを取得
+		var card function.RequestCharge
+		erro = json.NewDecoder(r.Body).Decode(&card)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+		log.Println(card)
+
+		erro = function.DeleteCardAddress(claims.ID,card.CardID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました" + erro.Error()})
+			return
+		}
+
+		// カードの削除
+		erro = function.DeleteCard(card.CardID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました" + erro.Error()})
+			return
+		}
+		log.Println("カード削除成功")
+
+		cardData, erro := function.LoadUserAndCards(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
+			return
+		}
+
+		// レスポンス
+		response := map[string]interface{}{
+			"card":    cardData,
+			"count":   len(cardData),
+			"message": "カードを削除しました",
+			"token":   token,
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// カードのデフォルト設定
+	r.HandleFunc("/api/card/default", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		// リクエストボディからデフォルトにするカードのIDを取得
+		var card function.RequestCharge
+		erro = json.NewDecoder(r.Body).Decode(&card)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// カードのデフォルト設定
+		erro = function.SetDefaultCard(claims.ID, card.CardID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "デフォルトカードの設定に失敗しました" + erro.Error()})
+			return
+		}
+		log.Println("デフォルトカード設定成功")
+
+		cardData, erro := function.LoadUserAndCards(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
+			return
+		}
+
+		// レスポンス
+		response := map[string]interface{}{
+			"card":    cardData,
+			"count":   len(cardData),
+			"message": "デフォルトカードを設定しました",
+			"token":   token,
+		}
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
+	})
+
+	// カードのアドレス情報の取得
+	r.HandleFunc("/api/card/address/get", func(w http.ResponseWriter, r *http.Request) {
+		token, err := function.CheckUser(w, r)
+		if err != "" {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		// トークンからIdを取得
+		claims, erro := function.GetUserFromToken(token)
+		if erro != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+			return
+		}
+		// リクエストボディからカードのIDを取得
+		var card function.RequestCharge
+		erro = json.NewDecoder(r.Body).Decode(&card)
+		if erro != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// カードのアドレス情報を取得
+		addressData, erro := function.GetCardAddress(claims.ID, card.CardID)
+		if erro != nil {
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
+			return
+		}
+
+		response := map[string]interface{}{
+			"address": addressData,
+			"token":   token,
+		}
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(response)
 	})
 
 	//googleログインGo

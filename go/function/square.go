@@ -94,27 +94,77 @@ func CreateCard(card RequestCard) (string, error) {
 	return *response.Card.ID, nil
 }
 
-func ChargeCard(customerID, cardID string, amount int64) (string,error) {
+func ChargeCard(customerID, cardID string, amount int64) (string, error) {
 	fmt.Println("SourceID:", customerID)
 	resp, err := config.SquareClient.Payments.Create(
-        context.TODO(),
-        &square.CreatePaymentRequest{
-            AmountMoney: &square.Money{
-                Amount: square.Int64(
-                    amount,
-                ),
-                Currency: square.CurrencyJpy.Ptr(),
-            },
-            IdempotencyKey: uuid.New().String(),
-			SourceID: cardID,
-            Autocomplete: square.Bool(
-                true,
-            ),
-            CustomerID: square.String(
-                customerID,
-            ),
-        },
-    )
-	
+		context.TODO(),
+		&square.CreatePaymentRequest{
+			AmountMoney: &square.Money{
+				Amount: square.Int64(
+					amount,
+				),
+				Currency: square.CurrencyJpy.Ptr(),
+			},
+			IdempotencyKey: uuid.New().String(),
+			SourceID:       cardID,
+			Autocomplete: square.Bool(
+				true,
+			),
+			CustomerID: square.String(
+				customerID,
+			),
+		},
+	)
+
 	return *resp.Payment.ReceiptURL, err
+}
+
+func GetCardList(customerID string) ([]CardSummary, error) {
+	response, err := config.SquareClient.Cards.List(
+		context.TODO(),
+		&square.ListCardsRequest{
+			CustomerID: square.String(customerID),
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list cards: %w", err)
+	}
+	fmt.Printf("RESPONSE TYPE: %T\n", response)
+	summaries := []CardSummary{}
+
+	iter := response.Iterator()
+
+	for iter.Next(context.TODO()) {
+		card := iter.Current()
+		summaries = append(summaries, CardSummary{
+			ID:       *card.ID,
+			Brand:    string(*card.CardBrand),
+			Last4:    *card.Last4,
+			ExpMonth: int(*card.ExpMonth),
+			ExpYear:  int(*card.ExpYear),
+			Disabled: card.Enabled != nil && !*card.Enabled,
+			IsDefault: false,
+		})
+	}
+	return summaries, nil
+}
+
+func DeleteCard(cardID string) error {
+	response, err := config.SquareClient.Cards.Disable(
+		context.TODO(),
+		&square.DisableCardsRequest{
+			CardID: cardID,
+		},
+	)
+	if err != nil {
+		log.Fatalf("Error disabling card: %v", err)
+	}
+	if response.Card != nil {
+		log.Printf("Card disabled: %s\n", *response.Card.ID)
+	} else {
+		log.Println("Card not found or already disabled.")
+	}
+	// カードが無効化された場合は、nilを返す
+	// それ以外の場合はエラーを返す
+	return err
 }

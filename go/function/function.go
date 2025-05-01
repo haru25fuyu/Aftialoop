@@ -33,22 +33,19 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 		user, err = GetUserFromToken(token)
 	}
 
-	if user == nil && err != nil {
-		return "", "トークンが期限切れです"
-	}
-
 	if user == nil {
 		user, err = GetUserFromRefreshToken(refreshToken.Value)
 		if user == nil || err != nil {
 			return "", "アクセストークンが期限切れです"
 		} else {
+			user.Limit = 1
 			newAccessToken, err := GenerateToken(user)
 			if err != nil {
 				return "", "サーバーエラー"
 			}
 			remainingTime := user.Exp - time.Now().Unix()
 			daysRemaining := remainingTime / 86400
-
+			
 			if daysRemaining < 7 {
 				SetRefreshToken(w, user)
 				return newAccessToken, ""
@@ -162,4 +159,49 @@ func CreateAssessment( token string) {
 	for _, reason := range response.RiskAnalysis.Reasons {
 		fmt.Printf(reason.String() + "\n")
 	}
+}
+
+func PrioritizeCard(cards []CardSummary, defaultID string) []CardSummary {
+	for i := range cards {
+		if cards[i].ID == defaultID {
+			cards[i].IsDefault = true // ← これでOK！
+			if i != 0 {
+				cards[0], cards[i] = cards[i], cards[0]
+			}
+			break
+		}
+	}
+	return cards
+}
+
+func LoadUserAndCards(token string) ([]*CardSummary, error) {
+	// トークンからID取得
+	claims, err := GetUserFromToken(token)
+	if err != nil {
+		return nil, fmt.Errorf("トークン無効: %w", err)
+	}
+
+	// ユーザー情報取得
+	userData, err := GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
+	if err != nil {
+		return nil, fmt.Errorf("ユーザー取得失敗: %w", err)
+	}
+
+	// カード一覧取得
+	cardData, err := GetCardList(claims.ID)
+	if err != nil {
+		return nil, fmt.Errorf("カード取得失敗: %w", err)
+	}
+
+	// デフォルトカードを先頭に
+	cardData = PrioritizeCard(cardData, userData.DefaultCard)
+
+	// カード情報をポインタのスライスに変換
+	// これをしないと、カード情報がコピーされてしまう
+	var cardDataPointers []*CardSummary
+	for i := range cardData {
+		cardDataPointers = append(cardDataPointers, &cardData[i])
+	}
+
+	return cardDataPointers, nil
 }

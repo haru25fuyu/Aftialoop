@@ -52,9 +52,9 @@ const MyPage: React.FC = () => {
         { id: '10', name: '商品10', price: 10000, image_url: 'https://placehold.jp/150x150.png' },
     ];
     const linkContent: Content[] = [
-        { id: '1', name: '支払い方法', image_url: '/150x150.png' },
-        { id: '2', name: 'アカウント設定', image_url: '/150x150.png' },
-        { id: '3', name: 'アドレス帳', image_url: '/150x150.png' },
+        { id: '1', name: '支払い方法', image_url: '/150x150' },
+        { id: '2', name: 'アカウント設定', image_url: '/profile' },
+        { id: '3', name: 'アドレス帳', image_url: '/address/list' },
         { id: '4', name: 'サブスクリプション管理', image_url: '/150x150.png' },
     ];
 

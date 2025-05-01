@@ -19,3 +19,15 @@ export interface Address {
   Address3: string;
   IsDefault: boolean;
 }
+
+export interface Payment {
+  ID: string;
+  CardBrand: string;
+  Name: string;
+  Last4: string;
+  ExpMonth: number;
+  ExpYear: number;
+  Address: Address;
+  AddressID: string;
+  IsDefault: boolean;
+}

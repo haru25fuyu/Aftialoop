@@ -107,7 +107,7 @@ func SaveUser(user map[string]interface{}) error {
 }
 
 func GetUserData(where []string, values []interface{}) (SqlUser, error) {
-	query := "SELECT ID, Email, Name, Password FROM users"
+	query := "SELECT ID, Email, Name, Password, DefaultCard FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -181,6 +181,15 @@ func GetProfile(id string) (Profile, error) {
 	return profile, nil
 }
 
+func SetDefaultCard(userID, cardID string) error {
+	//usersテーブルのDefaultCardを更新
+	_, err := config.DB.Exec("UPDATE users SET DefaultCard = ? WHERE ID = ?", cardID, userID)
+	if err != nil {
+		return err
+	}
+	return err
+}
+
 func UpdateProfile(id string, profile map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
@@ -196,7 +205,7 @@ func UpdateProfile(id string, profile map[string]interface{}) error {
 }
 
 func GetUserDataAndProfile(where []string, values []interface{}) (RequestUserProfile, error) {
-	query := `SELECT u.ID,u.Name,u.Email, p.DateOfBirth,p.Gender,p.PhoneNumber,p.Bio,p.IconURL 
+	query := `SELECT u.ID,u.Name,u.Email,u.DefaultCard, p.DateOfBirth,p.Gender,p.PhoneNumber,p.Bio,p.IconURL 
 	          FROM users u LEFT JOIN profile p ON u.ID = p.UserId`
 
 	if len(where) > 0 {
@@ -232,7 +241,7 @@ func GetFavoriteItems(user_id string, limit int) ([]map[string]interface{}, erro
 	if limit != 0 {
 		query_limit = "LIMIT " + string(limit)
 	}
-	query := "SELECT * FROM favorites INNER JOIN items ON favorites.ItemID = items.ID WHERE favorites.user_id = ? " + query_limit
+	query := "SELECT * FROM favorites INNER JOIN items ON favorites.ItemID = items.ID WHERE favorites.UserID = ? " + query_limit
 	var results []map[string]interface{}
 	err := config.DB.Select(&results, query, user_id)
 	return results, err
@@ -371,6 +380,82 @@ func GetAddressList(user_id string) ([]Address, error) {
 	var addresses []Address
 	err := config.DB.Select(&addresses, query, user_id)
 	return addresses, err
+}
+
+// カードのアドレス情報を保存
+func SaveOrUpdateCardAddress(userID, cardID string, addressID string) error {
+	// 既に存在するか確認
+	var count int
+	checkQuery := "SELECT COUNT(*) FROM user_payment_methods WHERE CardID = ?"
+	err := config.DB.Get(&count, checkQuery, cardID)
+	if err != nil {
+		return fmt.Errorf("DBチェック失敗: %w", err)
+	}
+
+	if count > 0 {
+		// 存在する → 更新
+		updateQuery := `
+			UPDATE user_payment_methods 
+			SET AddressID = ?, UpdatedAt = NOW() 
+			WHERE CardID = ? AND UserID = ?
+		`
+		_, err := config.DB.Exec(updateQuery, addressID, cardID, userID)
+		if err != nil {
+			return fmt.Errorf("更新失敗: %w", err)
+		}
+		log.Printf("カード情報を更新しました"+" %s", cardID)
+	} else {
+		// 存在しない → 追加
+		insertQuery := `
+			INSERT INTO user_payment_methods (UserID, CardID, AddressID, CreatedAt, UpdatedAt) 
+			VALUES (?, ?, ?, NOW(), NOW())
+		`
+		_, err := config.DB.Exec(insertQuery, userID, cardID, addressID)
+		if err != nil {
+			return fmt.Errorf("挿入失敗: %w", err)
+		}
+		log.Println("カード情報を新規保存しました")
+	}
+
+	return nil
+}
+
+
+// カードのアドレス情報を取得
+func GetCardAddress(userID, cardID string) (Address, error) {
+	query := "SELECT a.ID,a.Name,a.Phone,a.UserID,a.PostCode,a.Pref,a.Address1,a.Address2,a.Address3,a.IsDefault FROM user_payment_methods upm INNER JOIN addresses a ON upm.AddressID = a.ID WHERE upm.UserID = ? AND upm.CardID = ?"
+	var address Address
+	err := config.DB.Get(&address, query, userID, cardID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return address, fmt.Errorf("address not found")
+		}
+		return address, err
+	}
+	return address, nil
+}
+
+// カードのアドレス情報を削除
+func DeleteCardAddress(userID, cardID string) error {
+	_, err := config.DB.Exec("DELETE FROM user_payment_methods WHERE UserID = ? AND CardID = ?", userID, cardID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// カードのアドレス情報を取得
+func GetCardByID(cardID string) (CardSummary, error) {
+	query := "SELECT ID FROM cards WHERE ID = ?"
+	var card CardSummary
+	err := config.DB.Get(&card, query, cardID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return card, fmt.Errorf("card not found")
+		}
+		return card, err
+	}
+	return card, nil
 }
 
 // スライスを結合する関数
