@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { Footer } from '../component/Footer.tsx';
@@ -30,12 +30,12 @@ const Item: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [selectQuantity, setSelectQuantity] = useState(1);
     const [item, setItem] = useState<Content>({
-        id: 0,
+        id: '0',
         name: "テスト",
         discription: "テストの商品",
         price: 1000,
         point: 500,
-        image_url: "/../data/IMG_3589.JPG",
+        image_url: "/data/IMG_3589.JPG",
         quantity: 10,
     });
     const location = useLocation();
@@ -48,6 +48,15 @@ const Item: React.FC = () => {
             console.error("IDが取得できませんでした。");
             return;
         }
+        setItem({
+            id: "1",
+            name: "テスト",
+            discription: "テストの商品",
+            price: 1000,
+            point: 500,
+            image_url: "/data/IMG_3589.JPG",
+            quantity: 10,
+        });
         console.log(id);
         // 商品情報を取得するAPIを呼び出す
         // api.post('/item/get', { id: id })
@@ -110,7 +119,7 @@ const Item: React.FC = () => {
             <main>
                 <h1>商品詳細</h1>
                 <div className='item-detail'>
-                    <img src="/../data/IMG_3589.JPG" alt="商品画像" />
+                    <img src="/data/IMG_3589.JPG" alt="商品画像" />
                     <div className='item-info'>
                         <h2>{item.name}</h2>
                         <p>{item.discription}</p>

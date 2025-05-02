@@ -15,7 +15,7 @@ import MainImage from '../component/MainImage.tsx';
 const Home: React.FC = () => {
     const contentsList: Content[] = [
         {
-            id: 1,
+            id: '1',
             name: "test",
             discription: "test",
             price: 100,
@@ -23,7 +23,7 @@ const Home: React.FC = () => {
             image_url: "http://localhost:3000/"
         },
         {
-            id: 2,
+            id: '2',
             name: "test2",
             discription: "test2",
             price: 200,
@@ -31,7 +31,7 @@ const Home: React.FC = () => {
             image_url: "http://localhost:3000/"
         },
         {
-            id: 3,
+            id: '3',
             name: "test3",
             discription: "test3",
             price: 300,
@@ -39,7 +39,7 @@ const Home: React.FC = () => {
             image_url: "http://localhost:3000/"
         },
         {
-            id: 4,
+            id: '4',
             name: "test3",
             discription: "test3",
             price: 300,
@@ -51,7 +51,7 @@ const Home: React.FC = () => {
         <div>
             <header>
                 <Header />
-                <MainImage image={"/../data/IMG_3589.JPG"} title={"ANIMALOOP"} />
+                <MainImage image={"/data/IMG_3589.JPG"} title={"ANIMALOOP"} />
             </header>
 
 
@@ -76,7 +76,7 @@ const Home: React.FC = () => {
                 >
                     {contentsList.map((item) => (
                         <SwiperSlide className="swiper-slide" key={item.id}>
-                            <img src="/../data/IMG_3589.JPG" alt="" />
+                            <img src="/data/IMG_3589.JPG" alt="" />
                             <div className='content'>
                                 <h2>おすすめ商品</h2>
                                 <h3>{item.name}</h3>
@@ -119,7 +119,7 @@ const Home: React.FC = () => {
                     >
                         {contentsList.map((item) => (
                             <SwiperSlide className="swiper-slide" key={item.id}>
-                                <img src="/../data/IMG_3589.JPG" alt="" />
+                                <img src="/data/IMG_3589.JPG" alt="" />
                             </SwiperSlide>
                         ))}
                     </Swiper>

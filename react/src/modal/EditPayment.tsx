@@ -6,10 +6,11 @@ import { Mousewheel, Scrollbar, FreeMode } from "swiper/modules";
 import "swiper/swiper-bundle.css";
 
 import api from "../conf/api";
+import axios from "axios";
 
 import { Address } from '../types/Content';
 import { Payment } from '../types/Content';
-import { set } from "react-hook-form";
+
 
 
 type EditPaymentProps = {
@@ -25,17 +26,18 @@ const MODE = {
     Customer: "customer",
     Delete: "delete"
 }
-
 const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPayments, openMode }) => {
+    if (!isOpen) return null; // Ensure the component returns null when not open
     const [address, setAddress] = React.useState<Address[]>([])
     const [customerId, setCustomerId] = useState<string | null>(null);
-    const navigate = useNavigate();
     const [mode, setMode] = useState(MODE.Customer);
     const [cardId, setCardId] = useState<string | null>(null);
     const [defaultCard, setDefaultCard] = useState<string | null>(null);
     const [selectAddressID, setSelectAddressID] = useState<string | null>(null);
     const [makeDefault, setMakeDefault] = useState(false);
     const [created, setCreated] = useState(false);
+
+    const navigate = useNavigate();
 
 
     useEffect(() => {
@@ -102,7 +104,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
 
 
     // axios を使用したカード情報保存処理
-    const saveCard = async (token: string, verificationToken: string) => {
+    const saveCard = async (token: any, verificationToken: any) => {
         console.log("トークン:", token);
         if (!token || token === "undefined") {
             alert("カード入力に問題があります。全ての項目を正しく入力してください。");
@@ -128,8 +130,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
                 });
 
         } catch (error) {
-            // axios ではエラーが出た場合、response でエラーの詳細にアクセスできます
-            if (api.isAxiosError(error)) {
+            if (axios.isAxiosError(error)) {
                 console.error("Axiosエラー:", error.response?.data || error.message);
             } else {
                 console.error("保存エラー:", error);
@@ -158,7 +159,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             onClose();
         } catch (error) {
             // axios ではエラーが出た場合、response でエラーの詳細にアクセスできます
-            if (api.isAxiosError(error)) {
+            if (axios.isAxiosError(error)) {
                 console.error("Axiosエラー:", error.response?.data || error.message);
             } else {
                 console.error("保存エラー:", error);
@@ -219,7 +220,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
                         <PaymentForm
                             applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
                             locationId="LJ05QCSPT544X"
-                            cardTokenizeResponseReceived={({ token, verificationToken }) => {
+                            cardTokenizeResponseReceived={(token, verificationToken) => {
                                 saveCard(token, verificationToken);
                             }}
                         >

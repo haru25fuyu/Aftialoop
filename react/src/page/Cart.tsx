@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { set, useForm } from 'react-hook-form';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+//import {  useForm } from 'react-hook-form';
+//import { useNavigate } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { Content } from '../types/Content';
@@ -8,12 +8,13 @@ import { ContentsList } from '../component/ContentsList';
 import BasicContent from '../component/Content';
 
 import api from '../conf/api';
+//import { Input } from '../types/Input';
 
 
 const Cart: React.FC = () => {
-    const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
-    const navigate = useNavigate();
-    const location = useLocation();
+    //const { handleSubmit } = useForm<Inputs>();
+    //const navigate = useNavigate();
+    //const location = useLocation();
     const [cart, setCart] = useState<Content[]>(JSON.parse(localStorage.getItem('cart') || '[]'));
     const [totalPrice, setTotalPrice] = useState(0);
     const [totalPoints, setTotalPoints] = useState(0);
@@ -51,14 +52,14 @@ const Cart: React.FC = () => {
         setTotalPoints(cart.reduce((acc, item) => acc + item.point * (item.quantity || 1), 0));
     }, [cart]);
 
-    const onSubmit = async () => {
-        //　チェックアウトとしてローカルストレージに保存
-        localStorage.setItem('checkout', JSON.stringify(cart));
-        //　カートを空にする
-        localStorage.removeItem('cart');
-        //　チェックアウト画面に遷移
-        navigate('/checkout');
-    };
+    //const onSubmit = async () => {
+    //    //　チェックアウトとしてローカルストレージに保存
+    //    localStorage.setItem('checkout', JSON.stringify(cart));
+    //    //　カートを空にする
+    //    localStorage.removeItem('cart');
+    //    //　チェックアウト画面に遷移
+    //    navigate('/checkout');
+    //};
     return (
         <div>
             <header>
@@ -86,7 +87,6 @@ const Cart: React.FC = () => {
                         <button
                             type="button"
                             className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                            onClick={handleSubmit(onSubmit)}
                         >
                             購入手続きへ進む
                         </button>

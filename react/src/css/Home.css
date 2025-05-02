@@ -65,7 +65,7 @@
     width: 50%;
     height: 100%;
     /*文字を高さの中央に*/
-    background-image: url("../data/background.png");
+    background-image: url("/data/background.png");
 	background-color:rgba(255,255,255,0.8);
 	background-blend-mode:lighten;
     background-size: cover;
@@ -166,7 +166,7 @@ h3 {
 }
 
 /* フォント日本語 */
-.m-plus-2-<uniquifier> {
+.m-plus-2 {
   font-family: "M PLUS 2", sans-serif;
   font-optical-sizing: auto;
   font-weight: <weight>;

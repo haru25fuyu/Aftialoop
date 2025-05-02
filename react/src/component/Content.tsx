@@ -1,7 +1,7 @@
 import '../css/BasicContent.css';
 import React from 'react';
 
-import { Address, Content } from '../types/Content';
+import {  Content } from '../types/Content';
 import { useNavigate } from 'react-router-dom';
 
 type Props = {
