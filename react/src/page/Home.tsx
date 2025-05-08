@@ -20,7 +20,7 @@ const Home: React.FC = () => {
             discription: "test",
             price: 100,
             point: 10,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         },
         {
             id: '2',
@@ -28,7 +28,7 @@ const Home: React.FC = () => {
             discription: "test2",
             price: 200,
             point: 20,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         },
         {
             id: '3',
@@ -36,7 +36,7 @@ const Home: React.FC = () => {
             discription: "test3",
             price: 300,
             point: 30,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         },
         {
             id: '4',
@@ -44,7 +44,7 @@ const Home: React.FC = () => {
             discription: "test3",
             price: 300,
             point: 30,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         }
     ]
     return (

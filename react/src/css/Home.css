@@ -7,13 +7,15 @@
     flex-direction: column;
     /*横幅100%*/
     width: 100%;
+	padding:60px 0 80px;
 }
 
-.news h3 {
+h3 {
     font-size: 1.5rem;
     margin: 0 0 30px;
     padding: 0;
   font-family: "M PLUS 2", sans-serif;
+  text-align:center;
 
 }
 
@@ -32,7 +34,7 @@
     margin-right: auto;
     justify-content: space-between;
     width: 60%;
-    padding: 0.5rem;
+    padding: 1rem;
     border-bottom: 1px solid #ccc;
 }
 .news li:first-child{
@@ -74,6 +76,9 @@
 
 }
 
+.content {
+	padding:60px 0 0 0;
+}
 .content h3 {
     font-size: 2.5rem;
   font-family: "M PLUS 2", sans-serif;
@@ -83,16 +88,15 @@
 .slider {
     margin-right: auto;
     width: 85% !important;
+	height:300px;
 }
 
 .contents_item {
     width: 90%;
 }
-
-h3 {
-    text-align: center;
-}
-
+.item{
+	padding:80px 0 100px;
+	}
 .item ul {
     height: 20px;
     width: 50%;
