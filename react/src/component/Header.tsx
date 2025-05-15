@@ -29,15 +29,15 @@ export const Header: React.FC = () => {
 
     return (
         <div className="Header">
-            <img className='logo' src="/data/animaloop_logo.jpg" alt="ロゴ" />
+            <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
 
             <div className="list">
                 <span className='title'>MENU</span>
                 <ul className='header-list'>
                     <li><Link to="/">TOP</Link></li>
-                    <li><Link to="/List">商品一覧</Link></li>
+                    <li><Link to="/payment">商品一覧</Link></li>
                     <li><Link to="/mypage">マイページ</Link></li>
-                    <li><Link to="/contact">お問い合わせ</Link></li>
+                    <li><Link to="/mypage">お問い合わせ</Link></li>
                 </ul>
             </div>
 
@@ -69,6 +69,6 @@ export const Header: React.FC = () => {
             </div>
         </div>
     );
-}
+};
 
 export default Header;

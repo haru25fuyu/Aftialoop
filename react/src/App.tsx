@@ -19,6 +19,7 @@ import Item from './page/Item';
 import Cart from './page/Cart';
 import NotFound from './page/NotFound';
 import Contact from './page/Contact';
+import FileTree from './page/SetFile';
 
 
 function App() {
@@ -42,6 +43,7 @@ function App() {
         <Route path={`/cart`} element={<Cart />} />
         <Route path={`*`} element={<NotFound />} />
         <Route path={`/contact`} element={<Contact />} />
+        <Route path={`/filetree`} element={<FileTree />} />
       </Routes> 
     </>
   )
