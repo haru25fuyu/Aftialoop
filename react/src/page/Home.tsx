@@ -81,7 +81,7 @@ const Home: React.FC = () => {
                 <h2>お知らせ情報</h2>
                 <div className="news-list">
                     <ul>
-                        <li><span className="new">NEW!</span><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
+                        <li><span className="new">NEW!</span><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加して</li>
                         <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
                         <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
                         <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>

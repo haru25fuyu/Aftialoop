@@ -1,0 +1,119 @@
+nohup: ignoring input
+
+> app@0.0.0 dev
+> vite
+
+
+  VITE v6.2.6  ready in 219 ms
+
+  ➜  Local:   http://localhost:3000/
+  ➜  Network: http://160.251.168.238:3000/
+9:13:06 AM [vite] (client) Pre-transform error: Failed to resolve import "next/router" from "src/page/Item.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /var/www/web/Animaloop/react/src/page/Item.tsx:2:26
+  10 |  var _s = $RefreshSig$();
+  11 |  import React, { useEffect } from 'react';
+  12 |  import { useRouter } from 'next/router';
+     |                             ^
+  13 |  import { Header } from '../component/Header';
+  14 |  import { Footer } from '../component/Footer.tsx';
+9:13:07 AM [vite] Internal server error: Failed to resolve import "next/router" from "src/page/Item.tsx". Does the file exist?
+  Plugin: vite:import-analysis
+  File: /var/www/web/Animaloop/react/src/page/Item.tsx:2:26
+  10 |  var _s = $RefreshSig$();
+  11 |  import React, { useEffect } from 'react';
+  12 |  import { useRouter } from 'next/router';
+     |                             ^
+  13 |  import { Header } from '../component/Header';
+  14 |  import { Footer } from '../component/Footer.tsx';
+      at TransformPluginContext._formatLog (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:47897:41)
+      at TransformPluginContext.error (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:47894:16)
+      at normalizeUrl (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:46027:23)
+      at async file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:46146:37
+      at async Promise.all (index 3)
+      at async TransformPluginContext.transform (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:46073:7)
+      at async EnvironmentPluginContainer.transform (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:47692:18)
+      at async loadAndTransform (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:41327:27)
+      at async viteTransformMiddleware (file:///var/www/web/Animaloop/react/node_modules/vite/dist/node/chunks/dep-Bid9ssRr.js:42807:24)
+9:14:43 AM [vite] (client) ✨ new dependencies optimized: next/router
+9:14:43 AM [vite] (client) ✨ optimized dependencies changed. reloading
+9:23:21 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:23:21 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:24:32 AM [vite] (client) hmr update /src/page/EditAddress.tsx, /src/index.css
+9:24:33 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:25:30 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:25:30 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:25:57 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+9:25:58 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+9:25:58 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+9:26:39 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+9:26:39 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+9:26:39 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+9:27:15 AM [vite] (client) hmr update /src/page/Home.tsx, /src/index.css
+9:27:15 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+9:27:20 AM [vite] (client) hmr update /src/page/Home.tsx, /src/index.css
+9:27:20 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:13:04 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:13:05 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:13:05 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:13:29 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:13:30 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:13:30 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:13:45 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:13:46 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:13:46 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:15:49 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:15:49 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:15:49 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:16:27 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:16:28 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:16:28 AM [vite] (client) hmr update /src/component/DirectCheckoutModal.tsx, /src/index.css
+11:18:24 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:18:24 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:18:24 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:20:28 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:20:28 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:20:28 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:26:44 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:26:45 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:26:45 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:28:30 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:28:31 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:28:31 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:36:04 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:36:05 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:36:05 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:48:30 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:48:31 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:48:31 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:50:42 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+11:50:42 AM [vite] (client) hmr update /src/App.tsx, /src/index.css
+11:50:43 AM [vite] (client) hmr update /src/page/Item.tsx, /src/index.css
+2:00:48 PM [vite] (client) hmr update /src/css/Home.css
+2:00:55 PM [vite] (client) hmr update /src/css/Header.css
+2:01:26 PM [vite] (client) hmr update /src/css/Home.css
+2:01:26 PM [vite] (client) hmr update /src/css/Home.css
+2:02:32 PM [vite] (client) hmr update /src/css/Home.css
+2:02:32 PM [vite] (client) hmr update /src/css/Home.css
+2:02:34 PM [vite] (client) hmr update /src/css/Header.css
+2:02:35 PM [vite] (client) hmr update /src/css/Header.css
+2:06:49 PM [vite] (client) hmr update /src/css/MainImage.css
+2:06:50 PM [vite] (client) hmr update /src/css/MainImage.css
+3:50:52 PM [vite] (client) hmr update /src/css/Header.css
+3:50:52 PM [vite] (client) hmr update /src/css/Header.css
+3:50:55 PM [vite] (client) hmr update /src/css/MainImage.css
+3:50:55 PM [vite] (client) hmr update /src/css/MainImage.css
+3:51:10 PM [vite] (client) hmr update /src/css/Home.css
+3:51:11 PM [vite] (client) hmr update /src/css/Home.css
+3:51:12 PM [vite] (client) hmr update /src/css/Header.css
+3:51:13 PM [vite] (client) hmr update /src/css/Header.css
+3:56:29 PM [vite] (client) hmr update /src/css/Home.css
+3:56:30 PM [vite] (client) hmr update /src/css/Home.css
+4:02:18 PM [vite] (client) hmr update /src/css/MainImage.css
+4:02:18 PM [vite] (client) hmr update /src/css/MainImage.css
+4:11:55 PM [vite] (client) hmr update /src/css/MainImage.css
+4:11:56 PM [vite] (client) hmr update /src/css/MainImage.css
+4:19:28 PM [vite] (client) hmr update /src/css/MainImage.css
+4:19:28 PM [vite] (client) hmr update /src/css/MainImage.css
+4:26:28 PM [vite] (client) hmr update /src/css/MainImage.css
+4:26:28 PM [vite] (client) hmr update /src/css/MainImage.css
