@@ -230,14 +230,14 @@ button{
 }
 .space{
 	width:50%;
-	background-image:;
+	background-image: url("data/IMG_3589.jpg");
 }
 .content{
 	width:50%;
 }
 
 .space{
-	 background: url(file:///D|/Users/SEASIDENET02/Desktop/%E3%81%AF%E3%82%8B%E3%81%A1%E3%82%83%E3%82%93/IMG_3589.jpg) no-repeat 0 0 / cover;
+	 background: url("data/IMG_3589.jpg") no-repeat 0 0 / cover;
 	 background-position: center;
 	 padding:250px 0;
 }

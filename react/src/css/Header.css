@@ -112,7 +112,7 @@
 .search-form button::after {
     width: 24px;
     height: 24px;
-    background-image: url("file:///D|/Users/SEASIDENET02/Desktop/data/serch.png");
+    background-image: url("/data/serch.png");
     background-size: cover;
     background-repeat: no-repeat;
     content: '';
