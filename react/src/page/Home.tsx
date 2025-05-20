@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Swiper, SwiperSlide } from "swiper/react";
+import { Scrollbar,Autoplay } from "swiper/modules";
 import '../css/Home.css';
 import "swiper/swiper-bundle.css";
 
@@ -47,7 +48,7 @@ const Home: React.FC = () => {
             image_url: "/data/Logo.JPG"
         }
     ]
-    function scrollCarousel() {
+   function scrollCarousel() {
         let scrollIndex = 0;
         const carousel = document.getElementById("carousel");
         if (!carousel) return;
@@ -65,7 +66,7 @@ const Home: React.FC = () => {
             scrollIndex = 0; // ループさせたい場合
         }
 
-        carousel.style.transform = `translateX(-${scrollIndex * itemWidth}px)`;
+       carousel.style.transform = `translateX(-${scrollIndex * itemWidth}px)`;
     }
     return (
         <div>
@@ -74,9 +75,6 @@ const Home: React.FC = () => {
                 <MainImage image={"/data/IMG_3589.JPG"} title={"ANIMALOOP"} />
             </header>
 
-            <section>
-                <h2 className="title">AFTIA</h2>
-            </section>
             <section className="news">
                 <h2>お知らせ情報</h2>
                 <div className="news-list">
@@ -139,7 +137,6 @@ const Home: React.FC = () => {
                         泣いていたことだけは記憶している。<br /></p>
                 </div>
                 <div className="space"></div>
-                <img src="/data/favicon.JPG" alt="" />
             </section>
             <section className="contact">
                 <div className="text">
@@ -150,14 +147,34 @@ const Home: React.FC = () => {
                     <button>お問い合わせはこちら</button>
                 </div>
             </section>
-            <section className="gallery">
-                <img src="/data/Logo.JPG" alt="photo" />
-                <img src="/data/Logo.JPG" alt="photo" />
-                <img src="/data/Logo.JPG" alt="photo" />
-                <img src="/data/Logo.JPG" alt="photo" />
-                <img src="/data/Logo.JPG" alt="photo" />
-            </section>
-        </div >
+ <section className="gallery">               
+                <div className="container">
+                    <div className="swiper infinite-slider">
+                        <Swiper
+                            modules={[ Scrollbar, Autoplay ]}
+                            className="swiper-container"
+                            spaceBetween={0}
+                            slidesPerView="5"
+                            scrollbar={{ draggable: true }}
+                            loop={true}
+                            speed={500}
+                            autoplay={{
+                                delay: 3000,
+                                disableOnInteraction: false,
+                            }}
+                        >
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像1" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像2" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像3" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像4" /></SwiperSlide>
+                          　<SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像5" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像6" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像7" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像8" /></SwiperSlide>
+                        </Swiper>
+                    </div>
+                </div>
+            </section >      </div >
     );
 };
 

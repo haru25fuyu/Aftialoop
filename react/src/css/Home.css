@@ -1,24 +1,84 @@
-.news {
-    text-align: center;
-    margin-top: 35px;
-    margin-bottom: 35px;
-    display: flex;
-    /*中央揃え　縦に並べる*/
-    flex-direction: column;
-    /*横幅100%*/
-    width: 100%;
-	padding:60px 0 80px;
+.content {
+	padding:150px 0 150px 0;
+margin:0 auto;
 }
-
+.content h3 {
+    font-size: 2.5rem;
+  font-family: "M PLUS 2", sans-serif;
+}
 h3 {
     font-size: 1.5rem;
     margin: 0 0 30px;
     padding: 0;
   font-family: "M PLUS 2", sans-serif;
   text-align:center;
-
 }
 
+section{
+	padding:80px 0 60px;
+	margin:0 auto;
+}
+.content{
+	text-align:center;
+}
+h2{
+	font-size:48px;
+	text-align:center;
+	font-weight:600;
+	color:#333;
+	margin:0 0 30px 0;
+}
+button{
+	background:#000000;
+	color:#FFFFFF;
+	font-weight:500;
+	padding:13px 30px;
+	margin:30px auto 0;
+    width:200px;
+    border-radius:0;
+}
+.next-button{
+	padding:15px 0 5px ;
+	border:solid 1px #000000;
+	background:#FFFFFF;
+	border-radius:100px;
+	color:#000000;
+	font-size:120px;
+}
+.next-button2{
+	padding:30px 45px 35px 65px;
+	border:solid 1px #000000;
+	background:#FFFFFF;
+	border-radius:100px;
+	color:#000000;
+	font-size:90px;
+	text-align:right;
+}
+.wrap{
+	display:flex;
+}
+.space{
+background:#dddddd;
+width:45%;
+}
+.category-list{
+display:flex;
+justify-content: flex-end;
+}
+.category-list li{
+margin-right:15px;
+}
+
+.news {
+    text-align: center;
+    margin: 35px auto;
+    display: flex;
+    /*中央揃え　縦に並べる*/
+    flex-direction: column;
+    /*横幅100%*/
+    width: 960px;
+	padding:60px 0 80px;
+}
 .news ul {
     list-style: none;
     padding: 0;
@@ -30,31 +90,38 @@ h3 {
 
 .news li {
     display: flex;
-    margin-left: auto;
-    margin-right: auto;
     justify-content: space-between;
-    width: 60%;
     padding: 1rem;
     border-bottom: 1px solid #ccc;
+    text-align:left !important;
 }
-.news li:first-child{
-	border-top: 1px solid #ccc;
+.news li:first-chil{
+	border-top: 1px solid #ccc　!imporant;
+}
+.new{
+background:#ff5858;
+padding:5px 15px;
+color:#ffffff;
+font-weight:600;
 }
 .recommend {
     width: 100%;
-    height: 500px;
-    display: flex;
+ min-height: 500px; /* 内容に応じて調整 */
 }
 
 .recommend img {
     width: 50%;
     /* 目的の幅 */
     object-fit: cover;
-
-
     border-radius: 0 6% 6% 0 / 0 50% 50% 0;
 }
-
+.carousel{
+display:flex;
+}
+.carousel img{
+width:350px;
+margin-right:15px;
+}
 .swiper-slide img {
 
     margin-right: auto;
@@ -73,18 +140,7 @@ h3 {
     background-size: cover;
     background-position: center;
 	vertical-align: middle;
-
 }
-
-.content {
-	padding:150px 0 150px 0;
-}
-.content h3 {
-    font-size: 2.5rem;
-  font-family: "M PLUS 2", sans-serif;
-
-}
-
 .slider {
     margin-right: auto;
     width: 85% !important;
@@ -115,26 +171,7 @@ h3 {
     padding: 10px;
 }
 
-.Description {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
 
-.Description .left {
-    text-align: center;
-    width: 50%;
-    height: 100%;
-    padding: 10px;
-}
-
-.Description .right {
-    text-align: center;
-    width: 50%;
-    height: 100%;
-    padding: 0;
-    margin-right: auto;
-}
 
 .right img {
     margin: 0;
@@ -145,169 +182,39 @@ h3 {
 
 .left h3 {
     margin: 0;
-
 }
-
-section{
-	padding:80px 0 60px;
-	width:1440px;
-	margin:0 auto;
+.text{
+text-align:center;
 }
-.content{
-	text-align:center;
-}
-h2{
-	font-size:48px;
-	text-align:center;
-	font-weight:600;
-	color:#333;
-	margin:0;
-}
-h3{
-	margin:0;
-}
-button{
-	background:#000000;
-	color:#FFFFFF;
-	font-weight:500;
-	padding:13px 30px;
-	margin-top:30px;
-}
-.next-button{
-	padding:40px 40px 20px;
-	border:solid 1px #000000;
-	background:#FFFFFF;
-	border-radius:100px;
-	color:#000000;
-	font-size:120px;
-	margin-bottom:-180px;
-}
-.next-button2{
-	padding:30px 45px 35px 65px;
-	border:solid 1px #000000;
-	background:#FFFFFF;
-	border-radius:100px;
-	color:#000000;
-	font-size:90px;
-	text-align:right;
-}
-.wrap{
-	display:flex;
-}
-.title{
-	text-align:right;
-	font-size:82px;
-	font-weight:800;
-	color:#ff5858;
-}
-.news{
-	width:960px;
-	margin:0 auto;
-	padding:60px 0 80px;
-}
-.news ul li{
-	padding:15px;
-	border-top:1px #CCCCCC solid;
-	list-style:none;
-}
-.news ul li:last-child{
-	border-bottom:1px #CCCCCC solid;
-}
-.new{
-	background-color:#ff5858;
-	color:#FFF;
-	font-weight:500;
-	border-radius:5px;
-	margin-right:15px;
-	padding:5px 12px;
-}
-.time{
-	padding-right:20px;
-}
-.recommend{
-	text-align:center;
-	width:100vw;
-}
-.space{
-	width:50%;
-	background-image: url("data/IMG_3589.jpg");
-}
-.content{
-	width:50%;
-}
-
-.space{
-	 background: url("data/IMG_3589.jpg") no-repeat 0 0 / cover;
-	 background-position: center;
-	 padding:250px 0;
-}
-.content{
-	margin:auto 0;
-}
-.content h3{
-	margin-bottom:45px;
-}
-.category-list{
-  justify-content: flex-end; /* ← これで右寄せ */
-	display:flex;
-	list-style:none;
-}
-.category-list li{
-	margin-right:15px;
-}
-.aftia{
-	width:100vw;
-}
-.contact{
-	text-align:center;
-}
-.carousel{
-	display:flex;
-}
-.carousel img{
-	width:350px;
-	margin-right:20px;
-}
-.carousel-container {
-  overflow: hidden;
-  width: 100%;
-}
-
-.carousel {
-  display: flex;
-  transition: transform 0.5s ease;
+.contact button{
+margin:0 auto;
 }
 .gallery{
-	display:flex;
-	width:100vw;
+display:flex;
+width:100vw;
 }
-.gallery img{
-		width:20%;
-}
-.product-section{
-	width:100vw;
-	margin-right:120px;
-}
-
-@media (max-width: 770px) {
-    .item ul {
-        width: 65%;
-        text-align: center;
-    }
-}
-
-@media (max-width: 600px) {
-    .item ul {
+      .container {
         width: 100%;
-    }
-}
+        margin: 0 ;
+        overflow: hidden;
+      }
 
-@media (max-width: 500px) {
+      .infinite-slider .swiper-wrapper {
+        transition-timing-function: linear;
+        will-change: transform;
+      }
 
-    .recommend img {
-        width: 55%;
-    }
-}
+      .infinite-slider .swiper-slide {
+        height: 320px !important;
+        width: auto !important;
+        flex-shrink: 0;
+      }
+
+      .infinite-slider .swiper-slide img {
+        height: 100%;
+        width: auto;
+        margin: 2px;
+      }
 
 /* フォント日本語 */
 .m-plus-2 {
@@ -317,8 +224,8 @@ button{
   font-style: normal;
 }
 /* フォント英語 */
-.special-gothic-expanded-one-regular {
-  font-family: "Special Gothic Expanded One", sans-serif;
+.dela-gothic-one-regular {
+  font-family: "Dela Gothic One", sans-serif;
   font-weight: 400;
   font-style: normal;
 }
