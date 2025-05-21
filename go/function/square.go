@@ -87,10 +87,12 @@ func CreateCard(card RequestCard) (string, error) {
 		},
 	)
 	if err != nil {
-		log.Fatalf("Error creating card: %v", err)
+		log.Printf("Error creating card: %v", err)
 		return "", err
 	}
-
+	if response.Card == nil {
+		return "", fmt.Errorf("card creation succeeded but response.Card is nil")
+	}
 	return *response.Card.ID, nil
 }
 
@@ -137,12 +139,12 @@ func GetCardList(customerID string) ([]CardSummary, error) {
 	for iter.Next(context.TODO()) {
 		card := iter.Current()
 		summaries = append(summaries, CardSummary{
-			ID:       *card.ID,
-			Brand:    string(*card.CardBrand),
-			Last4:    *card.Last4,
-			ExpMonth: int(*card.ExpMonth),
-			ExpYear:  int(*card.ExpYear),
-			Disabled: card.Enabled != nil && !*card.Enabled,
+			ID:        *card.ID,
+			Brand:     string(*card.CardBrand),
+			Last4:     *card.Last4,
+			ExpMonth:  int(*card.ExpMonth),
+			ExpYear:   int(*card.ExpYear),
+			Disabled:  card.Enabled != nil && !*card.Enabled,
 			IsDefault: false,
 		})
 	}

@@ -770,7 +770,10 @@ func main() {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
-		log.Println(card)
+		log.Printf("Token: %s", card.Token)
+		log.Printf("CustomerID: %s", card.CustomerID)
+		log.Printf("Name: %s", card.Name)
+		log.Printf("VerificationToken: %s", card.VerificationToken)
 
 		// カード情報を保存
 		card_map, erro := function.CreateCard(card)
@@ -978,7 +981,7 @@ func main() {
 		}
 		log.Println(card)
 
-		erro = function.DeleteCardAddress(claims.ID,card.CardID)
+		erro = function.DeleteCardAddress(claims.ID, card.CardID)
 		if erro != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました" + erro.Error()})

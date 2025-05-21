@@ -134,6 +134,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             } else {
                 console.error("保存エラー:", error);
             }
+            console.error("カード保存エラー:", error);
             alert("カード保存に失敗しました。後ほど再試行してください。");
         }
     };
@@ -158,11 +159,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             onClose();
         } catch (error) {
             // axios ではエラーが出た場合、response でエラーの詳細にアクセスできます
-            if (api.isAxiosError(error)) {
-                console.error("Axiosエラー:", error.response?.data || error.message);
-            } else {
-                console.error("保存エラー:", error);
-            }
+            console.error("保存エラー:", error);
             alert("住所保存に失敗しました。後ほど再試行してください。");
         }
     }
