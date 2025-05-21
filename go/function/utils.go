@@ -40,11 +40,11 @@ type Item struct {
 }
 
 type Profile struct {
-	DateOfBirth string `db:"DateOfBirth" json:"birth"`
-	Gender      string `db:"Gender" json:genger"`
-	PhoneNumber string `db:"PhoneNumber" json:"phone"`
-	Bio         string `db:"Bio" json:"bio"`
-	IconURL     string `db:"IconURL" json:"image"`
+	DateOfBirth *string `db:"DateOfBirth" json:"birth"`
+	Gender      *string `db:"Gender" json:"gender"`
+	PhoneNumber *string `db:"PhoneNumber" json:"phone"`
+	Bio         *string `db:"Bio" json:"bio"`
+	IconURL     *string `db:"IconURL" json:"image"`
 }
 
 type RequestUserProfile struct {
@@ -264,4 +264,8 @@ func StructToMap(s interface{}) (map[string]interface{}, error) {
 	}
 
 	return result, nil
+}
+
+func Ptr[T any](value T) *T {
+    return &value
 }

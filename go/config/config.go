@@ -13,10 +13,8 @@ import (
 )
 
 var AllowedOrigins = []string{
-	"https://animaloop.jp",
-	"https://dev.animaloop.jp",
-	"http://34.28.36.10:3000",
-	"http://34.28.36.10",
+	"https://aftialoop.com",
+	"https://dev.aftialoop.com",
 	"http://localhost:3000",
 	// 他の許可したいオリジンを追加
 }
@@ -33,7 +31,7 @@ var DB_port = "3306"
 var DB_name = "Animaloop"
 var DB_charset = "utf8mb4"
 
-var FromEmail = "haru25fuyu@Animaloop.jp"
+var FromEmail = "info@aftialoop.com"
 var FromName = "Animaloop"
 var FromEmailPassword =	"Animaloop1234"
 
@@ -43,7 +41,7 @@ var SECRET_KEY, SECRET_REFRESH_KEY []byte
 var SquareClient = client.NewClient()
 
 var ProjectID = "animaloop-1745409062037"
-var RecaptchaKey = "6LdfsiErAAAAAGMJXAu77lrtv5GMfiU2FU0fWRgY"
+var RecaptchaKey = "6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4"
 var RecaptchaAction = "LOGIN"
 
 

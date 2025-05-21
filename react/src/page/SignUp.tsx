@@ -26,7 +26,7 @@ const SignUp: React.FC = () => {
 
     useEffect(() => {
         const script = document.createElement("script");
-        script.src = "https://www.google.com/recaptcha/enterprise.js?render=6LdfsiErAAAAAGMJXAu77lrtv5GMfiU2FU0fWRgY";
+        script.src = "https://www.google.com/recaptcha/enterprise.js?render=6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4";
         script.async = true;
         document.body.appendChild(script);
 
@@ -42,9 +42,8 @@ const SignUp: React.FC = () => {
             return;
         }
 
-
         // reCAPTCHAの取得とか、API通信とかを書く
-        const token = await grecaptcha.enterprise.execute('6LdfsiErAAAAAGMJXAu77lrtv5GMfiU2FU0fWRgY', { action: 'LOGIN' });
+        const token = await grecaptcha.enterprise.execute('6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4', { action: 'LOGIN' });
         console.log(token);
 
 

@@ -3,6 +3,7 @@ package main
 import (
 	"animaloop/config"
 	"animaloop/function"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
+	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/gorilla/mux"
 	"github.com/mailjet/mailjet-apiv3-go"
 	"github.com/rs/cors"
@@ -94,55 +99,59 @@ func main() {
 			http.Error(w, "Could not set registration token", http.StatusInternalServerError)
 			return
 		}
-		// 仮登録メール送信
-		// 本登録URLにトークンを付与して送信
-		// 例: http://example.com/register/confirm?token=xxxxxx
-		url := fmt.Sprintf("https://animaloop.jp/register/confirm?token=%s", token)
+		// 本登録用URL
+		awsCfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion("ap-northeast-1"))
+		if err != nil {
+			log.Printf("AWS config load error: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "サーバー設定エラー"})
+			return
+		}
+		client := ses.NewFromConfig(awsCfg)
+		url := fmt.Sprintf("https://aftialoop.com/register/confirm?token=%s", token)
 
 		htmlContent := fmt.Sprintf(`
-      <h3>%s様</h3><br />
-      <p>この度は、Animaloopへのご登録ありがとうございます。</p><br />
-      <hr />
-      <p>以下のリンクをクリックして、本登録を完了してください。</p><br />
-      <p><a href="${registrationLink}">本登録を完了する</a></p><br />
-      <hr />
-      <p>もしリンクに問題がある場合は、以下のURLをコピーしてブラウザに貼り付けてください。</p><br />
-      <p>URL: %s</p><br />
-      <hr />
-      <p>※このリンクは24時間以内にご利用ください。</p><br />
-      <p>何かご不明な点がございましたら、サポートまでご連絡ください。</p><br />
-      <hr />
-      <p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
-      <p>Animaloopサポートチーム</p>
-    	`, user.Email, url)
+		<h3>%s様</h3><br />
+		<p>この度は、Aftialoopへのご登録ありがとうございます。</p><br />
+		<hr />
+		<p>以下のリンクをクリックして、本登録を完了してください。</p><br />
+		<p><a href="%s">本登録を完了する</a></p><br />
+		<hr />
+		<p>もしリンクに問題がある場合は、以下のURLをコピーしてブラウザに貼り付けてください。</p><br />
+		<p>URL: %s</p><br />
+		<hr />
+		<p>※このリンクは24時間以内にご利用ください。</p><br />
+		<p>何かご不明な点がございましたら、サポートまでご連絡ください。</p><br />
+		<hr />
+		<p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
+		<p>Animaloopサポートチーム</p>
+	`, user.Email, url, url)
 
-		// Mailjet クライアントの作成
-		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_SECRET)
-		// メールの内容を設定
-		messagesInfo := []mailjet.InfoMessagesV31{
-			{
-				From: &mailjet.RecipientV31{
-					Email: "haru25fuyu@animaloop.jp",
-					Name:  "Mailjet Pilot",
+		subject := "【Aftialoop】ご登録ありがとうございます（本登録のお願い）"
+
+		input := &ses.SendEmailInput{
+			Source: aws.String("info@aftialoop.com"), // SESで検証済みアドレス
+			Destination: &types.Destination{
+				ToAddresses: []string{user.Email},
+			},
+			Message: &types.Message{
+				Subject: &types.Content{
+					Data: aws.String(subject),
 				},
-				To: &mailjet.RecipientsV31{
-					mailjet.RecipientV31{
-						Email: user.Email,
-						Name:  "passenger 1",
+				Body: &types.Body{
+					Html: &types.Content{
+						Data: aws.String(htmlContent),
+					},
+					Text: &types.Content{
+						Data: aws.String("ブラウザで開けない場合は以下のURLをコピーしてアクセスしてください。\n" + url),
 					},
 				},
-				Subject:  "Your email flight plan!",
-				TextPart: "Dear passenger 1, welcome to Mailjet! May the delivery force be with you!",
-				HTMLPart: htmlContent,
 			},
 		}
 
-		// メール送信
-		messages := mailjet.MessagesV31{Info: messagesInfo}
-		res, err := mailjetClient.SendMailV31(&messages)
-
+		res, err := client.SendEmail(context.TODO(), input)
 		if err != nil {
-			log.Fatalf("Failed to send email: %s", err)
+			log.Printf("SES送信失敗: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールの送信に失敗しました"})
 			return
@@ -561,16 +570,16 @@ func main() {
 		existingProfile, _ := function.GetProfile(claims.ID)
 
 		profile := function.Profile{
-			DateOfBirth: request.DateOfBirth,
-			Gender:      request.Gender,
-			PhoneNumber: request.PhoneNumber,
-			Bio:         request.Bio,
+			DateOfBirth: function.Ptr(request.DateOfBirth),
+			Gender:      function.Ptr(request.Gender),
+			PhoneNumber: function.Ptr(request.PhoneNumber),
+			Bio:         function.Ptr(request.Bio),
 			IconURL:     existingProfile.IconURL, // デフォは今のやつ
 		}
 
 		// もし画像が新しくアップロードされてたら、差し替え
 		if iconPath != "" {
-			profile.IconURL = iconPath
+			profile.IconURL = function.Ptr(iconPath)
 		}
 
 		user_map, err := function.StructToMap(user)

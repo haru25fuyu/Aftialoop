@@ -43,18 +43,23 @@ const Profile: React.FC = () => {
         }
         api.post('/profile/get')
             .then((res) => {
+                if (res.data.IconURL != null && res.data.IconURL !== "") {
+                    // 画像URLがある場合はBASE_URLを付加
+                    res.data.IconURL = CONFIG.BASE_URL + res.data.IconURL;
+                }
+
                 setUser({
                     id: res.data.ID || "",
                     name: res.data.Name || "",
                     email: res.data.Email || "",
-                    image: CONFIG.BASE_URL + res.data.IconURL || "",
+                    image: res.data.IconURL || "",
                     password: "",
                     phone: res.data.PhoneNumber || "",
                     bio: res.data.Bio || "",
                     birth: res.data.DateOfBirth || "",
                     gender: res.data.Gender || ""
                 });
-                console.log(user);
+                console.log(res.data);
             })
             .catch((err) => {
                 console.error(err);
@@ -99,6 +104,7 @@ const Profile: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">電話番号</label>
+                        <p>{user.phone}</p>
                     </div>
                     <div>
                         <label className="block text-sm font-medium text-gray-700">パスワード</label>

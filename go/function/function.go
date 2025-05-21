@@ -45,7 +45,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 			}
 			remainingTime := user.Exp - time.Now().Unix()
 			daysRemaining := remainingTime / 86400
-			
+
 			if daysRemaining < 7 {
 				SetRefreshToken(w, user)
 				return newAccessToken, ""
@@ -103,7 +103,7 @@ func SetRefreshToken(w http.ResponseWriter, user *User) error {
 	return nil
 }
 
-func CreateAssessment( token string) {
+func CreateAssessment(token string) {
 
 	// reCAPTCHA クライアントを作成する。
 	ctx := context.Background()
@@ -139,9 +139,12 @@ func CreateAssessment( token string) {
 	}
 
 	// トークンが有効かどうかを確認する。
-	if !response.TokenProperties.Valid {
-		fmt.Printf("The CreateAssessment() call failed because the token was invalid for the following reasons: %v",
-			response.TokenProperties.InvalidReason)
+	if err != nil {
+		fmt.Printf("Error calling CreateAssessment: %v\n", err)
+		return
+	}
+	if response == nil || response.TokenProperties == nil {
+		fmt.Println("response or TokenProperties is nil, aborting")
 		return
 	}
 

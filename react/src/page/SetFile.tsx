@@ -58,7 +58,7 @@ export default function FileEditor() {
     const [openNodes, setOpenNodes] = useState<Record<string, boolean>>({});
 
     useEffect(() => {
-        fetch("https://animaloop.jp/list_tree.php")
+        fetch("https://aftialoop.com/list_tree.php")
             .then((res) => res.json())
             .then(setTree);
     }, []);
@@ -69,7 +69,7 @@ export default function FileEditor() {
 
     const loadFile = (path: string) => {
         console.log("📄 Loading file:", path);
-        fetch(`https://animaloop.jp/read_file.php?file=${encodeURIComponent(path)}`)
+        fetch(`https://aftialoop.com/read_file.php?file=${encodeURIComponent(path)}`)
             .then((res) => {
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 return res.text();
@@ -85,7 +85,7 @@ export default function FileEditor() {
     };
 
     const saveFile = () => {
-        fetch("https://animaloop.jp/save_file.php", {
+        fetch("https://aftialoop.com/save_file.php", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ path: selectedFile, content })

@@ -59,11 +59,16 @@ const EditProfile: React.FC = () => {
         }
         api.post('/profile/get', {},)
             .then((res) => {
+                if (res.data.IconURL != null && res.data.IconURL !== "") {
+                    // 画像URLがある場合はBASE_URLを付加
+                    res.data.IconURL = CONFIG.BASE_URL + res.data.IconURL;
+                }
+
                 const userData = {
                     id: res.data.ID || "",
                     name: res.data.Name || "",
                     email: res.data.Email || "",
-                    image: CONFIG.BASE_URL + res.data.IconURL || "",
+                    image: res.data.IconURL || "",
                     password: "",
                     phone: res.data.PhoneNumber || "",
                     bio: res.data.Bio || "",
@@ -199,7 +204,7 @@ const EditProfile: React.FC = () => {
                         <div>
                             <label className="block text-sm font-medium text-gray-700">電話番号</label>
                             <input
-                                type="number"
+                                type="test"
                                 defaultValue={user.phone}
                                 {...register('phone', { required: '電話番号は必須です' })}
                                 className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
