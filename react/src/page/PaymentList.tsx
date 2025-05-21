@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 
@@ -8,7 +8,6 @@ import SquarePayment from '../modal/EditPayment';
 import api from '../conf/api';
 
 import { Payment } from '../types/Content';
-import { set } from 'react-hook-form';
 
 const PaymentList: React.FC = () => {
     const navigate = useNavigate();

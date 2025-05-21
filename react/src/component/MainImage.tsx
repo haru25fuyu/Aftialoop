@@ -11,7 +11,7 @@ export const MainImage: React.FC<Props> = ({image,title}) => {
         <div className='main'>
             <img className='main-image' src={image} />
             <div className='overlay'>
-                <h1>{title}</h1>
+                <h1 class="title">AFTIALOOP</h1>
             </div>
         </div>
     );

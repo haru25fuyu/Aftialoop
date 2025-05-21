@@ -40,22 +40,22 @@ const MyPage: React.FC = () => {
     }, []);
 
     const logContent: Content[] = [
-        { id: '1', name: '商品1', price: 1000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '2', name: '商品2', price: 2000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '3', name: '商品3', price: 3000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '4', name: '商品4', price: 4000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '5', name: '商品5', price: 5000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '6', name: '商品6', price: 6000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '7', name: '商品7', price: 7000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '8', name: '商品8', price: 8000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '9', name: '商品9', price: 9000, image_url: 'https://placehold.jp/150x150.png' },
-        { id: '10', name: '商品10', price: 10000, image_url: 'https://placehold.jp/150x150.png' },
+        { id: '1', name: '商品1', discription: "商品1の説明", price: 1000,point:1000, image_url: '/data/Logo.JPG' },
+        { id: '2', name: '商品2', discription: "商品1の説明", price: 2000,point:2000, image_url: '/data/Logo.JPG' },
+        { id: '3', name: '商品3', discription: "商品1の説明", price: 3000,point:3000, image_url: '/data/Logo.JPG' },
+        { id: '4', name: '商品4', discription: "商品1の説明", price: 4000,point:4000, image_url: '/data/Logo.JPG' },
+        { id: '5', name: '商品5', discription: "商品1の説明", price: 5000,point:5000, image_url: '/data/Logo.JPG' },
+        { id: '6', name: '商品6', discription: "商品1の説明", price: 6000,point:6000, image_url: '/data/Logo.JPG' },
+        { id: '7', name: '商品7', discription: "商品1の説明", price: 7000,point:7000, image_url: '/data/Logo.JPG' },
+        { id: '8', name: '商品8', discription: "商品1の説明", price: 8000,point:8000, image_url: '/data/Logo.JPG' },
+        { id: '9', name: '商品9', discription: "商品1の説明", price: 9000,point:9000, image_url: '/data/Logo.JPG' },
+        { id: '10', name: '商品10', discription: "商品1の説明", price: 10000,point:10000, image_url: '/data/Logo.JPG' },
     ];
     const linkContent: Content[] = [
-        { id: '1', name: '支払い方法', image_url: '/150x150' },
-        { id: '2', name: 'アカウント設定', image_url: '/profile' },
-        { id: '3', name: 'アドレス帳', image_url: '/address/list' },
-        { id: '4', name: 'サブスクリプション管理', image_url: '/150x150.png' },
+        { id: '1', name: '支払い方法', discription: "商品1の説明", price: 0,point:0, image_url: '/payment/list' },
+        { id: '2', name: 'アカウント設定', discription: "商品1の説明", price: 0,point:0, image_url: '/profile' },
+        { id: '3', name: 'アドレス帳', discription: "商品1の説明", price: 0,point:0, image_url: '/address/list' },
+        { id: '4', name: 'サブスクリプション管理', discription: "商品1の説明", price: 0,point:0, image_url: '/150x150.png' },
     ];
 
     return (

@@ -29,20 +29,8 @@ export const Header: React.FC = () => {
 
     return (
         <div className="Header">
-            <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
-
-            <div className="list">
-                <span className='title'>MENU</span>
-                <ul className='header-list'>
-                    <li><Link to="/">TOP</Link></li>
-                    <li><Link to="/payment">商品一覧</Link></li>
-                    <li><Link to="/mypage">マイページ</Link></li>
-                    <li><Link to="/mypage">お問い合わせ</Link></li>
-                </ul>
-            </div>
-
-            <div className="list">
-                <span className='title'>CATEGORY</span>
+            <div className="list category">
+                <span className='menu-title category-title '>CATEGORY</span>
                 <ul className='header-list'>
                     <li><Link to="/List">カテゴリー１</Link></li>
                     <li><Link to="/List">カテゴリー２</Link></li>
@@ -50,7 +38,17 @@ export const Header: React.FC = () => {
                     <li><Link to="/List">カテゴリー４</Link></li>
                 </ul>
             </div>
-
+<div className='header-menu'>
+            <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
+            <div className="list">
+                <span className='menu-title'>MENU</span>
+                <ul className='header-list'>
+                    <li><Link to="/">TOP</Link></li>
+                    <li><Link to="/payment">商品一覧</Link></li>
+                    <li><Link to="/mypage">マイページ</Link></li>
+                    <li><Link to="/mypage">お問い合わせ</Link></li>
+                </ul>
+            </div>
             <div className='right-margin'>
                 <div className='search-form'>
                     <input type="text" placeholder="キーワードを入力" />
@@ -67,8 +65,9 @@ export const Header: React.FC = () => {
                     </Link>
                 </div>
             </div>
+          </div>
         </div>
     );
-}
+};
 
 export default Header;

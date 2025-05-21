@@ -33,8 +33,8 @@ export const ContentsList: React.FC<Props> = ({ contents, Component, show_num = 
   } else {
     return (
       <div className="contents-list flex flex-wrap justify-center gap-4">
-        {contents.map((item) => (
-          <Component key={item.id} item={item} className="w-full sm:w-1/2 md:w-1/3 lg:w-1/4" />
+        {contents.map((item) => (         
+            <Component key={item.id} item={item}  />
         ))}
       </div>
     )

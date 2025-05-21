@@ -1,4 +1,7 @@
 import React, { useEffect } from 'react';
+
+// Declare grecaptcha as a global variable
+declare const grecaptcha: any;
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 

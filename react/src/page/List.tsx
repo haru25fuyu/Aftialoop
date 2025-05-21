@@ -24,23 +24,23 @@ const List: React.FC = () => {
     });
 
     const Contents: Content[] = [
-        { id: '1', name: '商品1', price: 1000, point: 100, image_url: '../data/Logo.JPG' },
-        { id: '2', name: '商品2', price: 2000, point: 200, image_url: '../data/Logo.JPG' },
-        { id: '3', name: '商品3', price: 3000, point: 300, image_url: '../data/Logo.JPG' },
-        { id: '4', name: '商品4', price: 4000, point: 400, image_url: '../data/Logo.JPG' },
-        { id: '5', name: '商品5', price: 5000, point: 500, image_url: '../data/Logo.JPG' },
-        { id: '6', name: '商品6', price: 6000, point: 600, image_url: '../data/Logo.JPG' },
-        { id: '7', name: '商品7', price: 7000, point: 700, image_url: '../data/Logo.JPG' },
-        { id: '8', name: '商品8', price: 8000, point: 800, image_url: '../data/Logo.JPG' },
-        { id: '9', name: '商品9', price: 9000, point: 900, image_url: '../data/Logo.JPG' },
-        { id: '10', name: '商品10', price: 10000, point: 1000, image_url: '../data/Logo.JPG' },
+        { id: '1', name: '商品1', discription: "商品1の説明", price: 1000,point:1000, image_url: '/data/Logo.JPG' },
+        { id: '2', name: '商品2', discription: "商品1の説明", price: 2000,point:2000, image_url: '/data/Logo.JPG' },
+        { id: '3', name: '商品3', discription: "商品1の説明", price: 3000,point:3000, image_url: '/data/Logo.JPG' },
+        { id: '4', name: '商品4', discription: "商品1の説明", price: 4000,point:4000, image_url: '/data/Logo.JPG' },
+        { id: '5', name: '商品5', discription: "商品1の説明", price: 5000,point:5000, image_url: '/data/Logo.JPG' },
+        { id: '6', name: '商品6', discription: "商品1の説明", price: 6000,point:6000, image_url: '/data/Logo.JPG' },
+        { id: '7', name: '商品7', discription: "商品1の説明", price: 7000,point:7000, image_url: '/data/Logo.JPG' },
+        { id: '8', name: '商品8', discription: "商品1の説明", price: 8000,point:8000, image_url: '/data/Logo.JPG' },
+        { id: '9', name: '商品9', discription: "商品1の説明", price: 9000,point:9000, image_url: '/data/Logo.JPG' },
+        { id: '10', name: '商品10', discription: "商品1の説明", price: 10000,point:10000, image_url: '/data/Logo.JPG' },
     ];
 
     return (
         <div>
             <header>
                 <Header />
-                <MainImage image={"/../data/IMG_3589.JPG"} title={"GOODS LIST"} />
+                <MainImage image={"/data/IMG_3589.JPG"} title={"GOODS LIST"} />
             </header>
             <main>
                 <ContentsList contents={Contents} Component={ImageContent} />

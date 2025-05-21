@@ -1,22 +1,84 @@
-.news {
-    text-align: center;
-    margin-top: 35px;
-    margin-bottom: 35px;
-    display: flex;
-    /*中央揃え　縦に並べる*/
-    flex-direction: column;
-    /*横幅100%*/
-    width: 100%;
+.content {
+	padding:150px 0 150px 0;
+margin:0 auto;
 }
-
-.news h3 {
+.content h3 {
+    font-size: 2.5rem;
+  font-family: "M PLUS 2", sans-serif;
+}
+h3 {
     font-size: 1.5rem;
     margin: 0 0 30px;
     padding: 0;
   font-family: "M PLUS 2", sans-serif;
-
+  text-align:center;
 }
 
+section{
+	padding:80px 0 60px;
+	margin:0 auto;
+}
+.content{
+	text-align:center;
+}
+h2{
+	font-size:48px;
+	text-align:center;
+	font-weight:600;
+	color:#333;
+	margin:0 0 30px 0;
+}
+button{
+	background:#000000;
+	color:#FFFFFF;
+	font-weight:500;
+	padding:13px 30px;
+	margin:30px auto 0;
+    width:200px;
+    border-radius:0;
+}
+.next-button{
+	padding:15px 0 5px ;
+	border:solid 1px #000000;
+	background:#FFFFFF;
+	border-radius:100px;
+	color:#000000;
+	font-size:120px;
+}
+.next-button2{
+	padding:30px 45px 35px 65px;
+	border:solid 1px #000000;
+	background:#FFFFFF;
+	border-radius:100px;
+	color:#000000;
+	font-size:90px;
+	text-align:right;
+}
+.wrap{
+	display:flex;
+}
+.space{
+background:#dddddd;
+width:45%;
+}
+.category-list{
+display:flex;
+justify-content: flex-end;
+}
+.category-list li{
+margin-right:15px;
+}
+
+.news {
+    text-align: center;
+    margin: 35px auto;
+    display: flex;
+    /*中央揃え　縦に並べる*/
+    flex-direction: column;
+    /*横幅100%*/
+    width: 960px;
+	padding:60px 0 80px;
+}
 .news ul {
     list-style: none;
     padding: 0;
@@ -28,31 +90,38 @@
 
 .news li {
     display: flex;
-    margin-left: auto;
-    margin-right: auto;
     justify-content: space-between;
-    width: 60%;
-    padding: 0.5rem;
+    padding: 1rem;
     border-bottom: 1px solid #ccc;
+    text-align:left !important;
 }
-.news li:first-child{
-	border-top: 1px solid #ccc;
+.news li:first-chil{
+	border-top: 1px solid #ccc　!imporant;
+}
+.new{
+background:#ff5858;
+padding:5px 15px;
+color:#ffffff;
+font-weight:600;
 }
 .recommend {
     width: 100%;
-    height: 500px;
-    display: flex;
+ min-height: 500px; /* 内容に応じて調整 */
 }
 
 .recommend img {
     width: 50%;
     /* 目的の幅 */
     object-fit: cover;
-
-
     border-radius: 0 6% 6% 0 / 0 50% 50% 0;
 }
-
+.carousel{
+display:flex;
+}
+.carousel img{
+width:350px;
+margin-right:15px;
+}
 .swiper-slide img {
 
     margin-right: auto;
@@ -65,34 +134,25 @@
     width: 50%;
     height: 100%;
     /*文字を高さの中央に*/
-    background-image: url("../data/background.png");
+    background-image: url("/data/background.png");
 	background-color:rgba(255,255,255,0.8);
 	background-blend-mode:lighten;
     background-size: cover;
     background-position: center;
 	vertical-align: middle;
-
 }
-
-.content h3 {
-    font-size: 2.5rem;
-  font-family: "M PLUS 2", sans-serif;
-
-}
-
 .slider {
     margin-right: auto;
     width: 85% !important;
+	height:300px;
 }
 
 .contents_item {
     width: 90%;
 }
-
-h3 {
-    text-align: center;
-}
-
+.item{
+	padding:80px 0 100px;
+	}
 .item ul {
     height: 20px;
     width: 50%;
@@ -111,26 +171,7 @@ h3 {
     padding: 10px;
 }
 
-.Description {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-}
 
-.Description .left {
-    text-align: center;
-    width: 50%;
-    height: 100%;
-    padding: 10px;
-}
-
-.Description .right {
-    text-align: center;
-    width: 50%;
-    height: 100%;
-    padding: 0;
-    margin-right: auto;
-}
 
 .right img {
     margin: 0;
@@ -141,40 +182,50 @@ h3 {
 
 .left h3 {
     margin: 0;
-
 }
-
-
-@media (max-width: 770px) {
-    .item ul {
-        width: 65%;
-        text-align: center;
-    }
+.text{
+text-align:center;
 }
-
-@media (max-width: 600px) {
-    .item ul {
+.contact button{
+margin:0 auto;
+}
+.gallery{
+display:flex;
+width:100vw;
+}
+      .container {
         width: 100%;
-    }
-}
+        margin: 0 ;
+        overflow: hidden;
+      }
 
-@media (max-width: 500px) {
+      .infinite-slider .swiper-wrapper {
+        transition-timing-function: linear;
+        will-change: transform;
+      }
 
-    .recommend img {
-        width: 55%;
-    }
-}
+      .infinite-slider .swiper-slide {
+        height: 320px !important;
+        width: auto !important;
+        flex-shrink: 0;
+      }
+
+      .infinite-slider .swiper-slide img {
+        height: 100%;
+        width: auto;
+        margin: 2px;
+      }
 
 /* フォント日本語 */
-.m-plus-2-<uniquifier> {
+.m-plus-2 {
   font-family: "M PLUS 2", sans-serif;
   font-optical-sizing: auto;
   font-weight: <weight>;
   font-style: normal;
 }
 /* フォント英語 */
-.special-gothic-expanded-one-regular {
-  font-family: "Special Gothic Expanded One", sans-serif;
+.dela-gothic-one-regular {
+  font-family: "Dela Gothic One", sans-serif;
   font-weight: 400;
   font-style: normal;
 }

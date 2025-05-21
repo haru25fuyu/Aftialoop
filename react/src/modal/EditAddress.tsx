@@ -1,9 +1,16 @@
 import React, { useEffect } from 'react';
+
+// Extend the Window interface to include AjaxZip3
+declare global {
+    interface Window {
+        AjaxZip3: {
+            zip2addr: (postCode: string, address1: string, address2: string, address3: string) => void;
+        };
+    }
+}
 import { useForm } from 'react-hook-form';
 import api from '../conf/api';
-import { useNavigate, useLocation } from 'react-router-dom';
 
-import { Header } from '../component/Header';
 import { Address } from '../types/Content';
 
 type EditAddressProps = {
@@ -15,7 +22,6 @@ type EditAddressProps = {
 
 const EditAddress: React.FC<EditAddressProps> = ({ address, isOpen, onClose, setAddress }) => {
     const { register, handleSubmit, setValue, formState: { errors }, reset } = useForm<Address>();
-    const navigate = useNavigate();
 
     useEffect(() => {
         if (isOpen) {

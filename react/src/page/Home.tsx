@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Swiper, SwiperSlide } from "swiper/react";
+import { Scrollbar,Autoplay } from "swiper/modules";
 import '../css/Home.css';
 import "swiper/swiper-bundle.css";
 
@@ -15,119 +16,165 @@ import MainImage from '../component/MainImage.tsx';
 const Home: React.FC = () => {
     const contentsList: Content[] = [
         {
-            id: 1,
+            id: '1',
             name: "test",
             discription: "test",
             price: 100,
             point: 10,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         },
         {
-            id: 2,
+            id: '2',
             name: "test2",
             discription: "test2",
             price: 200,
             point: 20,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         },
         {
-            id: 3,
+            id: '3',
             name: "test3",
             discription: "test3",
             price: 300,
             point: 30,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         },
         {
-            id: 4,
+            id: '4',
             name: "test3",
             discription: "test3",
             price: 300,
             point: 30,
-            image_url: "http://localhost:3000/"
+            image_url: "/data/Logo.JPG"
         }
     ]
+   function scrollCarousel() {
+        let scrollIndex = 0;
+        const carousel = document.getElementById("carousel");
+        if (!carousel) return;
+        if (carousel.querySelector("img") === null) return;
+        const img = carousel.querySelector("img");
+        if (!img) return;
+        const itemWidth = img.clientWidth + 20; // 画像幅 + マージン
+        if (!carousel.parentElement) return;
+        const visibleItems = Math.floor(carousel.parentElement.offsetWidth / itemWidth);
+        const totalItems = carousel.children.length;
+
+        scrollIndex++;
+
+        if (scrollIndex > totalItems - visibleItems) {
+            scrollIndex = 0; // ループさせたい場合
+        }
+
+       carousel.style.transform = `translateX(-${scrollIndex * itemWidth}px)`;
+    }
     return (
         <div>
             <header>
                 <Header />
-                <MainImage image={"/../data/IMG_3589.JPG"} title={"ANIMALOOP"} />
+                <MainImage image={"/data/IMG_3589.JPG"} title={"ANIMALOOP"} />
             </header>
 
-
-            <div className='news'>
-                <h3>お知らせ</h3>
-                <ul>
-                    <li><Link to="/news">2021/10/01　新商品の追加</Link></li>
-                    <li><Link to="/news">2021/09/01　新商品の追加</Link></li>
-                    <li><Link to="/news">2021/08/01　新商品の追加</Link></li>
-                </ul>
-            </div>
-
-            <div className='recommend' >
-                <Swiper
-                    className="swiper-container"
-                    direction="vertical" // 縦方向スライダーにする
-                    spaceBetween={1}
-                    slidesPerView={1}
-                    pagination={{ clickable: true }}
-                    loop={true}
-                    speed={1000}
-                >
-                    {contentsList.map((item) => (
-                        <SwiperSlide className="swiper-slide" key={item.id}>
-                            <img src="/../data/IMG_3589.JPG" alt="" />
-                            <div className='content'>
-                                <h2>おすすめ商品</h2>
-                                <h3>{item.name}</h3>
-                                <ul>
-                                    <li>{item.discription}</li>
-                                    <li>価格：{item.price}円</li>
-                                    <li>ポイント：{item.point}pt</li>
-                                </ul>
-                            </div>
-                        </SwiperSlide>
-                    ))}
-                </Swiper>
-            </div>
-
-            <div className='item' style={{ height: '300px', width: '100%', margin: 'auto' }}>
-                <h3>商品</h3>
-                <ul>
-                    <li><Link to="/item">クワガタ</Link></li>
-                    <li><Link to="/item">カブト</Link></li>
-                    <li><Link to="/item">マット</Link></li>
-                    <li><Link to="/item">ゼリー</Link></li>
-                </ul>
-                <ContentsList contents={contentsList} Component={BasicContent} slider={true} show_num={3} />
-            </div>
-
-            <div className='Description' style={{ height: '200px', width: '100%', margin: 'auto' }}>
-                <div className='left'>
-                    <h3>Animaloop</h3>
-                    <p>いろいろやるよーーーー！！</p>
+            <section className="news">
+                <h2>お知らせ情報</h2>
+                <div className="news-list">
+                    <ul>
+                        <li><span className="new">NEW!</span><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加して</li>
+                        <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
+                        <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
+                        <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
+                        <li><span className="time">2025/5/1</span>お知らせ　テキトーにお知らせを追加してちょん</li>
+                    </ul>
                 </div>
-                <div className='right'>
-                    <Swiper
-                        className="swiper-container"
-                        direction="vertical" // 縦方向スライダーにする
-                        spaceBetween={1}
-                        slidesPerView={1}
-                        pagination={{ clickable: true }}
-                        loop={true}
-                        speed={1000}
-                    >
-                        {contentsList.map((item) => (
-                            <SwiperSlide className="swiper-slide" key={item.id}>
-                                <img src="/../data/IMG_3589.JPG" alt="" />
-                            </SwiperSlide>
-                        ))}
-                    </Swiper>
+                <button>READ MORE</button>
+            </section >
+            <section className="recommend">
+                <div className="wrap">
+                    <div className="space"></div>
+                    <div className="content">
+                        <h2>おすすめ商品</h2>
+                        <h3>（料金 ￥0,000）</h3>
+                        <p>吾輩は猫である。名前はまだない。<br />
+                            どこで生まれたかトンと検討がつかぬ<br />
+                            なんでも薄暗いじめじめした所でにゃーにゃ―<br />
+                            泣いていたことだけは記憶している。<br /></p>
+                        <button className="next-button" onClick={scrollCarousel}>▼</button>
+                    </div>
                 </div>
-            </div>
-            <Footer />
-
-        </div>
+            </section>
+            <section className="product-section">
+                <h2>商品</h2>
+                <ul className="category-list">
+                    <li>カテゴリー1</li>
+                    <li>カテゴリー2</li>
+                    <li>カテゴリー3</li>
+                    <li>カテゴリー4</li>
+                    <li>カテゴリー5</li>
+                </ul>
+                <div className="carousel-container">
+                    <div className="carousel" id="carousel">
+                        <a href="product1.html"><img src="/data/Logo.JPG" alt="商品1" /></a>
+                        <a href="product2.html"><img src="/data/Logo.JPG" alt="商品2" /></a>
+                        <a href="product3.html"><img src="/data/Logo.JPG" alt="商品3" /></a>
+                        <a href="product4.html"><img src="/data/Logo.JPG" alt="商品4" /></a>
+                        <a href="product5.html"><img src="/data/Logo.JPG" alt="商品5" /></a>
+                        <a href="product1.html"><img src="/data/Logo.JPG" alt="商品1" /></a>
+                        <a href="product2.html"><img src="/data/Logo.JPG" alt="商品2" /></a>
+                        <a href="product3.html"><img src="/data/Logo.JPG" alt="商品3" /></a>
+                        <a href="product4.html"><img src="/data/Logo.JPG" alt="商品4" /></a>
+                        <a href="product5.html"><img src="/data/Logo.JPG" alt="商品5" /></a>
+                        {/** 必要ならもっと商品追加可能 */}
+                    </div>
+                    <button className="next-button2" onClick={scrollCarousel}>▶</button>
+                </div>
+            </section>
+            <section className="aftia wrap">
+                <div className="content">
+                    <h2>AFTIA</h2>
+                    <p>吾輩は猫である。名前はまだない。<br />
+                        どこで生まれたかトンと検討がつかぬ<br />
+                        なんでも薄暗いじめじめした所でにゃーにゃ―<br />
+                        泣いていたことだけは記憶している。<br /></p>
+                </div>
+                <div className="space"></div>
+            </section>
+            <section className="contact">
+                <div className="text">
+                    <h2>お問い合わせ</h2>
+                    <p>お問い合わせはこちら的な文章がはいりますん。</p>
+                </div>
+                <div className="icon">
+                    <button>お問い合わせはこちら</button>
+                </div>
+            </section>
+ <section className="gallery">               
+                <div className="container">
+                    <div className="swiper infinite-slider">
+                        <Swiper
+                            modules={[ Scrollbar, Autoplay ]}
+                            className="swiper-container"
+                            spaceBetween={0}
+                            slidesPerView="5"
+                            scrollbar={{ draggable: true }}
+                            loop={true}
+                            speed={500}
+                            autoplay={{
+                                delay: 3000,
+                                disableOnInteraction: false,
+                            }}
+                        >
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像1" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像2" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像3" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像4" /></SwiperSlide>
+                          　<SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像5" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像6" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像7" /></SwiperSlide>
+                            <SwiperSlide className="swiper-slide"><img src="/data/Logo.JPG" alt="画像8" /></SwiperSlide>
+                        </Swiper>
+                    </div>
+                </div>
+            </section >      </div >
     );
 };
 
