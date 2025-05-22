@@ -3,6 +3,7 @@ import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { UserRound } from "lucide-react";
 
 import { Header } from '../component/Header';
+import LoginModal from '../modal/Login';
 
 import api from '../conf/api';
 import CONFIG from '../conf/config';
@@ -22,7 +23,8 @@ type Inputs = {
 const Profile: React.FC = () => {
     const location = useLocation();
     const chenge = location.state?.chenge;
-    const navigate = useNavigate();
+    const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+    const [reloadTrigger, setReloadTrigger] = useState(0);
     const [user, setUser] = useState<Inputs>({
         id: '',
         name: '',
@@ -35,11 +37,15 @@ const Profile: React.FC = () => {
         gender: ''
     });
 
+    const handleLoginSuccess = () => {
+        setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
+    };
+
     useEffect(() => {
         // ユーザー情報を取得
         const token = localStorage.getItem('token');
         if (!token || token === 'undefined') {
-            navigate("/login");
+            setLoginModalOpen(true);
         }
         api.post('/profile/get')
             .then((res) => {
@@ -65,15 +71,18 @@ const Profile: React.FC = () => {
                 console.error(err);
                 localStorage.removeItem('token');
                 localStorage.removeItem('expirationTime');
-                navigate("/login", { state: { page: "/profile" } }
-                );
+                setLoginModalOpen(true);
             });
-    }, []);
+    }, [reloadTrigger]);
 
     return (
         <div>
             <Header />
-
+            <LoginModal
+                isOpen={isLoginModalOpen}
+                onClose={() => { setLoginModalOpen(false); }} // 閉じられないので空関数 or 固定表示
+                onLoginSuccess={handleLoginSuccess}
+            />
             <div className="flex justify-center items-center mt-8 max-md:mt-0">
                 <div className="w-full max-w-md p-5 space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">ユーザー情報</h2>

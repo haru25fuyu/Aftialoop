@@ -45,7 +45,9 @@ const Login: React.FC = () => {
             <div className="flex justify-center items-center mt-8 max-md:mt-0">
                 <div className="w-full max-w-md p-5 space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">ログイン</h2>
-                    <GoogleOAuth />
+                    <GoogleOAuth onLoginSuccess={() => {
+                        navigate(location.state?.page || '/');
+                    }} />
                     <div className="flex justify-center items-center"><hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' /></div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         {error && <p className="mt-2 text-sm text-red-600">{error}</p>}

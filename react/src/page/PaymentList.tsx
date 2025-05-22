@@ -1,20 +1,22 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 
 import SquarePayment from '../modal/EditPayment';
+import LoginModal from '../modal/Login';
 
 import api from '../conf/api';
 
 import { Payment } from '../types/Content';
 
 const PaymentList: React.FC = () => {
-    const navigate = useNavigate();
     const [payments, setPayments] = React.useState<Payment[]>([])
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [selectedPaymentID, setSelectedPaymentID] = React.useState<string>("");
     const [ModalMode, setModalMode] = React.useState<string>("");
+    const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+    const [reloadTrigger, setReloadTrigger] = useState(0);
 
     useEffect(() => {
         api.post("/api/card/list",)
@@ -24,21 +26,25 @@ const PaymentList: React.FC = () => {
                     // IDが取れなかったら強制ログアウト
                     localStorage.removeItem("token");
                     localStorage.removeItem("expirationTime");
-                    navigate("/login");
+                    setLoginModalOpen(true);
                 } else {
                     localStorage.setItem("token", res.data.token); // トークン更新あれば保存
                 }
                 setPayments(res.data.card);
-                console.log("カード一覧取得:", payments);
+                console.log("カード一覧取得:", res.data.card);
             })
             .catch((err) => {
                 console.error(err);
                 localStorage.removeItem("token");
                 localStorage.removeItem("expirationTime");
-                navigate("/login");
+                setLoginModalOpen(true);
             });
 
-    }, []);
+    }, [reloadTrigger]);
+
+    const handleLoginSuccess = () => {
+        setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
+    };
 
     return (
         <div>
@@ -59,6 +65,11 @@ const PaymentList: React.FC = () => {
             <header>
                 <Header />
             </header>
+            <LoginModal
+                isOpen={isLoginModalOpen}
+                onClose={() => { setLoginModalOpen(false); }} // 閉じられないので空関数 or 固定表示
+                onLoginSuccess={handleLoginSuccess}
+            />
             <main>
                 <div className="flex justify-center items-center mt-8 max-md:mt-0">
                     <div className="w-full max-w-md p-5space-y-6 bg-white rounded shadow-md">

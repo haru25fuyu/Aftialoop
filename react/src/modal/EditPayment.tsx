@@ -40,10 +40,6 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
 
     useEffect(() => {
         //ユーザーチェック
-        const token = localStorage.getItem("token");
-        if (!token || token === "undefined") {
-            navigate("/login");
-        }
         console.log("id:", id);
         if (isOpen) {
             document.body.style.overflow = 'hidden';

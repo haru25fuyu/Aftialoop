@@ -1,61 +1,70 @@
 // PaymentForm.tsx
-import React from 'react';
+import React, { useState } from 'react';
 import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 
 import Header from '../component/Header';
 import Footer from '../component/Footer';
+import LoginModal from '../modal/Login';
 import ContentsList from '../component/ContentsList';
 import { Content } from '../types/Content';
 import BasicContent, { LinkContent } from '../component/Content';
 
 import api from '../conf/api';
+import { LogOut } from 'lucide-react';
 
 const MyPage: React.FC = () => {
-    const navigate = useNavigate();
+    const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+    const [reloadTrigger, setReloadTrigger] = useState(0);
     useEffect(() => {
-        //アクセストークンの取得
         const token = localStorage.getItem('token');
         if (!token || token === 'undefined') {
-            navigate("/login");
+            setLoginModalOpen(true); // ← ここだけにする
+            return;
         }
 
-        //注文履歴とお気に入りリストの取得
         api.post('/mypage')
             .then((res) => {
-                console.log(res.data.access_token);
-                //トークン保存
-                // 現在時刻にexpires_in（秒）を加えて、期限を計算
                 const expirationTime = Date.now() / 1000 + 3600;
                 localStorage.setItem('token', res.data.access_token);
                 localStorage.setItem('expirationTime', expirationTime.toString());
             })
             .catch((err) => {
                 console.error(err);
-                //トークン情報を削除
                 localStorage.removeItem('token');
                 localStorage.removeItem('expirationTime');
-                navigate("/login", { state: { page: "/mypage" } });
+                setLoginModalOpen(true); // ← navigate せずモーダル表示
             });
-    }, []);
+    }, [reloadTrigger]);
+
+    const handleLoginSuccess = () => {
+        setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
+    };
+
+    const Logout = (isLogout: boolean) => {
+        if (isLogout) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('expirationTime');
+            setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
+        }
+    };
 
     const logContent: Content[] = [
-        { id: '1', name: '商品1', discription: "商品1の説明", price: 1000,point:1000, image_url: '/data/Logo.JPG' },
-        { id: '2', name: '商品2', discription: "商品1の説明", price: 2000,point:2000, image_url: '/data/Logo.JPG' },
-        { id: '3', name: '商品3', discription: "商品1の説明", price: 3000,point:3000, image_url: '/data/Logo.JPG' },
-        { id: '4', name: '商品4', discription: "商品1の説明", price: 4000,point:4000, image_url: '/data/Logo.JPG' },
-        { id: '5', name: '商品5', discription: "商品1の説明", price: 5000,point:5000, image_url: '/data/Logo.JPG' },
-        { id: '6', name: '商品6', discription: "商品1の説明", price: 6000,point:6000, image_url: '/data/Logo.JPG' },
-        { id: '7', name: '商品7', discription: "商品1の説明", price: 7000,point:7000, image_url: '/data/Logo.JPG' },
-        { id: '8', name: '商品8', discription: "商品1の説明", price: 8000,point:8000, image_url: '/data/Logo.JPG' },
-        { id: '9', name: '商品9', discription: "商品1の説明", price: 9000,point:9000, image_url: '/data/Logo.JPG' },
-        { id: '10', name: '商品10', discription: "商品1の説明", price: 10000,point:10000, image_url: '/data/Logo.JPG' },
+        { id: '1', name: '商品1', discription: "商品1の説明", price: 1000, point: 1000, image_url: '/data/Logo.JPG' },
+        { id: '2', name: '商品2', discription: "商品1の説明", price: 2000, point: 2000, image_url: '/data/Logo.JPG' },
+        { id: '3', name: '商品3', discription: "商品1の説明", price: 3000, point: 3000, image_url: '/data/Logo.JPG' },
+        { id: '4', name: '商品4', discription: "商品1の説明", price: 4000, point: 4000, image_url: '/data/Logo.JPG' },
+        { id: '5', name: '商品5', discription: "商品1の説明", price: 5000, point: 5000, image_url: '/data/Logo.JPG' },
+        { id: '6', name: '商品6', discription: "商品1の説明", price: 6000, point: 6000, image_url: '/data/Logo.JPG' },
+        { id: '7', name: '商品7', discription: "商品1の説明", price: 7000, point: 7000, image_url: '/data/Logo.JPG' },
+        { id: '8', name: '商品8', discription: "商品1の説明", price: 8000, point: 8000, image_url: '/data/Logo.JPG' },
+        { id: '9', name: '商品9', discription: "商品1の説明", price: 9000, point: 9000, image_url: '/data/Logo.JPG' },
+        { id: '10', name: '商品10', discription: "商品1の説明", price: 10000, point: 10000, image_url: '/data/Logo.JPG' },
     ];
     const linkContent: Content[] = [
-        { id: '1', name: '支払い方法', discription: "商品1の説明", price: 0,point:0, image_url: '/payment/list' },
-        { id: '2', name: 'アカウント設定', discription: "商品1の説明", price: 0,point:0, image_url: '/profile' },
-        { id: '3', name: 'アドレス帳', discription: "商品1の説明", price: 0,point:0, image_url: '/address/list' },
-        { id: '4', name: 'サブスクリプション管理', discription: "商品1の説明", price: 0,point:0, image_url: '/150x150.png' },
+        { id: '1', name: '支払い方法', discription: "商品1の説明", price: 0, point: 0, image_url: '/payment/list' },
+        { id: '2', name: 'アカウント設定', discription: "商品1の説明", price: 0, point: 0, image_url: '/profile' },
+        { id: '3', name: 'アドレス帳', discription: "商品1の説明", price: 0, point: 0, image_url: '/address/list' },
+        { id: '4', name: 'サブスクリプション管理', discription: "商品1の説明", price: 0, point: 0, image_url: '/150x150.png' },
     ];
 
     return (
@@ -63,6 +72,11 @@ const MyPage: React.FC = () => {
             <header>
                 <Header />
             </header>
+            <LoginModal
+                isOpen={isLoginModalOpen}
+                onClose={() => { setLoginModalOpen(false); }} // 閉じられないので空関数 or 固定表示
+                onLoginSuccess={handleLoginSuccess}
+            />
             <main className="flex-grow">
                 <div className="flex-grow flex justify-center items-center mt-10 max-md:mt-0">
                     <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded shadow-md">
@@ -85,6 +99,12 @@ const MyPage: React.FC = () => {
                                 <div className="flex overflow-x-auto space-x-4">
                                     <ContentsList contents={linkContent} Component={LinkContent} slider={true} show_num={3} />
                                 </div>
+                                <button
+                                    className="w-full px-4 py-2 mt-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700"
+                                    onClick={() => Logout(true)}
+                                >
+                                    ログアウト
+                                </button>   
                             </div>
                         </div>
                     </div>

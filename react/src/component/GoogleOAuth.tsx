@@ -1,10 +1,12 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { GoogleLogin } from "@react-oauth/google";
-import { useNavigate } from "react-router-dom";
 import api from "../conf/api.ts";
 
-export const GoogleOAuth = () => {
-    const navigate = useNavigate(); // ✅ useNavigate をコンポーネント内で定義
+type Props = {
+    onLoginSuccess?: () => void;
+};
+
+export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess }) => {
 
     const handleLoginSuccess = (response: { credential?: string }) => {
         if (!response.credential) {
@@ -23,7 +25,12 @@ export const GoogleOAuth = () => {
                 localStorage.setItem("token", res.data.access_token);
                 localStorage.setItem("expirationTime", expirationTime);
 
-                navigate("/"); // ✅ 認証成功後にリダイレクト
+                if (onLoginSuccess) {
+                    onLoginSuccess();
+                } else {
+                    window.location.href = '/';
+                }
+
             })
             .catch((err) => {
                 console.error("ログイン失敗:", err);

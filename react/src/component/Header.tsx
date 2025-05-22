@@ -6,7 +6,6 @@ import '../css/Header.css';
 
 export const Header: React.FC = () => {
     const [loginText, setLoginText] = useState("ログイン");
-    const [URL, setURL] = useState("/login");
     const [icon, setIcon] = useState<string | null>(null); // ✅ useState で管理
 
     useEffect(() => {
@@ -21,7 +20,6 @@ export const Header: React.FC = () => {
                 setLoginText(name);
                 //setLoginImage(userIcon || "/../data/login.jpeg");
                 setIcon(userIcon); // ✅ useState にセット
-                setURL("/mypage");
             }
         };
         SetUser();
@@ -38,34 +36,34 @@ export const Header: React.FC = () => {
                     <li><Link to="/List">カテゴリー４</Link></li>
                 </ul>
             </div>
-<div className='header-menu'>
-            <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
-            <div className="list">
-                <span className='menu-title'>MENU</span>
-                <ul className='header-list'>
-                    <li><Link to="/">TOP</Link></li>
-                    <li><Link to="/payment">商品一覧</Link></li>
-                    <li><Link to="/mypage">マイページ</Link></li>
-                    <li><Link to="/mypage">お問い合わせ</Link></li>
-                </ul>
-            </div>
-            <div className='right-margin'>
-                <div className='search-form'>
-                    <input type="text" placeholder="キーワードを入力" />
-                    <button type="submit" aria-label="検索"></button>
+            <div className='header-menu'>
+                <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
+                <div className="list">
+                    <span className='menu-title'>MENU</span>
+                    <ul className='header-list'>
+                        <li><Link to="/">TOP</Link></li>
+                        <li><Link to="/payment">商品一覧</Link></li>
+                        <li><Link to="/mypage">マイページ</Link></li>
+                        <li><Link to="/mypage">お問い合わせ</Link></li>
+                    </ul>
                 </div>
-                <div className='login'>
-                    <Link to={URL} className='login-link'>
-                        <span>{loginText}</span>
-                        {icon ? (
-                            <img src={icon} alt="プロフィール画像" className="w-12 h-12 rounded-full object-cover" />
-                        ) : (
-                            loginText === "ログイン" ? <LogIn className="text-gray-500 w-12 h-12 rounded-full object-cover" /> : <UserRound className="text-gray-500 w-12 h-12 rounded-full object-cover" />
-                        )}
-                    </Link>
+                <div className='right-margin'>
+                    <div className='search-form'>
+                        <input type="text" placeholder="キーワードを入力" />
+                        <button type="submit" aria-label="検索"></button>
+                    </div>
+                    <div className='login'>
+                        <Link to="/mypage" className='login-link'>
+                            <span>{loginText}</span>
+                            {icon ? (
+                                <img src={icon} alt="プロフィール画像" className="w-12 h-12 rounded-full object-cover" />
+                            ) : (
+                                loginText === "ログイン" ? <LogIn className="text-gray-500 w-12 h-12 rounded-full object-cover" /> : <UserRound className="text-gray-500 w-12 h-12 rounded-full object-cover" />
+                            )}
+                        </Link>
+                    </div>
                 </div>
             </div>
-          </div>
         </div>
     );
 };
