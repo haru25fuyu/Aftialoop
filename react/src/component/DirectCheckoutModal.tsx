@@ -14,6 +14,8 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
   const [paymentMethod, setPaymentMethod] = useState('point');
   const [error, setError] = useState('');
   const [customerId, setCustomerId] = useState<string | null>(null);
+  const [defaultAddress, setDefaultAddress] = useState<string | null>(null);
+  const [defaultCard, setDefaultCard] = useState<string | null>(null);
 
   useEffect(() => {
     // ユーザー情報を取得(デフォルトアドレス、ポイント残高,決済方法など)
@@ -24,6 +26,7 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
       api.post("/customer/data",)
         .then((res) => {
           console.log(res.data);
+          setDefaultCard(res.data.user.defaultCard);
           if (!res.data.user.id) {
             // IDが取れなかったら強制ログアウト
             localStorage.removeItem("token");
@@ -70,7 +73,7 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
       // ここでSquareのAPIを呼び出して決済処理を行う
       api.post('/api/card/charge', {
         amount: price,
-        cardID: 'ccof:CA4SEBS9lZA3FcTpxqULD7CdghYoAg',
+        cardID: defaultCard,
         customerID: customerId,
       })
         .then((res) => {

@@ -88,7 +88,7 @@ const PaymentList: React.FC = () => {
                                         <p className="text-gray-500">新しいカードの追加</p>
                                     </div>
                                 </div>
-                                {payments.map((item) => (
+                                {payments?.map((item) => (
                                     <div
                                         key={item.ID}
                                         className="cursor-pointer flex flex-col items-start text-left h-auto overflow-hidden rounded-lg border border-gray-200 p-4 transition"

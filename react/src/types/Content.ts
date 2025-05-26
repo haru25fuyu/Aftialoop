@@ -17,7 +17,7 @@ export interface Address {
   Address1: string;
   Address2: string;
   Address3: string;
-  IsDefault: boolean;
+  Status: number;
 }
 
 export interface Payment {

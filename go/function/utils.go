@@ -68,8 +68,9 @@ type Address struct {
 	Address1  string `db:"Address1" json:"Address1"`
 	Address2  string `db:"Address2" json:"Address2"`
 	Address3  string `db:"Address3" json:"Address3"`
-	IsDefault bool   `db:"IsDefault" json:"IsDefault"`
+	Status    int    `db:"Status" json:"Status"` // ← ここだけ変更
 }
+
 
 type GoogleClaims struct {
 	Email string `json:"email"`

@@ -62,6 +62,7 @@ const EditAddress: React.FC<EditAddressProps> = ({ address, isOpen, onClose, set
         //データのpostCodeにハイフンが含まれている場合、ハイフンを削除
         console.log(data);
         data.ID = address.ID;
+        data.Status = data.Status ? 1 : 0; 
         data.PostCode = data.PostCode.replace(/-/g, '');
         api.post('/address/edit', data)
             .then(() => {
@@ -180,7 +181,8 @@ const EditAddress: React.FC<EditAddressProps> = ({ address, isOpen, onClose, set
                         <label className="block text-sm font-medium text-gray-700">デフォルトにする</label>
                         <input
                             type="checkbox"
-                            {...register('IsDefault')}
+                            {...register('Status')}
+                            defaultChecked={address.Status === 1}
                             className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500"
                         />
                     </div>

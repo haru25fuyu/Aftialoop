@@ -306,7 +306,7 @@ func UpdateAddress(id string, address map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
 	for key, value := range address {
-		if key == "ID" || key == "UserID" || key == "IsDefault" {
+		if key == "ID" || key == "UserID" || key == "Status" {
 			continue
 		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
@@ -324,7 +324,7 @@ func SaveAddress(address map[string]interface{}) error {
 	columns := []string{}
 	values := []interface{}{}
 	for key, value := range address {
-		if key == "ID" || key == "IsDefault" {
+		if key == "ID" || key == "Status" {
 			continue
 		}
 		columns = append(columns, key)
@@ -344,7 +344,7 @@ func SaveAddress(address map[string]interface{}) error {
 
 // 住所の取得
 func GetAddress(id string) (Address, error) {
-	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE ID = ?"
+	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,Status FROM addresses WHERE ID = ?"
 	var address Address
 	err := config.DB.Get(&address, query, id)
 	if err != nil {
@@ -358,25 +358,25 @@ func GetAddress(id string) (Address, error) {
 
 // 住所の削除
 func DeleteAddress(id string) error {
-	_, err := config.DB.Exec("DELETE FROM addresses WHERE ID = ?", id)
+	_, err := config.DB.Exec("UPDATE addresses SET Status = ? WHERE UserID = ?", 3, id)
 	return err
 }
 
-func SetDefaultAddress(userID, addressID string) error {
+func SetStatusAddress(userID, addressID string) error {
 	// 全部 false に
-	_, err := config.DB.Exec("UPDATE addresses SET IsDefault = false WHERE UserID = ?", userID)
+	_, err := config.DB.Exec("UPDATE addresses SET Status = ? WHERE UserID = ? AND Status = 1", 0, userID)
 	if err != nil {
 		return err
 	}
 
 	// 指定のアドレスだけ true に
-	_, err = config.DB.Exec("UPDATE addresses SET IsDefault = true WHERE ID = ?", addressID)
+	_, err = config.DB.Exec("UPDATE addresses SET Status = ? WHERE ID = ?", 1, addressID)
 	return err
 }
 
 // 住所リストの取得
 func GetAddressList(user_id string) ([]Address, error) {
-	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,IsDefault FROM addresses WHERE UserID = ?"
+	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,Status FROM addresses WHERE UserID = ? AND Status != 3 ORDER BY Status DESC"
 	var addresses []Address
 	err := config.DB.Select(&addresses, query, user_id)
 	return addresses, err
@@ -419,7 +419,6 @@ func SaveOrUpdateCardAddress(userID, cardID string, addressID string) error {
 
 	return nil
 }
-
 
 // カードのアドレス情報を取得
 func GetCardAddress(userID, cardID string) (Address, error) {

@@ -15,6 +15,10 @@ const AddressList: React.FC = () => {
     const [selectedAddress, setSelectedAddress] = React.useState<Address>({} as Address);
 
     useEffect(() => {
+        GetAddressList();
+    }, []);
+
+    const GetAddressList = () => {
         api.post('/address/list')
             .then((res) => {
 
@@ -25,7 +29,7 @@ const AddressList: React.FC = () => {
             .catch((err) => {
                 console.error("住所一覧エラー:", err);
             });
-    }, []);
+    }
 
     return (
         <div>
@@ -36,7 +40,10 @@ const AddressList: React.FC = () => {
                             setAddress={setAddress}
                             address={selectedAddress}
                             isOpen={isModalOpen}
-                            onClose={() => setIsModalOpen(false)}
+                            onClose={() => {
+                                setIsModalOpen(false)
+                                GetAddressList();
+                            }}
                         />
                     </div>
                 </div>
@@ -71,6 +78,9 @@ const AddressList: React.FC = () => {
                                         className="cursor-pointer flex flex-col items-start p-4 bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition"
                                     >
                                         <div className="w-full text-left space-y-1">
+                                            {item.Status === 1 && (
+                                                <div className="text-sm font-medium text-green-500">デフォルト</div>
+                                            )}
                                             <div className="font-semibold">{item.Name}</div>
                                             <div className="text-sm">{item.Phone}</div>
                                             <div className="text-sm">{item.PostCode}</div>

@@ -3,7 +3,6 @@ package main
 import (
 	"animaloop/config"
 	"animaloop/function"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,12 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awsconfig "github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/ses"
-	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 	"github.com/gorilla/mux"
-	"github.com/mailjet/mailjet-apiv3-go"
 	"github.com/rs/cors"
 )
 
@@ -100,14 +94,6 @@ func main() {
 			return
 		}
 		// 本登録用URL
-		awsCfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion("ap-northeast-1"))
-		if err != nil {
-			log.Printf("AWS config load error: %v", err)
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "サーバー設定エラー"})
-			return
-		}
-		client := ses.NewFromConfig(awsCfg)
 		url := fmt.Sprintf("https://aftialoop.com/register/confirm?token=%s", token)
 
 		htmlContent := fmt.Sprintf(`
@@ -125,31 +111,12 @@ func main() {
 		<hr />
 		<p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
 		<p>Animaloopサポートチーム</p>
+		<br />
 	`, user.Email, url, url)
 
 		subject := "【Aftialoop】ご登録ありがとうございます（本登録のお願い）"
 
-		input := &ses.SendEmailInput{
-			Source: aws.String("info@aftialoop.com"), // SESで検証済みアドレス
-			Destination: &types.Destination{
-				ToAddresses: []string{user.Email},
-			},
-			Message: &types.Message{
-				Subject: &types.Content{
-					Data: aws.String(subject),
-				},
-				Body: &types.Body{
-					Html: &types.Content{
-						Data: aws.String(htmlContent),
-					},
-					Text: &types.Content{
-						Data: aws.String("ブラウザで開けない場合は以下のURLをコピーしてアクセスしてください。\n" + url),
-					},
-				},
-			},
-		}
-
-		res, err := client.SendEmail(context.TODO(), input)
+		res, err := function.SendMail(user.Email, subject, htmlContent)
 		if err != nil {
 			log.Printf("SES送信失敗: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -207,6 +174,7 @@ func main() {
 		}
 
 		err = function.SaveUser(prm)
+		log.Println(prm["password"])
 		if err != nil {
 			log.Println("エラーが発生しました", err)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -229,6 +197,27 @@ func main() {
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
 			return
 		}
+
+		// メール送信
+		htmlContent := fmt.Sprintf(`
+		<h3>%s様</h3><br />
+		<p>この度は、Aftialoopへのご登録ありがとうございます。</p><br />
+		<p>本登録が完了しました。</p><br />
+		<p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
+		<p>Animaloopサポートチーム</p>
+		<br />
+	`, userData.Email)
+
+		subject := "【Aftialoop】本登録完了のお知らせ"
+
+		res, err := function.SendMail(userData.Email, subject, htmlContent)
+		if err != nil {
+			log.Printf("SES送信失敗: %v", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールの送信に失敗しました"})
+			return
+		}
+		log.Printf("Email sent: %+v", res)
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"message": "本登録が完了しました"})
@@ -655,10 +644,10 @@ func main() {
 			// アドレスの更新
 			erro = function.UpdateAddress(address.ID, address_map)
 		}
-
-		if address.IsDefault == true {
+		
+		if address.Status ==  1 {
 			// デフォルトアドレスの更新
-			erro = function.SetDefaultAddress(claims.ID, address.ID)
+			erro = function.SetStatusAddress(claims.ID, address.ID)
 		}
 
 		if erro != nil {
@@ -837,6 +826,7 @@ func main() {
 		log.Println("支払い成功")
 
 		// 購入履歴を保存
+	
 
 		htmlContent := fmt.Sprintf(`<h3>%s様</h3><br />
 		<P>ご購入ありがとうございます。</p><br />
@@ -851,37 +841,22 @@ func main() {
 		<p>Animaloopサポートチーム</p>
 		`, claims.Name, charge.Amount, url, time.Now().Format("2006-01-02 15:04:05"))
 
-		// 支払い完了メールを送
-		mailjetClient := mailjet.NewMailjetClient(config.MAILJET_API_KEY, config.MAILJET_API_SECRET)
-		// メールの内容を設定
-		messagesInfo := []mailjet.InfoMessagesV31{
-			{
-				From: &mailjet.RecipientV31{
-					Email: config.FromEmail,
-					Name:  config.FromName,
-				},
-				To: &mailjet.RecipientsV31{
-					mailjet.RecipientV31{
-						Email: claims.Email,
-						Name:  claims.Name,
-					},
-				},
-				Subject:  "Payment Confirmation",
-				TextPart: "Dear " + claims.Name + ", your payment was successful!",
-				HTMLPart: htmlContent,
-			},
-		}
-		// メール送信
-		messages := mailjet.MessagesV31{Info: messagesInfo}
-		res, erro := mailjetClient.SendMailV31(&messages)
+		subject := "【Aftialoop】お支払い完了のお知らせ"
 
+		// メール送信
+		res, erro := function.SendMail(claims.Email, subject, htmlContent)
 		if erro != nil {
-			log.Fatalf("Failed to send email: %s", erro)
+			log.Printf("SES送信失敗: %v", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールの送信に失敗しました"})
 			return
 		}
 		log.Printf("Email sent: %+v", res)
+
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"message": "支払いが完了しました", "receipt_url": url})
+
+		// 支払い完了メール送信成功
 		log.Println("支払い完了メール送信成功")
 	})
 

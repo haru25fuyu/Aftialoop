@@ -11,6 +11,10 @@ import (
 
 	recaptcha "cloud.google.com/go/recaptchaenterprise/v2/apiv1"
 	recaptchapb "cloud.google.com/go/recaptchaenterprise/v2/apiv1/recaptchaenterprisepb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/ses"
+	"github.com/aws/aws-sdk-go-v2/service/ses/types"
 )
 
 func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
@@ -207,4 +211,32 @@ func LoadUserAndCards(token string) ([]*CardSummary, error) {
 	}
 
 	return cardDataPointers, nil
+}
+
+func SendMail(to string, subject string, htmlContent string) (*ses.SendEmailOutput,error) {
+	awsCfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion("ap-northeast-1"))
+	if err != nil {
+		return nil, err
+	}
+	client := ses.NewFromConfig(awsCfg)
+
+	input := &ses.SendEmailInput{
+		Source: aws.String(config.FromEmail), // SESで検証済みアドレス
+		Destination: &types.Destination{
+			ToAddresses: []string{to},
+		},
+		Message: &types.Message{
+			Subject: &types.Content{
+				Data: aws.String(subject),
+			},
+			Body: &types.Body{
+				Html: &types.Content{
+					Data: aws.String(htmlContent),
+				},
+			},
+		},
+	}
+	res, err := client.SendEmail(context.TODO(), input)
+
+	return res, err
 }
