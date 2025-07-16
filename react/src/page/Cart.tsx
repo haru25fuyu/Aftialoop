@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 //import {  useForm } from 'react-hook-form';
-//import { useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 import { Header } from '../component/Header';
 import { Content } from '../types/Content';
 import { ContentsList } from '../component/ContentsList';
-import BasicContent from '../component/Content';
+import { CartContent } from '../component/Content';
 
 import api from '../conf/api';
 //import { Input } from '../types/Input';
@@ -13,7 +13,7 @@ import api from '../conf/api';
 
 const Cart: React.FC = () => {
     //const { handleSubmit } = useForm<Inputs>();
-    //const navigate = useNavigate();
+    const navigate = useNavigate();
     //const location = useLocation();
     const [cart, setCart] = useState<Content[]>(JSON.parse(localStorage.getItem('cart') || '[]'));
     const [totalPrice, setTotalPrice] = useState(0);
@@ -21,7 +21,7 @@ const Cart: React.FC = () => {
     const [point, setPoint] = useState(0);
 
     useEffect(() => {
-        //　トークンが存在するか確認
+        // トークンが存在するか確認
         const token = localStorage.getItem('token');
         if (!token) {
             const storedCart = localStorage.getItem('cart');
@@ -29,14 +29,30 @@ const Cart: React.FC = () => {
                 setCart(JSON.parse(storedCart));
             }
         } else {
+            //ローカルストレージにカート情報がある場合はそれを追加する
+            const storedCart = localStorage.getItem('cart');
+            if (storedCart) {
+                const localCart: Content[] = JSON.parse(storedCart);
+                // ローカルストレージのカート情報をサーバーに送信
+                api.post('/cart/add', localCart)
+                    .then(() => {
+                        // 2. ローカルのデータはもう不要
+                        localStorage.removeItem('cart');
+                    })
+                    .catch((err) => {
+                        console.error(err);
+                    });
+                setCart(localCart);
+            }
+
             // トークンが存在する場合、APIを呼び出してカート情報を取得する処理を追加
-            api.post('/cart/get', { token: token })
+            api.post('/cart',)
                 .then((res) => {
-                    console.log(res.data);
-                    if (res.data.cart) {
-                        setCart(res.data.cart);
+                    console.log("カート情報:", res.data);
+                    if (res.data) {
+                        setCart(res.data.cart || []);
                         setPoint(res.data.point);
-                        //　トークン保存
+                        // トークン保存
                         localStorage.setItem('token', res.data.token);
                         // ローカルストレージのカート情報は削除
                         localStorage.removeItem('cart');
@@ -47,54 +63,107 @@ const Cart: React.FC = () => {
                 });
         }
 
-        // 合計金額とポイントを計算する処理を追加
-        setTotalPrice(cart.reduce((acc, item) => acc + item.price * (item.quantity || 1), 0));
-        setTotalPoints(cart.reduce((acc, item) => acc + item.point * (item.quantity || 1), 0));
-    }, [cart]);
+    }, []);
 
-    //const onSubmit = async () => {
-    //    //　チェックアウトとしてローカルストレージに保存
-    //    localStorage.setItem('checkout', JSON.stringify(cart));
-    //    //　カートを空にする
-    //    localStorage.removeItem('cart');
-    //    //　チェックアウト画面に遷移
-    //    navigate('/checkout');
-    //};
+    // 2. cart が変わったら計算する（別useEffectにする！）
+    useEffect(() => {
+        if (!cart || cart.length === 0) return;
+
+        const totalPrice = cart
+            .filter(item => item.is_selected)
+            .reduce((acc, item) => {
+                const qty = item.quantity ?? 1;
+                const price = Number(item.price) || 0;
+                return acc + price * qty;
+            }, 0);
+
+        const totalPoints = cart
+            .filter(item => item.is_selected)
+            .reduce((acc, item) => {
+                const qty = item.quantity ?? 1;
+                const point = Number(item.point) || 0;
+                return acc + point * qty;
+            }, 0);
+
+        setTotalPrice(totalPrice);
+        setTotalPoints(totalPoints);
+    }, [cart]); // ← cart が変わったときだけ再計算
+
+    const handleQuantityChange = (item: Content) => {
+
+        // 数量を変更する処理
+        if (!item || !item.id) {
+            console.error("無効なアイテム:", item);
+            return;
+        }
+
+        console.log("数量XXS:", item);
+        api.post('/cart/edit', item)
+            .then((res) => {
+                console.log("数量更新:", res.data);
+                // 更新後のカート情報を取得
+                const updatedCart = res.data || [];
+                setCart(updatedCart);
+            }
+            )
+            .catch((err) => {
+                console.error("数量更新エラー:", err);
+            }
+            );
+    };
+
+    const onSubmit = async () => {
+        // チェックアウトとしてローカルストレージに保存
+        const selectedItems = cart.filter(item => item.is_selected);
+        localStorage.setItem('checkout', JSON.stringify(selectedItems));
+        // カートを空にする
+        localStorage.removeItem('cart');
+        // チェックアウト画面に遷移
+        navigate('/checkout');
+    };
     return (
         <div>
-            <header>
+            {/* 固定ヘッダー */}
+            <header className="fixed top-0 left-0 w-full z-50 bg-white shadow">
                 <Header />
             </header>
 
-            <div className="flex justify-center items-center mt-8 max-md:mt-0">
-                <div className="w-full max-w-md p-5 space-y-6 bg-white rounded shadow-md">
-                    <h2 className="text-2xl font-bold text-center text-gray-900">買い物かご</h2>
-                    <div className="flex flex-col items-center space-y-4">
-                        <ContentsList
-                            contents={cart}
-                            Component={BasicContent}
-                            slider={false}
-                            vertical={true}
-                            show_num={3}
-                        />
-                    </div>
-                    <div className="flex justify-center mt-4">
-                        <p className="text-lg font-semibold">合計金額: ¥{totalPrice}</p>
-                        <p className="text-lg font-semibold ml-4">合計ポイント: {totalPoints}pt</p>
-                        所持ポイント: {point}pt
-                    </div>
-                    <div className="flex justify-center mt-4 space-x-4">
-                        <button
-                            type="button"
-                            className="px-4 py-2 text-white bg-blue-600 rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
-                        >
-                            購入手続きへ進む
-                        </button>
-                    </div>
-                </div>
+            {/* タイトル：買い物かご */}
+            <div className="fixed top-[64px] w-full z-40 bg-white border-b px-6 py-3 shadow">
+                <h2 className="text-2xl font-bold text-center text-gray-900">買い物かご</h2>
             </div>
-        </div>
-    );
+
+            {/* メインボディ */}
+            <main className="pt-[128px] pb-[220px] w-full max-w-3xl mx-auto px-4">
+                <ContentsList
+                    contents={cart}
+                    Component={(props) => <CartContent {...props} function={handleQuantityChange} />}
+                    slider={false}
+                    vertical={false}
+                    show_num={1}
+                    wrapperClassName='grid-cols-1'
+                />
+            </main>
+
+            {/* 下固定 合計 & 購入ボタン */}
+            <div className="fixed bottom-0 left-0 w-full bg-white border-t px-6 py-4 shadow-lg z-30">
+                <div className="text-center space-y-1">
+                    <p className="text-lg font-semibold">合計金額: ¥{totalPrice}</p>
+                    <p className="text-lg font-semibold">合計ポイント: {totalPoints}pt</p>
+                    <p className="text-sm text-gray-500">所持ポイント: {point}pt</p>
+                </div>
+
+                <button
+                    type="button"
+                    onClick={onSubmit}
+                    className="mt-3 w-full px-6 py-3 text-white bg-blue-600 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50"
+                >
+                    購入手続きへ進む
+                </button>
+            </div>
+        </div> 
+
+    )
 };
 
 export default Cart;

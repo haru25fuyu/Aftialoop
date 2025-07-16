@@ -47,7 +47,7 @@ const Profile: React.FC = () => {
         if (!token || token === 'undefined') {
             setLoginModalOpen(true);
         }
-        api.post('/profile/get')
+        api.post('/profile/get', {})
             .then((res) => {
                 if (res.data.IconURL != null && res.data.IconURL !== "") {
                     // 画像URLがある場合はBASE_URLを付加
@@ -80,7 +80,7 @@ const Profile: React.FC = () => {
             <Header />
             <LoginModal
                 isOpen={isLoginModalOpen}
-                onClose={() => { setLoginModalOpen(false); }} // 閉じられないので空関数 or 固定表示
+                onClose={() => { setLoginModalOpen(false); }} 
                 onLoginSuccess={handleLoginSuccess}
             />
             <div className="flex justify-center items-center mt-8 max-md:mt-0">

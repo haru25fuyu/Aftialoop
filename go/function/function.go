@@ -20,68 +20,79 @@ import (
 func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 	authHeader := r.Header.Get("Authorization")
 
-	refreshToken, err := r.Cookie("refresh_token")
-	if err != nil {
-		log.Println("❌ リフレッシュトークン取得失敗:", err)
-	}
+	// まずは Cookie を試しに取得
+	refreshCookie, cookieErr := r.Cookie("refresh_token")
 
-	if authHeader == "" && err != nil {
+	// Authorization も Cookie もない → ここで早期リターン
+	if authHeader == "" && cookieErr != nil {
+		log.Println("❌ トークンが見つかりません")
 		return "", "トークンが有りません"
 	}
 
-	var token string
-	var user *User
+	var (
+		token   string
+		user    *User
+		err     error
+		setUser *User
+	)
 
+	// Bearer トークンがあればアクセス検証を試みる
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		token = strings.TrimPrefix(authHeader, "Bearer ")
 		user, err = GetUserFromToken(token)
-	}
-
-	if user == nil {
-		user, err = GetUserFromRefreshToken(refreshToken.Value)
-		if user == nil || err != nil {
-			return "", "アクセストークンが期限切れです"
-		} else {
-			user.Limit = 1
-			newAccessToken, err := GenerateToken(user)
-			if err != nil {
-				return "", "サーバーエラー"
-			}
-			remainingTime := user.Exp - time.Now().Unix()
-			daysRemaining := remainingTime / 86400
-
-			if daysRemaining < 7 {
-				SetRefreshToken(w, user)
-				return newAccessToken, ""
-			}
-
-			return newAccessToken, ""
-		}
-	} else {
-		user.Limit = 1
-		newAccessToken, err := GenerateToken(user)
-		log.Println(user)
 		if err != nil {
-			SetRefreshToken(w, user)
-			return newAccessToken, ""
+			log.Println("❌ アクセストークンの検証に失敗:", err)
+			user = nil
 		}
-		if refreshToken == nil {
-			SetRefreshToken(w, user)
-			return newAccessToken, ""
-		}
-		decoded, err := GetUserFromRefreshToken(refreshToken.Value)
-		if decoded == nil || err != nil {
-			SetRefreshToken(w, user)
-			return newAccessToken, ""
-		}
-		remainingTime := decoded.Exp - time.Now().Unix()
-		daysRemaining := remainingTime / 86400
-
-		if daysRemaining < 7 {
-			SetRefreshToken(w, decoded)
-		}
-		return newAccessToken, ""
 	}
+
+	// アクセスに失敗 or トークンなし の場合はリフレッシュトークンを使う
+	if user == nil {
+		// Cookie が取得できていなければここで諦める
+		if cookieErr != nil {
+			log.Println("❌ リフレッシュトークンも取得できず:", cookieErr)
+			return "", "アクセストークンが期限切れです"
+		}
+		// Refresh トークンからユーザー復元を試みる
+		user, err = GetUserFromRefreshToken(refreshCookie.Value)
+		if err != nil || user == nil {
+			log.Println("❌ リフレッシュトークン検証失敗:", err)
+			return "", "アクセストークンが期限切れです"
+		}
+		// リフレッシュ成功 → 新しいアクセストークンを発行
+		setUser = user
+		setUser.Limit = 2 * 60 * 60 // 2時間後に設定
+		newToken, err := GenerateToken(setUser)
+		if err != nil {
+			log.Println("❌ アクセストークン再発行エラー:", err)
+			return "", "サーバーエラー"
+		}
+		// もしリフレッシュの有効期限が近ければ Cookie を更新
+		if time.Until(time.Unix(user.Exp, 0)) < 7*24*time.Hour {
+			SetRefreshToken(w, user)
+		}
+		return newToken, ""
+	}
+
+	// アクセストークンが valid な場合はこちら
+	setUser = user
+	setUser.Limit = 2 * 60 * 60 // 2時間後に設定
+	newToken, err := GenerateToken(setUser)
+	log.Println(GetUserFromToken(newToken))
+	if err != nil {
+		log.Println("❌ アクセストークン再発行エラー:", err)
+		return "", "サーバーエラー"
+	}
+	// 既存のリフレッシュトークンが古い or missing なら更新
+	if cookieErr != nil {
+		SetRefreshToken(w, user)
+	} else {
+		// 有効期限切れ間近なら更新
+		if time.Until(time.Unix(user.Exp, 0)) < 7*24*time.Hour {
+			SetRefreshToken(w, user)
+		}
+	}
+	return newToken, ""
 }
 
 func SetRefreshToken(w http.ResponseWriter, user *User) error {
@@ -213,7 +224,7 @@ func LoadUserAndCards(token string) ([]*CardSummary, error) {
 	return cardDataPointers, nil
 }
 
-func SendMail(to string, subject string, htmlContent string) (*ses.SendEmailOutput,error) {
+func SendMail(to string, subject string, htmlContent string) (*ses.SendEmailOutput, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(context.TODO(), awsconfig.WithRegion("ap-northeast-1"))
 	if err != nil {
 		return nil, err

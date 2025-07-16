@@ -82,6 +82,10 @@ func DeleteRegistrationToken(token string) error {
 	return err
 }
 
+// --------------------------------------------------------------------------
+// ユーザー関係
+// ---------------------------------------------------------------------------
+// ユーザーの保存
 func SaveUser(user map[string]interface{}) error {
 	// カラム名と値のスライスを生成
 	columns := []string{}
@@ -106,8 +110,9 @@ func SaveUser(user map[string]interface{}) error {
 	return err
 }
 
+// ユーザーデータを取得する関数
 func GetUserData(where []string, values []interface{}) (SqlUser, error) {
-	query := "SELECT ID, Email, Name, Password, DefaultCard FROM users"
+	query := "SELECT ID, Email, Name, Password, DefaultCard, Point FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -122,11 +127,21 @@ func GetUserData(where []string, values []interface{}) (SqlUser, error) {
 	return user, nil
 }
 
+// ユーザー情報を更新する関数
 func UpdateUser(id string, user map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
 	for key, value := range user {
 		if key == "ID" {
+			continue
+		}
+		if key == "GoogleID" && value == "" {
+			continue
+		}
+		if key == "Password" && value == "" {
+			continue
+		}
+		if key == "AppleID" && value == "" {
 			continue
 		}
 		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
@@ -141,6 +156,7 @@ func UpdateUser(id string, user map[string]interface{}) error {
 	return err
 }
 
+// ユーザーのプロフィールを保存する関数
 func SaveProfile(id string, profile map[string]interface{}) error {
 	columns := []string{"UserID"}
 	values := []interface{}{id}
@@ -160,6 +176,7 @@ func SaveProfile(id string, profile map[string]interface{}) error {
 	return err
 }
 
+// ユーザープロフィールを取得する関数
 func GetProfile(id string) (Profile, error) {
 	query := "SELECT DateOfBirth,Gender,PhoneNumber,Bio,IconURL FROM profile WHERE UserID = ?"
 	var profile Profile
@@ -181,6 +198,7 @@ func GetProfile(id string) (Profile, error) {
 	return profile, nil
 }
 
+// ユーザーのデフォルトカードを設定する関数
 func SetDefaultCard(userID, cardID string) error {
 	//usersテーブルのDefaultCardを更新
 	_, err := config.DB.Exec("UPDATE users SET DefaultCard = ? WHERE ID = ?", cardID, userID)
@@ -190,6 +208,7 @@ func SetDefaultCard(userID, cardID string) error {
 	return err
 }
 
+// ユーザーのプロフィールを更新する関数
 func UpdateProfile(id string, profile map[string]interface{}) error {
 	setClauses := []string{}
 	values := []interface{}{}
@@ -204,6 +223,7 @@ func UpdateProfile(id string, profile map[string]interface{}) error {
 	return err
 }
 
+// 　ユーザーのデータとプロフィールを取得する関数
 func GetUserDataAndProfile(where []string, values []interface{}) (RequestUserProfile, error) {
 	query := `SELECT u.ID,u.Name,u.Email,u.DefaultCard, p.DateOfBirth,p.Gender,p.PhoneNumber,p.Bio,p.IconURL 
 	          FROM users u LEFT JOIN profile p ON u.ID = p.UserId`
@@ -223,6 +243,7 @@ func GetUserDataAndProfile(where []string, values []interface{}) (RequestUserPro
 	return user, nil
 }
 
+// ユーザーのリフレッシュトークンを保存する関数
 func SaveRefreshToken(token string, user_id string) error {
 	//　ユーザーIDが一致するトークンを削除
 	_, err := config.DB.Exec("DELETE FROM refresh_tokens WHERE UserID = ?", user_id)
@@ -234,6 +255,10 @@ func SaveRefreshToken(token string, user_id string) error {
 	_, err = config.DB.Exec("INSERT INTO refresh_tokens (Token, UserId, ExpiresAt) VALUES (?, ?, ?)", token, user_id, time.Now().Add(14*24*time.Hour))
 	return err
 }
+
+//--------------------------------------------------------------------------
+// ユーザー興味関係
+//---------------------------------------------------------------------------
 
 // お気に入りと商品情報をjoinして取得
 func GetFavoriteItems(user_id string, limit int) ([]map[string]interface{}, error) {
@@ -301,6 +326,9 @@ func DeleteHistory(user_id string, item_id string) error {
 	return nil
 }
 
+// --------------------------------------------------------------------------
+// 住所関係
+// ---------------------------------------------------------------------------
 // 住所の更新
 func UpdateAddress(id string, address map[string]interface{}) error {
 	setClauses := []string{}
@@ -382,6 +410,9 @@ func GetAddressList(user_id string) ([]Address, error) {
 	return addresses, err
 }
 
+// --------------------------------------------------------------------------
+// カード関係
+// ---------------------------------------------------------------------------
 // カードのアドレス情報を保存
 func SaveOrUpdateCardAddress(userID, cardID string, addressID string) error {
 	// 既に存在するか確認
@@ -444,7 +475,7 @@ func DeleteCardAddress(userID, cardID string) error {
 }
 
 // カードのアドレス情報を取得
-func GetCardByID(cardID string) (CardSummary, error) {
+func GetCardAddressByID(cardID string) (CardSummary, error) {
 	query := "SELECT ID FROM cards WHERE ID = ?"
 	var card CardSummary
 	err := config.DB.Get(&card, query, cardID)
@@ -455,6 +486,86 @@ func GetCardByID(cardID string) (CardSummary, error) {
 		return card, err
 	}
 	return card, nil
+}
+
+// --------------------------------------------------------------------------
+// カート関係
+// ---------------------------------------------------------------------------
+// カートにアイテムを追加
+func AddToCart(userID string, item Item) error {
+	// 既に存在するか確認
+	var count int
+	checkQuery := "SELECT COUNT(*) FROM cart_items WHERE UserID = ? AND ItemID = ?"
+	err := config.DB.Get(&count, checkQuery, userID, item.ID)
+	if err != nil {
+		return fmt.Errorf("DBチェック失敗: %w", err)
+	}
+
+	if count > 0 {
+		// 存在する → //任意の数量分増やす
+		updateQuery := "UPDATE cart_items SET Quantity = Quantity + ? WHERE UserID = ? AND ItemID = ?"
+		_, err := config.DB.Exec(updateQuery, item.Quantity, userID, item.ID)
+		if err != nil {
+			return fmt.Errorf("更新失敗: %w", err)
+		}
+		log.Printf("カートのアイテムを更新しました: %s", item.ID)
+	} else {
+		// 存在しない → 追加
+		insertQuery := "INSERT INTO cart_items (UserID, ItemID, Quantity) VALUES (?, ?, ?)"
+		_, err := config.DB.Exec(insertQuery, userID, item.ID, item.Quantity)
+		if err != nil {
+			return fmt.Errorf("挿入失敗: %w", err)
+		}
+		log.Println("カートにアイテムを追加しました")
+	}
+
+	return nil
+}
+
+// カートのアイテムを取得
+func GetCartItems(userID string) ([]Item, error) {
+	query := `
+		SELECT i.ID, i.Name, i.Price,i.Point, i.MainImageURL, c.Quantity ,c.IsSelected
+		FROM cart_items c 
+		INNER JOIN items i ON c.ItemID = i.ID 
+		WHERE c.UserID = ?
+	`
+	var items []Item
+	err := config.DB.Select(&items, query, userID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("cart is empty")
+		}
+		return nil, err
+	}
+	return items, nil
+}
+
+// カートのアイテムを削除
+func DeleteCartItem(userID, itemID string) error {
+	_, err := config.DB.Exec("DELETE FROM cart_items WHERE UserID = ? AND ItemID = ?", userID, itemID)
+	if err != nil {
+		return fmt.Errorf("削除失敗: %w", err)
+	}
+	log.Printf("カートからアイテムを削除しました: %s", itemID)
+	return nil
+}
+
+// カートのアイテムを更新
+func UpdateCartItem(userID, itemID string, quantity int, isSelected bool) error {
+	// 数量が0以下の場合は削除
+	if quantity <= 0 {
+		return DeleteCartItem(userID, itemID)
+	}
+
+	// 更新クエリ
+	query := "UPDATE cart_items SET Quantity = ?, IsSelected = ? WHERE UserID = ? AND ItemID = ?"
+	_, err := config.DB.Exec(query, quantity, isSelected, userID, itemID)
+	if err != nil {
+		return fmt.Errorf("更新失敗: %w", err)
+	}
+	log.Printf("カートのアイテムを更新しました: %s", itemID)
+	return nil
 }
 
 // スライスを結合する関数

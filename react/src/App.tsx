@@ -20,6 +20,7 @@ import Cart from './page/Cart';
 import NotFound from './page/NotFound';
 import Contact from './page/Contact';
 import FileTree from './page/SetFile';
+import Checkout from './page/Checkout';
 
 
 function App() {
@@ -44,6 +45,8 @@ function App() {
         <Route path={`*`} element={<NotFound />} />
         <Route path={`/contact`} element={<Contact />} />
         <Route path={`/filetree`} element={<FileTree />} />
+        <Route path={`/checkout`} element={<Checkout />} />
+        {/* <Route path={`/payment/complete`} element={<PaymentComplete />} /> */}
       </Routes> 
     </>
   )

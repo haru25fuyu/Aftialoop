@@ -170,3 +170,21 @@ func DeleteCard(cardID string) error {
 	// それ以外の場合はエラーを返す
 	return err
 }
+
+func GetCardByID(cardID string) (*square.GetCardResponse , error) {
+	response, err := config.SquareClient.Cards.Get(
+		context.TODO(),
+		&square.GetCardsRequest{
+			CardID: cardID,
+		},
+	)
+	if err != nil {
+		log.Printf("Error retrieving card: %v", err)
+		return nil, err
+	}
+	if response.Card == nil {
+		return nil, fmt.Errorf("card not found")
+	}
+
+	return response, nil
+}

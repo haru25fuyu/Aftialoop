@@ -9,9 +9,10 @@ type Props = {
   slider?: boolean;
   vertical?: boolean;
   show_num?: number;
+  wrapperClassName?: string; // オプションのクラス名
 };
 
-export const ContentsList: React.FC<Props> = ({ contents, Component, show_num = 1, slider = false, vertical = false }) => {
+export const ContentsList: React.FC<Props> = ({ contents, Component, show_num = 1, slider = false, vertical = false, wrapperClassName }) => {
   if (slider) {
     return (
       <div className='slider'>
@@ -32,7 +33,7 @@ export const ContentsList: React.FC<Props> = ({ contents, Component, show_num = 
     );
   } else {
     return (
-      <div className="contents-list flex flex-wrap justify-center gap-4">
+      <div className={`contents-list ${slider ? 'slider' : ''} ${wrapperClassName ?? ''}`}>
         {contents.map((item) => (         
             <Component key={item.id} item={item}  />
         ))}

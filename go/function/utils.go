@@ -21,24 +21,27 @@ type User struct {
 
 // ユーザー情報を格納する構造体
 type SqlUser struct {
-	ID       string `db:"ID" json:"id"`
-	Name     string `db:"Name" json:"name"`
-	Email    string `db:"Email" json:"email"`
-	Password string `db:"Password" json:"password"`
-	GoogleID string `db:"GoogleID" json:"GoogleID"`
-	AppleID  string `db:"AppleID"`
-	DefaultCard string `db:"DefaultCard" json:"defaultCard"`
+	ID          string  `db:"ID" json:"id"`
+	Name        string  `db:"Name" json:"name"`
+	Email       string  `db:"Email" json:"email"`
+	Point       float64 `db:"Point" json:"point"`
+	Password    string  `db:"Password" json:"password"`
+	GoogleID    string  `db:"GoogleID" json:"GoogleID"`
+	AppleID     string  `db:"AppleID"`
+	DefaultCard string  `db:"DefaultCard" json:"defaultCard"`
 }
 
 type Item struct {
-	ID          string `db:"ID" json:"id"`
-	Name        string `db:"Name" json:"name"`
-	Description string `db:"Description" json:"description"`
-	Price       int    `db:"Price" json:"price"`
-	Point       int    `db:"Stock" json:"stock"`
-	Category    int    `db:"Category" json:"category"`
+	ID           string  `db:"ID" json:"id"`
+	Name         string  `db:"Name" json:"name"`
+	Description  string  `db:"Description" json:"description"`
+	Price        float64 `db:"Price" json:"price"`
+	Point        float64 `db:"Point" json:"point"`
+	Category     int     `db:"Category" json:"category"`
+	MainImageURL string  `db:"MainImageURL" json:"main_image_url"`
+	Quantity     int     `db:"Quantity" json:"quantity"` // フロントエンドでの数量管理用
+	IsSelected   bool    `db:"IsSelected" json:"is_selected"`       // フロントエンドでのチェックボックス用
 }
-
 type Profile struct {
 	DateOfBirth *string `db:"DateOfBirth" json:"birth"`
 	Gender      *string `db:"Gender" json:"gender"`
@@ -59,18 +62,17 @@ type RequestUserProfile struct {
 	IconURL     string `json:"image" db:"IconURL"`
 }
 type Address struct {
-	ID        string `db:"ID" json:"ID"`
-	UserID    string `db:"UserID" json:"UserID"`
-	Name      string `db:"Name" json:"Name"`
-	Phone     string `db:"Phone" json:"Phone"`
-	PostCode  string `db:"PostCode" json:"PostCode"`
-	Pref      string `db:"Pref" json:"Pref"`
-	Address1  string `db:"Address1" json:"Address1"`
-	Address2  string `db:"Address2" json:"Address2"`
-	Address3  string `db:"Address3" json:"Address3"`
-	Status    int    `db:"Status" json:"Status"` // ← ここだけ変更
+	ID       string `db:"ID" json:"ID"`
+	UserID   string `db:"UserID" json:"UserID"`
+	Name     string `db:"Name" json:"Name"`
+	Phone    string `db:"Phone" json:"Phone"`
+	PostCode string `db:"PostCode" json:"PostCode"`
+	Pref     string `db:"Pref" json:"Pref"`
+	Address1 string `db:"Address1" json:"Address1"`
+	Address2 string `db:"Address2" json:"Address2"`
+	Address3 string `db:"Address3" json:"Address3"`
+	Status   int    `db:"Status" json:"Status"` // ← ここだけ変更
 }
-
 
 type GoogleClaims struct {
 	Email string `json:"email"`
@@ -96,19 +98,19 @@ type RequestCharge struct {
 }
 
 type RequestCardWithAddress struct {
-	CardID	 string `db:"CardID" json:"cardID"`
+	CardID    string `db:"CardID" json:"cardID"`
 	AddressID string `db:"Address" json:"address"`
 }
 
 type CardSummary struct {
-  ID        string `json:"ID"`
-  Brand     string `json:"CardBrand"`
-  Last4     string `json:"Last4"`
-  ExpMonth  int    `json:"ExpMonth"`
-  ExpYear   int    `json:"ExpYear"`
-  Disabled  bool   `json:"Disabled"`
-  Name 	string `json:"Name"`
-  IsDefault bool   `json:"IsDefault"`
+	ID        string `json:"ID"`
+	Brand     string `json:"CardBrand"`
+	Last4     string `json:"Last4"`
+	ExpMonth  int    `json:"ExpMonth"`
+	ExpYear   int    `json:"ExpYear"`
+	Disabled  bool   `json:"Disabled"`
+	Name      string `json:"Name"`
+	IsDefault bool   `json:"IsDefault"`
 }
 
 const jwksURL = "https://www.googleapis.com/oauth2/v3/certs"
@@ -268,5 +270,5 @@ func StructToMap(s interface{}) (map[string]interface{}, error) {
 }
 
 func Ptr[T any](value T) *T {
-    return &value
+	return &value
 }

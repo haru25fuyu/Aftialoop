@@ -1,11 +1,12 @@
 export interface Content {
   id: string;
   name: string;
-  discription: string;
+  description: string;
   point: number;
   price: number;
-  image_url: string;
-  quantity?: number; 
+  main_image_url: string;
+  quantity: number;
+  is_selected: boolean;
 }
 
 export interface Address {
@@ -30,4 +31,13 @@ export interface Payment {
   Address: Address;
   AddressID: string;
   IsDefault: boolean;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  email: string;
+  defaultAddress: string | null;
+  defaultCard: string | null;
+  point: number;
 }

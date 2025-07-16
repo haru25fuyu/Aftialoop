@@ -15,9 +15,10 @@ type Props = {
     isOpen: boolean;
     onClose: () => void;
     onLoginSuccess: () => void;
+    showCloseButton?: boolean;
 };
 
-const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess }) => {
+const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showCloseButton = false }) => {
     const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
     const [error, setError] = useState('');
 
@@ -55,6 +56,15 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+            {/* ログイン必須時に画面外右上に表示する全体閉じるボタン */}
+            {showCloseButton && (
+                <button
+                    onClick={onClose}
+                    className="absolute top-4 right-4 text-white text-2xl focus:outline-none pointer-events-auto"
+                >
+                    ×
+                </button>
+            )}
             <div className="w-full max-w-md p-5 space-y-6 bg-white rounded shadow-md relative">
                 <h2 className="text-2xl font-bold text-center text-gray-900">ログイン</h2>
                 <GoogleOAuth onLoginSuccess={() => {
