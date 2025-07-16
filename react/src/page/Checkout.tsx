@@ -7,10 +7,6 @@ import LoginModal from '../modal/Login';
 
 import { Customer } from '../types/Content';
 
-fh
-
-
-
 
 const Checkout: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('point');
