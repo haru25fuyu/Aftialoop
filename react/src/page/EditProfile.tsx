@@ -8,7 +8,7 @@ import { Header } from '../component/Header';
 import LoginModal from '../modal/Login'; // ← ここ忘れず
 
 import api from '../conf/api';
-import CONFIG from '../conf/config';
+import { CONFIG } from '../conf/config';
 
 type Inputs = {
     id: string,

@@ -37,7 +37,7 @@ export const Header: React.FC = () => {
                 </ul>
             </div>
             <div className='header-menu'>
-                <img className='logo' src="/../data/animaloop_logo.jpg" alt="ロゴ" />
+                <img className='logo' src="data/Logo.png" alt="ロゴ" />
                 <div className="list">
                     <span className='menu-title'>MENU</span>
                     <ul className='header-list'>

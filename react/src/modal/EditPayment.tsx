@@ -65,7 +65,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
                     console.error("住所一覧エラー:", err);
                 });
 
-            api.post("/api/card/address/get", { cardId: id })
+            api.post("/card/address/get", { cardId: id })
                 .then((res) => {
                     console.log(res.data);
                     setSelectAddressID(res.data.address.ID);
@@ -105,7 +105,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             return;
         }
         try {
-            const response = await api.post("/api/card/save", { token: token, customerId: customerId, verificationToken: verificationToken });
+            const response = await api.post("/card/save", { token: token, customerId: customerId, verificationToken: verificationToken });
 
             setMode(MODE.Customer);
             setCardId(response.data.card);
@@ -142,13 +142,13 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             return;
         }
         try {
-            const response = await api.post("/api/card/address", { address: selectAddressID, cardId: cardId });
+            const response = await api.post("/card/address", { address: selectAddressID, cardId: cardId });
 
             // レスポンスが正常であれば 成功メッセージを表示
             console.log("住所登録成功:", response.data);
             setPayments(response.data.card);
             if (makeDefault) {
-                const res = await api.post("/api/card/default", { cardID: cardId });
+                const res = await api.post("/card/default", { cardID: cardId });
                 setPayments(res.data.card);
             }
 
@@ -171,7 +171,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
     const Close = () => {
         if (mode === MODE.Customer && created) {
             // カード情報が登録されている場合、カード情報を削除
-            api.post("/api/card/delete", { cardId: cardId })
+            api.post("/card/delete", { cardId: cardId })
                 .then((res) => {
                     console.log(res.data);
                     setPayments(res.data.card);
@@ -185,165 +185,167 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
     }
 
     return (
-        <>
-            {/* 閉じるボタンを左上に配置 */}
-            <button
-                onClick={Close}
-                className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200 transition"
-            >
-                <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    className="h-6 w-6"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
+            <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-y-auto max-h-[80vh] p-4 relative">
+                {/* 閉じるボタンを左上に配置 */}
+                <button
+                    onClick={Close}
+                    className="absolute top-2 right-2 p-1 rounded-full hover:bg-gray-200 transition"
                 >
-                    <path d="M6 18L18 6M6 6l12 12" />
-                </svg>
-            </button>
+                    <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        className="h-6 w-6"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                    >
+                        <path d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
 
-            <div className="space-y-6" onClick={handleModalClick}>
-                {mode === MODE.CARD && (
-                    <>
-                        <h2 className="text-2xl font-bold text-center text-gray-900">クレジットカード情報の登録</h2>
-                        <PaymentForm
-                            applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
-                            locationId="LJ05QCSPT544X"
-                            cardTokenizeResponseReceived={({ token, verificationToken }) => {
-                                saveCard(token, verificationToken);
-                            }}
-                        >
-                            <CreditCard />
-
-                        </PaymentForm>
-                    </>
-                )}
-                {mode === MODE.Customer && (
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-center text-gray-900">
-                            支払先住所
-                        </h2>
-
-                        <div className="h-[400px] overflow-hidden">
-                            <Swiper
-                                modules={[Mousewheel, Scrollbar, FreeMode]}
-                                className="swiper-container"
-                                direction="vertical"
-                                spaceBetween={0}
-                                slidesPerView="auto"
-                                freeMode={true}
-                                mousewheel={true}
-                                scrollbar={{ draggable: true }}
-                                loop={false}
-                                speed={500}
+                <div className="space-y-6" onClick={handleModalClick}>
+                    {mode === MODE.CARD && (
+                        <>
+                            <h2 className="text-2xl font-bold text-center text-gray-900">クレジットカード情報の登録</h2>
+                            <PaymentForm
+                                applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
+                                locationId="LJ05QCSPT544X"
+                                cardTokenizeResponseReceived={({ token, verificationToken }) => {
+                                    saveCard(token, verificationToken);
+                                }}
                             >
-                                {address.map((item, index) => (
-                                    <SwiperSlide className="swiper-slide !w-full !h-auto" key={item.ID} >
-                                        <label
-                                            key={item.ID}
-                                            className="cursor-pointer flex items-center p-2 w-[300px] bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition space-x-4"
-                                        >
-                                            <input
-                                                type="radio"
-                                                name="address"
-                                                value={index}
-                                                className="mt-1"
-                                                checked={selectAddressID === item.ID}
-                                                onChange={() => {
-                                                    setSelectAddressID(item.ID);
-                                                }}
-                                            />
-                                            <div className="w-full text-left space-y-1">
-                                                <div className="font-semibold">{item.Name}</div>
-                                                <div className="text-sm">{item.Phone}</div>
-                                                <div className="text-sm">{item.PostCode}</div>
-                                                <div className="text-sm">{item.Pref}</div>
-                                                <div className="text-sm">{item.Address1}</div>
-                                                {item.Address2 && <div className="text-sm">{item.Address2}</div>}
-                                                {item.Address3 && <div className="text-sm">{item.Address3}</div>}
-                                            </div>
-                                        </label>
-                                    </SwiperSlide>
-                                ))}
-                            </Swiper>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                            <input
-                                type="checkbox"
-                                id="makeDefault"
-                                checked={makeDefault}
-                                onChange={(e) => setMakeDefault(e.target.checked)}
-                                className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
-                            />
-                            <label htmlFor="makeDefault" className="text-sm text-gray-700">
-                                このカードをデフォルトにする
-                            </label>
-                        </div>
-                        <button
-                            onClick={() => saveAddress()}
-                            className="w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-                        >
-                            保存して終了
-                        </button>
-                    </div>
-                )}
-                {mode === MODE.Delete && (
-                    <div className="space-y-6">
-                        <h2 className="text-2xl font-bold text-center text-gray-900">
-                            お支払い方法を削除
-                        </h2>
+                                <CreditCard />
 
-                        {id === defaultCard ? (
-                            <div className="rounded-md bg-red-50 p-4 border border-red-200">
-                                <p className="text-sm text-red-600 text-center">
-                                    デフォルトの支払い方法は削除できません。<br />
-                                    デフォルトを変更してから再度お試しください。
-                                </p>
-                            </div>
-                        ) : (
-                            <p className="text-center text-gray-700 text-sm">
-                                本当に削除しますか？<br />
-                                削除後は再度の登録が必要です。
-                            </p>
-                        )}
+                            </PaymentForm>
+                        </>
+                    )}
+                    {mode === MODE.Customer && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold text-center text-gray-900">
+                                支払先住所
+                            </h2>
 
-                        <div className="space-y-2">
-                            {id !== defaultCard && (
-                                <button
-                                    onClick={() => {
-                                        api
-                                            .post("/api/card/delete", { cardId: id })
-                                            .then((res) => {
-                                                console.log(res.data);
-                                                setPayments(res.data.card);
-                                                alert("削除が完了しました。");
-                                                onClose();
-                                            })
-                                            .catch((err) => {
-                                                console.error(err);
-                                                alert("削除に失敗しました。後ほど再試行してください。");
-                                            });
-                                    }}
-                                    className="w-full px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                            <div className="h-[400px] overflow-hidden">
+                                <Swiper
+                                    modules={[Mousewheel, Scrollbar, FreeMode]}
+                                    className="swiper-container"
+                                    direction="vertical"
+                                    spaceBetween={0}
+                                    slidesPerView="auto"
+                                    freeMode={true}
+                                    mousewheel={true}
+                                    scrollbar={{ draggable: true }}
+                                    loop={false}
+                                    speed={500}
                                 >
-                                    削除する
-                                </button>
-                            )}
-
+                                    {address.map((item, index) => (
+                                        <SwiperSlide className="swiper-slide !w-full !h-auto" key={item.ID} >
+                                            <label
+                                                key={item.ID}
+                                                className="cursor-pointer flex items-center p-2 w-[300px] bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition space-x-4"
+                                            >
+                                                <input
+                                                    type="radio"
+                                                    name="address"
+                                                    value={index}
+                                                    className="mt-1"
+                                                    checked={selectAddressID === item.ID}
+                                                    onChange={() => {
+                                                        setSelectAddressID(item.ID);
+                                                    }}
+                                                />
+                                                <div className="w-full text-left space-y-1">
+                                                    <div className="font-semibold">{item.Name}</div>
+                                                    <div className="text-sm">{item.Phone}</div>
+                                                    <div className="text-sm">{item.PostCode}</div>
+                                                    <div className="text-sm">{item.Pref}</div>
+                                                    <div className="text-sm">{item.Address1}</div>
+                                                    {item.Address2 && <div className="text-sm">{item.Address2}</div>}
+                                                    {item.Address3 && <div className="text-sm">{item.Address3}</div>}
+                                                </div>
+                                            </label>
+                                        </SwiperSlide>
+                                    ))}
+                                </Swiper>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <input
+                                    type="checkbox"
+                                    id="makeDefault"
+                                    checked={makeDefault}
+                                    onChange={(e) => setMakeDefault(e.target.checked)}
+                                    className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                                />
+                                <label htmlFor="makeDefault" className="text-sm text-gray-700">
+                                    このカードをデフォルトにする
+                                </label>
+                            </div>
                             <button
-                                onClick={onClose}
-                                className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                onClick={() => saveAddress()}
+                                className="w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
-                                キャンセル
+                                保存して終了
                             </button>
                         </div>
-                    </div>
-                )}
-            </div >
-        </>
+                    )}
+                    {mode === MODE.Delete && (
+                        <div className="space-y-6">
+                            <h2 className="text-2xl font-bold text-center text-gray-900">
+                                お支払い方法を削除
+                            </h2>
+
+                            {id === defaultCard ? (
+                                <div className="rounded-md bg-red-50 p-4 border border-red-200">
+                                    <p className="text-sm text-red-600 text-center">
+                                        デフォルトの支払い方法は削除できません。<br />
+                                        デフォルトを変更してから再度お試しください。
+                                    </p>
+                                </div>
+                            ) : (
+                                <p className="text-center text-gray-700 text-sm">
+                                    本当に削除しますか？<br />
+                                    削除後は再度の登録が必要です。
+                                </p>
+                            )}
+
+                            <div className="space-y-2">
+                                {id !== defaultCard && (
+                                    <button
+                                        onClick={() => {
+                                            api
+                                                .post("/card/delete", { cardId: id })
+                                                .then((res) => {
+                                                    console.log(res.data);
+                                                    setPayments(res.data.card);
+                                                    alert("削除が完了しました。");
+                                                    onClose();
+                                                })
+                                                .catch((err) => {
+                                                    console.error(err);
+                                                    alert("削除に失敗しました。後ほど再試行してください。");
+                                                });
+                                        }}
+                                        className="w-full px-4 py-2 text-sm font-semibold text-white bg-red-600 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
+                                    >
+                                        削除する
+                                    </button>
+                                )}
+
+                                <button
+                                    onClick={onClose}
+                                    className="w-full px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-400"
+                                >
+                                    キャンセル
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
     );
 };
 

@@ -112,7 +112,7 @@ func SaveUser(user map[string]interface{}) error {
 
 // ユーザーデータを取得する関数
 func GetUserData(where []string, values []interface{}) (SqlUser, error) {
-	query := "SELECT ID, Email, Name, Password, DefaultCard, Point FROM users"
+	query := "SELECT ID, Email, Name, Password, DefaultCard, DefaultAddress, Point FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -568,14 +568,201 @@ func UpdateCartItem(userID, itemID string, quantity int, isSelected bool) error 
 	return nil
 }
 
-// スライスを結合する関数
-func join(arr []string, separator string) string {
-	result := ""
-	for i, val := range arr {
-		if i != 0 {
-			result += separator
-		}
-		result += val
+// --------------------------------------------------------------------------
+// 購入履歴関係
+// ---------------------------------------------------------------------------
+
+//　購入履歴を保存
+func SavePurchaseHistory(userID, cardID string, amount int64, items []Item,
+	addressID string, url string) (int64, error) {
+	// 購入履歴の保存してそのIDを取得
+	query := `
+		INSERT INTO purchase_history (UserID, PaymentMethod, TotalPrice, AddressID, PurchaseDate, ReceiptURL)
+		VALUES (?, ?, ?, ?, NOW(), ?)
+	`
+	result, err := config.DB.Exec(query, userID, cardID, amount, addressID, url)
+	if err != nil {
+		return 0, fmt.Errorf("購入履歴の保存に失敗: %w", err)
 	}
-	return result
+	// 取得したIDを取得
+	purchaseID, err := result.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("購入履歴のID取得に失敗: %w", err)
+	}
+	log.Printf("購入履歴を保存しました: ID=%d, UserID=%s, PaymentMethod=%s, TotalPrice=%d, AddressID=%s, ReceiptURL=%s",
+		purchaseID, userID, cardID, amount, addressID, url)
+
+	//　購入履歴のアイテムを保存
+	err = SavePurchaseItems(purchaseID, items)
+	if err != nil {
+		return 0, fmt.Errorf("%w", err)
+	}
+	return purchaseID, nil
+}
+
+// 購入履歴に領収書URLを保存
+func SaveReceiptURL(purchaseID int64, receiptURL string) error {
+	query := "UPDATE purchase_history SET ReceiptURL = ? , Status = ? WHERE ID = ?"
+	_, err := config.DB.Exec(query, receiptURL, config.OrderStatusPaid, purchaseID)
+	if err != nil {
+		return fmt.Errorf("領収書URLの保存に失敗: %w", err)
+	}
+	log.Printf("領収書URLを保存しました: PurchaseID=%d, URL=%s", purchaseID, receiptURL)
+	return nil
+}
+
+//　購入履歴のアイテムを保存
+func SavePurchaseItems(purchaseID int64, items []Item) error {
+	for _, item := range items {
+		query := `
+			INSERT INTO purchase_items (PurchaseID, ItemID, Quantity) 
+			VALUES (?, ?, ?)
+		`
+		_, err := config.DB.Exec(query, purchaseID, item.ID, item.Quantity)
+		if err != nil {
+			return fmt.Errorf("購入履歴アイテムの保存に失敗: %w", err)
+		}
+	}
+	return nil
+}
+
+// 購入履歴を取得
+func GetPurchaseHistory(userID string, limit int) ([]PurchaseHistory, error) {
+	query := `
+		SELECT ph.ID, ph.UserID, ph.PaymentMethod, ph.TotalPrice, ph.AddressID, ph.PurchaseDate, ph.ReceiptURL, ph.Status,
+		       GROUP_CONCAT(pi.ItemID SEPARATOR ',') AS ItemIDs,
+		       GROUP_CONCAT(pi.Quantity SEPARATOR ',') AS Quantities
+		FROM purchase_history ph
+		INNER JOIN purchase_items pi ON ph.ID = pi.PurchaseID
+		WHERE ph.UserID = ?
+		GROUP BY ph.ID
+		ORDER BY ph.PurchaseDate DESC
+	`
+	if limit > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limit)
+	}
+
+	var history []PurchaseHistory
+	err := config.DB.Select(&history, query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("購入履歴の取得に失敗: %w", err)
+	}
+	return history, nil
+}
+
+
+//--------------------------------------------------------------------------------------
+// ポイント関係
+//--------------------------------------------------------------------------------------
+// ポイントで決済を行う関数
+func ChargePoint(userID string, amount int64) error {
+	// ユーザーのポイントを取得
+	var user SqlUser
+	err := config.DB.Get(&user, "SELECT ID, Point FROM users WHERE ID = ?", userID)
+	if err != nil {
+		return fmt.Errorf("ユーザーの取得に失敗: %w", err)
+	}
+
+	// ポイントが足りるか確認
+	if int64(user.Point) < amount {
+		return fmt.Errorf("ポイントが不足しています")
+	}
+
+	// ポイントを減算
+	newPoint := int64(user.Point) - amount
+	_, err = config.DB.Exec("UPDATE users SET Point = ? WHERE ID = ?", newPoint, userID)
+	if err != nil {
+		return fmt.Errorf("ポイントの更新に失敗: %w", err)
+	}
+
+	log.Printf("ポイント決済成功: UserID=%s, Amount=%d", userID, amount)
+	return nil
+}
+
+// ポイントを追加する関数
+func AddPoint(userID string, amount int64) error {
+	// ユーザーのポイントを取得
+	var user SqlUser
+	err := config.DB.Get(&user, "SELECT ID, Point FROM users WHERE ID = ?", userID)
+	if err != nil {
+		return fmt.Errorf("ユーザーの取得に失敗: %w", err)
+	}
+
+	// ポイントを加算
+	newPoint := int64(user.Point) + amount
+	_, err = config.DB.Exec("UPDATE users SET Point = ? WHERE ID = ?", newPoint, userID)
+	if err != nil {
+		return fmt.Errorf("ポイントの更新に失敗: %w", err)
+	}
+
+	log.Printf("ポイント追加成功: UserID=%s, Amount=%d", userID, amount)
+	return nil
+}
+
+//---------------------------------------------------------------------------
+// 商品関係
+//---------------------------------------------------------------------------
+
+// 商品を取得
+func GetItemByID(id string) (*Item, error) {
+	var item Item
+	err := config.DB.Get(&item, "SELECT * FROM items WHERE ID = ?", id)
+	if err != nil {
+		return nil, fmt.Errorf("商品取得に失敗: %w", err)
+	}
+	return &item, nil
+}
+
+// 商品を保存
+func SaveItem(item *Item) error {
+	query := `
+		INSERT INTO items (Name, Price, CostPrice, Point, Description, CreatedAt, UpdatedAt) 
+		VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+	`
+	_, err := config.DB.Exec(query, item.Name, item.Price, item.CostPrice, item.Point, item.Description)
+	if err != nil {
+		return fmt.Errorf("商品保存に失敗: %w", err)
+	}
+	return nil
+}
+
+// 商品を更新
+func UpdateItem(id string, item *Item) error {
+	query := `
+		UPDATE items SET Name = ?, Price = ?, Description = ?, CostPrice = ?, Point = ?, UpdatedAt = NOW() WHERE ID = ?
+	`
+	_, err := config.DB.Exec(query, item.Name, item.Price, item.Description, item.CostPrice, item.Point, id)
+	if err != nil {
+		return fmt.Errorf("商品更新に失敗: %w", err)
+	}
+	return nil
+}
+
+// 商品を削除
+func DeleteItem(id string) error {
+	query := "DELETE FROM items WHERE ID = ?"
+	_, err := config.DB.Exec(query, id)
+	if err != nil {
+		return fmt.Errorf("商品削除に失敗: %w", err)
+	}
+	return nil
+}
+
+// 商品一覧を取得
+func GetAllItems() ([]Item, error) {
+	var items []Item
+	err := config.DB.Select(&items, "SELECT * FROM items")
+	if err != nil {
+		return nil, fmt.Errorf("商品一覧取得に失敗: %w", err)
+	}
+	return items, nil
+}
+
+func GetItemImages(itemID string) ([]ItemImage, error) {
+	var images []ItemImage
+	err := config.DB.Select(&images, "SELECT * FROM item_image WHERE ItemID = ? ORDER BY SortNum", itemID)
+	if err != nil {
+		return nil, fmt.Errorf("商品画像取得に失敗: %w", err)
+	}
+	return images, nil
 }

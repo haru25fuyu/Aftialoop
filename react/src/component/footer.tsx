@@ -16,7 +16,7 @@ export const Footer: React.FC = () => {
                 <li>カテゴリー５</li>
             </ul>
             <div className="menu-content">
-                <img src="logo.webp" alt="ロゴ" />
+                <img className='footer-logo' src="/../data/Logo.png" alt="ロゴ" />
                 <div className="menu">
                     <ul>
                         <li>TOP</li>

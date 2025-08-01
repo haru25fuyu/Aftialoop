@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from 'react-router-dom';
 
 import './css/App.css'
 
@@ -21,6 +21,9 @@ import NotFound from './page/NotFound';
 import Contact from './page/Contact';
 import FileTree from './page/SetFile';
 import Checkout from './page/Checkout';
+import SelectAddress from "./page/SelectAddres";
+import SelectPayment from "./page/SelectPayment";
+import CheckoutComplete from "./page/CheckoutComplete";
 
 
 function App() {
@@ -36,18 +39,23 @@ function App() {
         <Route path={`/login`} element={<Login />} />
         <Route path={`/mypage`} element={<MyPage />} />
         <Route path={`/payment/List`} element={< PaymentList />} />
-        <Route path={`/list`} element={<List />} />        
+        <Route path={`/list`} element={<List />} />
         <Route path={`/address/list`} element={<AddressList />} />
         <Route path={`/profile/edit`} element={<EditProfile />} />
         <Route path={`/profile`} element={<Profile />} />
-        <Route path={`/item`} element={<Item />} />
+        <Route path={`/item/:id`} element={<Item />} />
         <Route path={`/cart`} element={<Cart />} />
         <Route path={`*`} element={<NotFound />} />
         <Route path={`/contact`} element={<Contact />} />
         <Route path={`/filetree`} element={<FileTree />} />
         <Route path={`/checkout`} element={<Checkout />} />
         {/* <Route path={`/payment/complete`} element={<PaymentComplete />} /> */}
-      </Routes> 
+        <Route path={`/checkout/address`} element={<SelectAddress />} />
+        <Route path={`/checkout/payment`} element={<SelectPayment />} />
+        <Route path={`/checkout/complete`} element={<CheckoutComplete />} />
+        {/* <Route path={`/payment/form`} element={<PaymentForm />} /> */}
+
+      </Routes>
     </>
   )
 }

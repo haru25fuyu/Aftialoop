@@ -60,8 +60,15 @@ func main() {
 	// カートのハンドラを登録
 	cartHandler := page.NewCartHandler()
 	cartHandler.RegisterRoutes(r)
-	
-
+	// カードのハンドラを登録
+	cardHandler := page.NewCardHandler()
+	cardHandler.RegisterRoutes(r)
+	// ポイントのハンドラを登録
+	pointHandler := page.NewPointHandler()
+	pointHandler.RegisterRoutes(r)
+	// 商品のハンドラを登録
+	itemHandler := page.NewItemHandler()
+	itemHandler.RegisterRoutes(r)
 	
 	// トークンからユーザーidを取得トークンの更新
 	r.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 
-import { Address, Content } from '../types/Content';
-import api from '../conf/api';
-
-import LoginModal from '../modal/Login';
-
+import { Address, Content, Payment } from '../types/Content';
 import { Customer } from '../types/Content';
 
+import api from '../conf/api';
+import { chargeCard, chargePoint } from '../conf/function';
+
+import LoginModal from '../modal/Login';
+import SquarePayment from '../modal/EditPayment';
 
 const Checkout: React.FC = () => {
+  const navigate = useNavigate();
   const [paymentMethod, setPaymentMethod] = useState('point');
   const [error, setError] = useState('');
   const [item, setItem] = useState<Content[]>([]); // 商品情報を格納するためのステート
@@ -17,6 +20,10 @@ const Checkout: React.FC = () => {
   const [totalPoints, setTotalPoints] = useState(0);
   const [totalPrice, setTotalPrice] = useState(0);
   const [reloadTrigger, setReloadTrigger] = useState(0);
+  const [paymentList, setPaymentList] = useState<Payment[]>([]); // 支払い方法のリスト
+  const [selectCard, setSelectCard] = useState<string>(''); // 選択されたカードID
+  const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const handleLoginSuccess = () => {
     setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
   };
@@ -32,13 +39,32 @@ const Checkout: React.FC = () => {
     }
   };
 
-  useEffect(() => {
-    // ユーザー情報を取得(デフォルトアドレス、ポイント残高,決済方法など)
-    // ここでAPIを呼び出してデフォルトアドレスやポイント残高を取得する処理を追加
+  const fetchPaymentList = async () => {
+    api.post("/card/list",)
+      .then((res) => {
+        console.log(res.data);
+        if (res.data.token) {
+          localStorage.setItem("token", res.data.token); // トークン更新あれば保存
+        }
+        setPaymentList(res.data.card);
+        console.log("カード一覧取得:", res.data.card);
+      })
+      .catch((err) => {
+        console.error(err);
+      });
+  };
 
+  useEffect(() => {
     // ローカルストレージに保存されている商品情報を取得
-    const getCart: Content[] = JSON.parse(localStorage.getItem('checkout') || '{}');
+    const getCart: Content[] = JSON.parse(localStorage.getItem('checkout') || '[]');
     setItem(getCart);
+
+    console.log('Checkout page loaded with items:', getCart);
+    // カートが空ならカートページへリダイレクト
+    if (!getCart || getCart.length === 0) {
+      navigate('/cart');
+      return;
+    }
 
     api.post("customer",)
       .then((res) => {
@@ -47,16 +73,28 @@ const Checkout: React.FC = () => {
           // IDが取れなかったら強制ログアウト
           localStorage.removeItem("token");
           localStorage.removeItem("expirationTime");
-
         } else {
           setCustomer(res.data.user);
           localStorage.setItem("token", res.data.token); // トークン更新あれば保存
-          if (res.data.user.defaultAddress) {
+          // ローカルストレージから選択した住所を取得
+          const selectedAddress = localStorage.getItem('selectedAddress');
+          if (selectedAddress) {
+            const addressData: Address = JSON.parse(selectedAddress);
+            setAddress(addressData);
+            //ローカルの住所を削除
+            localStorage.removeItem('selectedAddress');
+          } else if (res.data.user.defaultAddress) {
             fetchAddress(res.data.user.defaultAddress); // デフォルトアドレスIDを使って住所情報を取得
+          } else {
+            setAddress(null); // デフォルトアドレスがない場合はnullに設定
           }
+          setSelectCard(res.data.user.defaultCard || ''); // デフォルトカードIDを
+          fetchPaymentList(); // 支払い方法のリストを取得
         }
       })
       .catch((err) => {
+        setCustomer(null);
+        setLoginModalOpen(true);
         console.error(err);
         localStorage.removeItem("token");
         localStorage.removeItem("expirationTime");
@@ -88,6 +126,12 @@ const Checkout: React.FC = () => {
 
   const canUsePoints = typeof customer?.point === 'number' && customer.point >= totalPoints;
 
+  const funcSelectCard = (cardID: string) => {
+    setPaymentMethod(`credit${cardID}`);
+    console.log(`選択されたカードID: ${cardID}`);
+    setSelectCard(cardID);
+  };
+
   const handleSubmit = () => {
     // 購入処理を実装
     setError('');
@@ -97,28 +141,39 @@ const Checkout: React.FC = () => {
         return;
       }
       // ポイント決済処理（仮）
+      chargePoint({
+        price: totalPoints,
+        cardID: '',
+        customerID: customer?.id || '',
+        items: item,
+        addressID: address?.ID || ''
+      });
       console.log('ポイントで支払い');
     } else {
       // クレカ（Square）決済処理（仮）
       // 住所と何を買ったかもサーバーに送る
-      console.log('クレジットカードで支払い');
+      console.log('クレジットカードで支払い' + selectCard);
       // ここでSquareのAPIを呼び出して決済処理を行う
-      api.post('/api/card/charge', {
-        amount: totalPrice,
-        cardID: 'ccof:CA4SEBS9lZA3FcTpxqULD7CdghYoAg',
-        customerID: customer?.id,
-      })
-        .then((res) => {
-          console.log('決済成功:', res.data);
-          // 決済成功後の処理を追加
-        })
-        .catch((err) => {
-          console.error('決済失敗:', err);
-          setError('決済に失敗しました。');
-        });
-    }
-  };
 
+      try {
+        chargeCard({
+          price: totalPrice,
+          cardID: selectCard || '',
+          customerID: customer?.id || '',
+          items: item,
+          addressID: address?.ID || ''
+        });
+      } catch (error) {
+        console.error('決済処理に失敗:', error);
+        setError('決済処理に失敗しました。');
+        return;
+      }
+    };
+    // 決済成功後の処理
+    localStorage.removeItem('checkout'); // 購入完了後はカートをクリア
+    navigate('/checkout/complete'); // 購入完了後は完了ページへリダイレクト
+    return;
+  };
   return (
     <>
       <header>
@@ -144,24 +199,52 @@ const Checkout: React.FC = () => {
             <p>{address?.Name}</p>
             <p>{address?.PostCode}</p>
             <p>{address?.Address1} {address?.Address2} {address?.Address3}</p>
-            <a href={`/address/edit/${address?.ID}`} className="text-blue-500 hover:underline text-sm">お届け先を変更する</a>
+            <Link to={`/checkout/address`} className="text-blue-500 hover:underline text-sm">お届け先を変更する</Link>
           </section>
 
           {/* 支払い方法 */}
           <section className="bg-white p-6 rounded-lg shadow-md">
             <h2 className="text-xl font-bold border-b pb-2 mb-2">💳 支払い方法</h2>
             <div className="space-y-2">
-              {customer?.defaultCard && (
-                <label className="flex items-center">
-                  <input type="radio" value="credit" checked={paymentMethod === 'credit'} onChange={() => setPaymentMethod('credit')} className="mr-2" />
-                  クレジットカード（Visa **** 1234）
-                </label>
-              )}
-              <label className="flex items-center">
-                <input type="radio" value="point" checked={paymentMethod === 'point'} onChange={() => setPaymentMethod('point')} className="mr-2" />
+              <label className="flex items-center mb-2">
+                <input
+                  type="radio"
+                  value="point"
+                  checked={paymentMethod === 'point'}
+                  onChange={() => setPaymentMethod('point')}
+                  className="mr-2"
+                />
                 ポイントで支払う（残高：{customer?.point.toLocaleString() || 0}pt）
               </label>
-              <a href="/checkout/payment" className="text-blue-500 hover:underline text-sm">支払い方法を変更する</a>
+
+              <hr className="my-4 border-t border-gray-300" />
+
+              {paymentList
+                ?.slice()
+                .sort((a, b) => {
+                  if (a.ID === customer?.defaultCard) return -1;
+                  if (b.ID === customer?.defaultCard) return 1;
+                  return 0;
+                })
+                .map((item) => (
+                  <>
+                    <label className="flex items-center mb-2" key={item.ID}>
+                      <input
+                        type="radio"
+                        value={`credit${item.ID}`}
+                        checked={paymentMethod === `credit${item.ID}`}
+                        onChange={() => funcSelectCard(item.ID)}
+                        className="mr-2"
+                      />
+                      クレジットカード（{item.CardBrand}**** {item.Last4}）
+                      <span className="text-sm text-gray-500 ml-2">
+                        有効期限: {item.ExpMonth}/{item.ExpYear}
+                      </span>
+                    </label>
+                    <hr className="my-4 border-t border-gray-300" />
+                  </>
+                ))}
+              <a onClick={() => { setIsPaymentModalOpen(true) }} className="text-blue-500 hover:underline text-sm">支払い方法を変更する</a>
             </div>
           </section>
 
@@ -198,6 +281,8 @@ const Checkout: React.FC = () => {
                 : `小計：¥${totalPrice.toLocaleString()}`}
             </p>
 
+            <span>残りポイント：{((customer?.point === undefined ? 0 : customer.point) - totalPoints).toLocaleString()}pt</span>
+
             <div className="font-bold text-lg text-center sm:flex sm:items-center sm:justify-center sm:space-x-2">
               <span>請求金額：</span>
               {paymentMethod === 'point' ? (
@@ -218,7 +303,7 @@ const Checkout: React.FC = () => {
             <button
               className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 w-full max-w-sm mx-auto"
               onClick={handleSubmit}
-              disabled={!customer || (paymentMethod === 'point' && !canUsePoints)}>
+            >
               購入を確定する
             </button>
           </section>
@@ -228,9 +313,23 @@ const Checkout: React.FC = () => {
       </main>
 
       {/* ログインモーダル */}
-      <LoginModal isOpen={!customer} onClose={() => { }} onLoginSuccess={handleLoginSuccess} showCloseButton={true} />
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => { }} onLoginSuccess={handleLoginSuccess} showCloseButton={true} />
+      {/* 支払い方法モーダル */}
+      {isPaymentModalOpen && (
+        <SquarePayment
+          setPayments={setPaymentList}
+          id={""}
+          isOpen={isPaymentModalOpen}
+          onClose={() => {
+            setReloadTrigger(prev => prev + 1); // 支払い方法を更新したらリロードトリガーを増やす
+            setIsPaymentModalOpen(false);
+          }}
+          openMode={"card"}
+
+        />
+      )}
     </>
   );
-}
+};
 
 export default Checkout;

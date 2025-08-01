@@ -7,6 +7,7 @@ export interface Content {
   main_image_url: string;
   quantity: number;
   is_selected: boolean;
+  status: number;
 }
 
 export interface Address {
@@ -40,4 +41,11 @@ export interface Customer {
   defaultAddress: string | null;
   defaultCard: string | null;
   point: number;
+}
+
+export interface itemImage {
+  id: string;
+  item_id: string;
+  url: string;
+  sort_num: number;
 }

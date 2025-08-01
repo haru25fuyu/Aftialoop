@@ -21,27 +21,40 @@ type User struct {
 
 // ユーザー情報を格納する構造体
 type SqlUser struct {
-	ID          string  `db:"ID" json:"id"`
-	Name        string  `db:"Name" json:"name"`
-	Email       string  `db:"Email" json:"email"`
-	Point       float64 `db:"Point" json:"point"`
-	Password    string  `db:"Password" json:"password"`
-	GoogleID    string  `db:"GoogleID" json:"GoogleID"`
-	AppleID     string  `db:"AppleID"`
-	DefaultCard string  `db:"DefaultCard" json:"defaultCard"`
+	ID             string  `db:"ID" json:"id"`
+	Name           string  `db:"Name" json:"name"`
+	Email          string  `db:"Email" json:"email"`
+	Point          float64 `db:"Point" json:"point"`
+	Password       string  `db:"Password" json:"password"`
+	GoogleID       string  `db:"GoogleID" json:"GoogleID"`
+	AppleID        string  `db:"AppleID"`
+	DefaultCard    string  `db:"DefaultCard" json:"defaultCard"`
+	DefaultAddress string  `db:"DefaultAddress" json:"defaultAddress"`
 }
 
 type Item struct {
-	ID           string  `db:"ID" json:"id"`
-	Name         string  `db:"Name" json:"name"`
-	Description  string  `db:"Description" json:"description"`
-	Price        float64 `db:"Price" json:"price"`
-	Point        float64 `db:"Point" json:"point"`
-	Category     int     `db:"Category" json:"category"`
-	MainImageURL string  `db:"MainImageURL" json:"main_image_url"`
-	Quantity     int     `db:"Quantity" json:"quantity"` // フロントエンドでの数量管理用
-	IsSelected   bool    `db:"IsSelected" json:"is_selected"`       // フロントエンドでのチェックボックス用
+	ID           string    `db:"ID" json:"id"`
+	Name         string    `db:"Name" json:"name"`
+	Description  string    `db:"Description" json:"description"`
+	CostPrice    float64   `db:"CostPrice" json:"cost_price"`
+	Price        float64   `db:"Price" json:"price"`
+	Point        float64   `db:"Point" json:"point"`
+	Category     int       `db:"Category" json:"category"`
+	MainImageURL string    `db:"MainImageURL" json:"main_image_url"`
+	Quantity     int       `db:"Quantity" json:"quantity"`      // フロントエンドでの数量管理用
+	Status       int       `db:"Status" json:"status"`          // 1: 有効, 2: 無効
+	IsSelected   bool      `db:"IsSelected" json:"is_selected"` // フロントエンドでのチェックボックス用
+	CreatedAt    MySQLTime `db:"CreatedAt" json:"created_at"`
+	UpdatedAt    MySQLTime `db:"UpdatedAt" json:"updated_at"`
 }
+
+type ItemImage struct {
+	ID      string `db:"ID" json:"id"`
+	ItemID  string `db:"ItemID" json:"item_id"`
+	URL     string `db:"URL" json:"url"`
+	SortNum int    `db:"SortNum" json:"sort_num"` // 画像の表示順
+}
+
 type Profile struct {
 	DateOfBirth *string `db:"DateOfBirth" json:"birth"`
 	Gender      *string `db:"Gender" json:"gender"`
@@ -95,6 +108,8 @@ type RequestCharge struct {
 	CustomerID string `db:"CustomerID" json:"customerID"`
 	CardID     string `db:"CardID" json:"cardID"`
 	Amount     int64  `db:"Amount" json:"amount"`
+	Items      []Item `db:"Items" json:"items"`         // 購入するアイテムのリスト
+	AddressID  string `db:"AddressID" json:"addressID"` // 住所ID
 }
 
 type RequestCardWithAddress struct {
@@ -112,6 +127,20 @@ type CardSummary struct {
 	Name      string `json:"Name"`
 	IsDefault bool   `json:"IsDefault"`
 }
+
+type PurchaseHistory struct {
+	ID            string    `db:"ID" json:"ID"`
+	UserID        string    `db:"UserID" json:"UserID"`
+	Items         []Item    `db:"Items" json:"Items"`
+	TotalAmount   int64     `db:"TotalAmount" json:"TotalAmount"`
+	PaymentMethod string    `db:"PaymentMethod" json:"PaymentMethod"`
+	AddressID     string    `db:"AddressID" json:"AddressID"`
+	ReceiptURL    string    `db:"ReceiptURL" json:"ReceiptURL"`
+	Status        int       `db:"Status" json:"Status"` // 1: 未決済, 2: 決済済み, 3: 発送準備中, 4: 発送済み, 5: 配送完了, 6: キャンセル, 7: 返品中, 8: 返金済み
+	CreatedAt     time.Time `db:"CreatedAt" json:"CreatedAt"`
+}
+
+type MySQLTime time.Time
 
 const jwksURL = "https://www.googleapis.com/oauth2/v3/certs"
 
@@ -269,6 +298,44 @@ func StructToMap(s interface{}) (map[string]interface{}, error) {
 	return result, nil
 }
 
+// マップを構造体に変換する関数
+func join(arr []string, separator string) string {
+	result := ""
+	for i, val := range arr {
+		if i != 0 {
+			result += separator
+		}
+		result += val
+	}
+	return result
+}
+
 func Ptr[T any](value T) *T {
 	return &value
+}
+
+func (mt *MySQLTime) Scan(value interface{}) error {
+	switch v := value.(type) {
+	case time.Time:
+		*mt = MySQLTime(v)
+	case []byte:
+		t, err := time.Parse("2006-01-02 15:04:05", string(v))
+		if err != nil {
+			return err
+		}
+		*mt = MySQLTime(t)
+	case string:
+		t, err := time.Parse("2006-01-02 15:04:05", v)
+		if err != nil {
+			return err
+		}
+		*mt = MySQLTime(t)
+	default:
+		return fmt.Errorf("unsupported type for MySQLTime: %T", value)
+	}
+	return nil
+}
+
+func (mt MySQLTime) Time() time.Time {
+	return time.Time(mt)
 }

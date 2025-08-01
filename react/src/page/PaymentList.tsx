@@ -19,7 +19,7 @@ const PaymentList: React.FC = () => {
     const [reloadTrigger, setReloadTrigger] = useState(0);
 
     useEffect(() => {
-        api.post("/api/card/list",)
+        api.post("/card/list",)
             .then((res) => {
                 console.log(res.data);
                 if (!res.data.token) {
@@ -49,19 +49,14 @@ const PaymentList: React.FC = () => {
     return (
         <div>
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-                    <div className="w-full max-w-md bg-white rounded-2xl shadow-lg overflow-y-auto max-h-[80vh] p-4 relative">
-                        <SquarePayment
-                            setPayments={setPayments}
-                            id={selectedPaymentID}
-                            isOpen={isModalOpen}
-                            onClose={() => setIsModalOpen(false)}
-                            openMode={ModalMode}
-                        />
-                    </div>
-                </div>
-            )
-            }
+                <SquarePayment
+                    setPayments={setPayments}
+                    id={selectedPaymentID}
+                    isOpen={isModalOpen}
+                    onClose={() => setIsModalOpen(false)}
+                    openMode={ModalMode}
+                />
+            )}
             <header>
                 <Header />
             </header>

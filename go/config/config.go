@@ -44,6 +44,19 @@ var ProjectID = "animaloop-1745409062037"
 var RecaptchaKey = "6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4"
 var RecaptchaAction = "LOGIN"
 
+type OrderStatus int
+
+const (
+	OrderStatusPending OrderStatus = iota + 1 // 1: 未決済
+	OrderStatusPaid                           // 2: 決済済み
+	OrderStatusPreparing                      // 3: 発送準備中
+	OrderStatusShipped                        // 4: 発送済み
+	OrderStatusDelivered                      // 5: 配送完了
+	OrderStatusCancelled                      // 6: キャンセル
+	OrderStatusReturned                       // 7: 返品中
+	OrderStatusRefunded                       // 8: 返金済み
+)
+
 
 func Init() {
 	// MySQL接続

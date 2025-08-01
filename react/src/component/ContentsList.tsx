@@ -16,8 +16,7 @@ export const ContentsList: React.FC<Props> = ({ contents, Component, show_num = 
   if (slider) {
     return (
       <div className='slider'>
-        <Swiper
-          className="swiper-container"
+        <Swiper          
           {...(vertical ? { direction: "vertical" } : {})} // 縦方向スライダーにする
           spaceBetween={1}
           slidesPerView={show_num}

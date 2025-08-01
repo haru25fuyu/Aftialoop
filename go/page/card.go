@@ -25,14 +25,14 @@ func NewCardHandler() *cardHandler {
 
 // RegisterRoutes がルーティングの登録を行います
 func (h *cardHandler) RegisterRoutes(r *mux.Router) {
-	r.HandleFunc("/api/card/save", h.SaveCard).Methods("POST")
-	r.HandleFunc("/api/card/charge", h.ChargeCard).Methods("POST")
-	r.HandleFunc("/api/card/address", h.SaveCardAddress).Methods("POST")
-	r.HandleFunc("/api/card/list", h.ListCards).Methods("GET")
-	r.HandleFunc("/api/card/delete", h.DeleteCard).Methods("POST")
-	r.HandleFunc("/api/card/default", h.SetDefaultCard).Methods("POST")
-	r.HandleFunc("/api/card/address/get", h.GetCardAddress).Methods("POST")
-	r.HandleFunc("/api/card/get", h.ListCards).Methods("POST") // 住所のリスト取得
+	r.HandleFunc("/card/save", h.SaveCard).Methods("POST")
+	r.HandleFunc("/card/charge", h.ChargeCard).Methods("POST")
+	r.HandleFunc("/card/address", h.SaveCardAddress).Methods("POST")
+	r.HandleFunc("/card/list", h.ListCards).Methods("POST")
+	r.HandleFunc("/card/delete", h.DeleteCard).Methods("POST")
+	r.HandleFunc("/card/default", h.SetDefaultCard).Methods("POST")
+	r.HandleFunc("/card/address/get", h.GetCardAddress).Methods("POST")
+	r.HandleFunc("/card/get", h.GetCard).Methods("POST") // 住所のリスト取得
 }
 
 // クレジットカードの保存
@@ -99,6 +99,15 @@ func (h *cardHandler) ChargeCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Println(charge)
+
+	// 購入履歴を保存
+	Purchase_ID,erro := function.SavePurchaseHistory(claims.ID, charge.CardID, charge.Amount, charge.Items, charge.AddressID, "")
+	if erro != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "購入履歴の保存に失敗しました" + erro.Error()})
+		return
+	}
+
 	// 支払い処理
 	url, erro := function.ChargeCard(claims.ID, charge.CardID, charge.Amount)
 	if erro != nil {
@@ -108,8 +117,21 @@ func (h *cardHandler) ChargeCard(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println("支払い成功")
 
-	// 購入履歴を保存
+	SaveReceiptURL := function.SaveReceiptURL(Purchase_ID, url)
+	if SaveReceiptURL != nil {
+		// レシートURLの保存に失敗(ログに残すがそのまま続行する)
+		log.Printf("レシートURLの保存に失敗: %v", SaveReceiptURL)
+	}
 
+	for _, item := range charge.Items {
+		DeleteCartItem := function.DeleteCartItem(claims.ID, item.ID)
+		if DeleteCartItem != nil {
+			// カートアイテムの削除に失敗(ログに残すがそのまま続行する)
+			log.Printf("カートアイテムの削除に失敗: %v", DeleteCartItem)
+		}
+	}
+
+	// 支払い完了メールの送信
 	htmlContent := fmt.Sprintf(`<h3>%s様</h3><br />
 	<P>ご購入ありがとうございます。</p><br />
 	<p>以下の内容でお支払いが完了しました。</p><br />
@@ -397,8 +419,17 @@ func (h *cardHandler) GetCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	responseCard := function.CardSummary{
+		ID:        *cardData.Card.ID,
+		Brand:     string(*cardData.Card.CardBrand),
+		Last4:     *cardData.Card.Last4,
+		ExpMonth:  int(*cardData.Card.ExpMonth),
+		ExpYear:   int(*cardData.Card.ExpYear),
+		Disabled:  cardData.Card.Enabled != nil && !*cardData.Card.Enabled,
+	}
+
 	response := map[string]interface{}{
-		"card":       cardData.Card, // カード情報のリストを取得
+		"card":       responseCard,
 		"CustomerID": cardData.Card.CustomerID,
 		"token":      token,
 	}
