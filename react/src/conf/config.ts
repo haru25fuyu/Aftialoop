@@ -25,7 +25,7 @@ const ORDER_STATUS = {
   [OrderStatus.Refunded]: "返金済み",
 };
 
-const ITEM__STATUS = {
+const ITEM__STATUS   = {
   IS_ON_SALE:    1 << 0, // 販売中
   HAS_RESTOCK:   1 << 1, // 再入荷
   ACCEPTS_ORDER: 1 << 2, // 受注可

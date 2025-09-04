@@ -313,7 +313,7 @@ const Checkout: React.FC = () => {
       </main>
 
       {/* ログインモーダル */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => { }} onLoginSuccess={handleLoginSuccess} showCloseButton={true} />
+      <LoginModal isOpen={isLoginModalOpen} onClose={() => { setLoginModalOpen(false) }} onLoginSuccess={handleLoginSuccess} showCloseButton={true} />
       {/* 支払い方法モーダル */}
       {isPaymentModalOpen && (
         <SquarePayment

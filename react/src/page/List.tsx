@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useLocation } from "react-router-dom";
 
 import { Content } from '../types/Content.ts';
@@ -10,40 +10,72 @@ import api from '../conf/api.ts';
 
 import '../css/List.css';
 
+
 const List: React.FC = () => {
-    const search = useLocation().search;
-    const query = new URLSearchParams(search);
-    const type = query.get('type');
+    //const search = useLocation().search;
+    //const query = new URLSearchParams(search);
+    //const type = query.get('type');
+    const [contents, setContents] = React.useState<Content[]>([]);
 
-    const contents: Content[] = [];
-    api.get(`list?type=${type}`).then((res) => {
-        contents.push(res.data);
-        console.log(contents);
-    }).catch((err) => {
-        console.error(err);
-    });
-
-    const Contents: Content[] = [
-        { id: '1', name: '商品1', discription: "商品1の説明", price: 1000,point:1000, image_url: '/data/Logo.JPG' },
-        { id: '2', name: '商品2', discription: "商品1の説明", price: 2000,point:2000, image_url: '/data/Logo.JPG' },
-        { id: '3', name: '商品3', discription: "商品1の説明", price: 3000,point:3000, image_url: '/data/Logo.JPG' },
-        { id: '4', name: '商品4', discription: "商品1の説明", price: 4000,point:4000, image_url: '/data/Logo.JPG' },
-        { id: '5', name: '商品5', discription: "商品1の説明", price: 5000,point:5000, image_url: '/data/Logo.JPG' },
-        { id: '6', name: '商品6', discription: "商品1の説明", price: 6000,point:6000, image_url: '/data/Logo.JPG' },
-        { id: '7', name: '商品7', discription: "商品1の説明", price: 7000,point:7000, image_url: '/data/Logo.JPG' },
-        { id: '8', name: '商品8', discription: "商品1の説明", price: 8000,point:8000, image_url: '/data/Logo.JPG' },
-        { id: '9', name: '商品9', discription: "商品1の説明", price: 9000,point:9000, image_url: '/data/Logo.JPG' },
-        { id: '10', name: '商品10', discription: "商品1の説明", price: 10000,point:10000, image_url: '/data/Logo.JPG' },
-    ];
+    useEffect(() => {
+        api.post(`item/list?`).then((res) => {
+            setContents(res.data);
+            console.log(res.data);
+        }).catch((err) => {
+            console.error(err);
+        });
+    }, []);
 
     return (
         <div>
             <header>
                 <Header />
-                <MainImage image={"/data/IMG_3589.JPG"} title={"GOODS LIST"} />
+                {/*<MainImage image={"/data/IMG_3589.JPG"} title={"GOODS LIST"} />*/}
             </header>
-            <main>
-                <ContentsList contents={Contents} Component={ImageContent} />
+            <main className=" w-full">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-[90%] mx-auto">
+                    {contents.map((item) => (
+                        <div
+                            key={item.id}
+                            className="flex flex-row md:flex-col border rounded shadow-sm bg-white p-4"
+                        >
+                            {/* 画像 */}
+                            <img
+                                src={item.main_image_url}
+                                alt={item.name}
+                                className="w-24 h-32 object-cover rounded md:w-full md:h-auto"
+                            />
+
+                            {/* 詳細情報 */}
+                            <div className="flex flex-col justify-between flex-1 ml-3 md:ml-0 md:mt-3 text-sm">
+                                <div>
+                                    <h3 className="font-semibold text-gray-800 text-sm md:text-base line-clamp-2">
+                                        {item.name}
+                                    </h3>
+
+                                    <div className="text-yellow-500 text-xs mt-1">
+                                        ★ 5.0 <span className="text-gray-500">({100})</span>
+                                    </div>
+
+                                    <div className="text-red-600 font-bold text-lg mt-1">
+                                        {item.price.toLocaleString()}円
+                                    </div>
+
+                                    <div className="text-xs text-pink-600 mt-1">
+                                        {item.point}ポイント <span className="text-red-500">(3%)</span>
+                                    </div>
+
+                                    <div className="text-xs text-blue-600 mt-1">prime 翌日配送</div>
+                                    <div className="text-xs text-gray-500">無料配送 {item.arrivalDate} にお届け</div>
+                                </div>
+
+                                <button className="bg-yellow-400 hover:bg-yellow-500 text-black text-sm font-semibold py-2 w-full rounded mt-3">
+                                    カートに入れる
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </main>
 
         </div>

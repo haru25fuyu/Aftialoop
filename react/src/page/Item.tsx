@@ -5,11 +5,14 @@ import { Header } from '../component/Header';
 import { Footer } from '../component/Footer';        // ← .tsx は不要
 import DirectCheckoutModal from '../component/DirectCheckoutModal';
 
+import { CartAddBar } from '../SnackBar/AddCart'; // ← カート追加バー
+
 import { Content } from '../types/Content';
 import { itemImage } from '../types/Content';  // ← itemImage をインポート
 
 import api from '../conf/api';
-import { GetItemStatusLabels } from '../conf/function'; // getItemStatusLabels をインポート
+import { hasAllFlags } from '../conf/function'; // getItemStatusLabels をインポート
+import { ITEM__STATUS } from '../conf/config'; // ITEM__STATUS をインポート
 
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
@@ -36,6 +39,8 @@ const Item: React.FC = () => {
     const [selectQuantity, setSelectQuantity] = useState(1);
     const location = useLocation();
     const { id } = useParams<{ id: string }>();
+    const [orderFlag, setOrderFlag] = useState(false);
+    const [showCartBar, setShowCartBar] = useState(false);
 
     useEffect(() => {
         if (!id) {
@@ -48,8 +53,8 @@ const Item: React.FC = () => {
                 if (res.data) {
                     setItem(res.data.item);
                     setImages(res.data.images || []);
+                    setOrderFlag(hasAllFlags(res.data.item.status, [ITEM__STATUS.ACCEPTS_ORDER, ITEM__STATUS.HAS_RESTOCK]));
                     console.log('商品情報:', res.data.item);
-                    console.log('商品画像:', res.data.images);
                 } else {
                     console.error('商品情報が取得できませんでした');
                 }
@@ -58,7 +63,6 @@ const Item: React.FC = () => {
                 console.error('APIエラー:', err);
             });
 
-        console.log('商品ID:', id);
     }, [location.search]);
 
     const decrement = () => {
@@ -71,13 +75,41 @@ const Item: React.FC = () => {
 
     const increment = () => {
         setSelectQuantity(selectQuantity + 1);
+        if (item && selectQuantity >= item.quantity) {
+            alert(`在庫は ${item.quantity} 個です。`);
+            setSelectQuantity(item.quantity);
+            console.log("在庫数を超えています。数量を在庫数に設定しました。");
+        }
     };
+
 
     const AddCart = () => {
         if (!item) {
             alert('商品情報がありません');
             return;
         }
+        if (selectQuantity <= 0) {
+            alert('数量は1以上で入力してください。');
+            return;
+        }
+
+        // 受注可能かどうかチェック
+        if (item.quantity <= 0 && !orderFlag) {
+            alert('この商品は現在在庫がありません。');
+            return;
+        }
+        else if (item.quantity <= 0 && orderFlag) {
+            const ok = window.confirm("この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？");
+            if (!ok) {
+                console.log("ユーザーがキャンセルしました");
+                return;
+            }
+        }
+        else if (item.quantity < selectQuantity) {
+            alert(`在庫は ${item.quantity} 個です。`);
+            return;
+        }
+
         const token = localStorage.getItem('token');
         const addItem: Content = { ...item, quantity: selectQuantity };
         if (!token) {
@@ -87,11 +119,31 @@ const Item: React.FC = () => {
                 .then(res => console.log('カートに追加しました:', res.data))
                 .catch(() => addLocalCart(addItem));
         }
-        console.log('カートに追加');
+        setShowCartBar(true);
     };
 
     const Purchase = () => {
-        console.log('購入手続きへ');
+        if (!item) {
+            alert('商品情報がありません');
+            return;
+        }
+        if (selectQuantity <= 0) {
+            alert('数量は1以上で入力してください。');
+            return;
+        }
+
+        // 受注可能かどうかチェック
+        if (item.quantity <= 0 && !orderFlag) {
+            alert('この商品は現在在庫がありません。');
+            return;
+        } else if (item.quantity <= 0 && orderFlag) {
+            const ok = window.confirm("この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？");
+            if (!ok) {
+                console.log("ユーザーがキャンセルしました");
+                return;
+            }
+        }
+        setShowModal(true);
     };
 
     return (
@@ -130,14 +182,24 @@ const Item: React.FC = () => {
                                     <p>
                                         <span className="font-semibold text-gray-600 text-2xl">{item.point.toLocaleString()}</span> pt(ポイントで購入)
                                     </p>
-                                    <p className="mt-2">
-                                        <span className="font-semibold text-gray-600">在庫:</span>{" "}
-                                        {item.quantity > 0 ? (
-                                            <span className="text-green-600 font-medium">{item.quantity} 個</span>
-                                        ) : (
-                                            <span className="text-red-500 font-medium">在庫切れ{GetItemStatusLabels(item.status)}</span>
+                                    <>
+                                        <p className="mt-2">
+                                            <span className="font-semibold text-gray-600">在庫:</span>{" "}
+                                            {item.quantity > 0 ? (
+                                                <span className="text-green-600 font-medium">{item.quantity} 個</span>
+                                            ) : (
+                                                <span className="text-red-500 font-medium">
+                                                    在庫切れ{orderFlag ? "(お取り寄せ)" : ""}
+                                                </span>
+                                            )}
+                                        </p>
+                                        {orderFlag && item.quantity <= 0 && (
+                                            <div className="text-sm text-red-500 mt-1">
+                                                ※お届けまでに時間がかかる場合があります。
+                                            </div>
                                         )}
-                                    </p>
+                                    </>
+
 
                                     <div className="flex items-center justify-between bg-white rounded-2xl px-4 py-3 shadow-sm w-full">
                                         {/* ラベル */}
@@ -170,7 +232,7 @@ const Item: React.FC = () => {
                                         </div>
                                     </div>
                                     <button className="w-full rounded-xl bg-yellow-400 text-black hover:bg-yellow-200 p-2 mt-3 transition" onClick={AddCart}>カートに入れる</button>
-                                    <button className="w-full rounded-xl bg-orange-400 text-black hover:bg-orange-200 p-2 mt-3 transition" onClick={() => { setShowModal(true); Purchase(); }}>
+                                    <button className="w-full rounded-xl bg-orange-400 text-black hover:bg-orange-200 p-2 mt-3 transition" onClick={() => { Purchase(); }}>
                                         購入手続きへ
                                     </button>
                                 </div>
@@ -197,6 +259,13 @@ const Item: React.FC = () => {
             ) : (
                 <p>商品情報が取得できませんでした。</p>
             )}
+
+            <CartAddBar
+                visible={showCartBar}
+                onClose={() => setShowCartBar(false)}
+                onViewCart={() => (window.location.href = '/cart')}
+                item={item}  // カート追加バーに商品情報を渡す
+            />
 
             <Footer />
         </div>

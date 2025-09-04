@@ -70,3 +70,8 @@ export function GetItemStatusLabels(status: number): string[] {
     .map(({ flag, yes, no }) => (status & flag ? yes : no))
     .filter((label): label is string => label !== null);
 }
+export function hasAllFlags(status: number, flags: number[]): boolean {
+  const combined = flags.reduce((acc, f) => acc | f, 0);
+  return (status & combined) === combined;
+}
+
