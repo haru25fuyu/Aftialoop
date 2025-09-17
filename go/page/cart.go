@@ -2,6 +2,7 @@ package page
 
 import (
 	"animaloop/function"
+	"animaloop/utils"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -12,11 +13,14 @@ import (
 // cartHandler は /cart 系のエンドポイントをまとめたハンドラです
 type cartHandler struct {
 	// ここに DB やサービスを注入しても OK
+	db *function.Database
 }
 
 // NewCartHandler はハンドラのコンストラクタ
-func NewCartHandler() *cartHandler {
-	return &cartHandler{}
+func NewCartHandler(db *function.Database) *cartHandler {
+	return &cartHandler{
+		db: db,
+	}
 }
 
 // RegisterRoutes がルーティングの登録を行います
@@ -32,7 +36,7 @@ func (h *cartHandler) RegisterRoutes(r *mux.Router) {
 }
 
 func (h *cartHandler) AddCart(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 
 	if err != "" || token == "" {
 		log.Println("トークンが無効です:", err)
@@ -51,7 +55,7 @@ func (h *cartHandler) AddCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// リクエストボディから商品情報を取得(複数の商品情報を受け取った場合も想定する)
-	var items []function.Item
+	var items []utils.Item
 	erro = json.NewDecoder(r.Body).Decode(&items)
 	if erro != nil {
 		log.Println("リクエストボディの解析に失敗:", erro)
@@ -66,7 +70,7 @@ func (h *cartHandler) AddCart(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid item data", http.StatusBadRequest)
 			return
 		}
-		erro = function.AddToCart(claims.ID, item)
+		erro = h.db.AddToCart(claims.ID, item)
 		if erro != nil {
 			log.Println("カートへの追加に失敗:", erro)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -81,7 +85,7 @@ func (h *cartHandler) AddCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *cartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 
 	if err != "" || token == "" {
 		log.Println("トークンが無効です:", err)
@@ -100,7 +104,7 @@ func (h *cartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// カートのアイテムを取得する処理を実装
-	cartItems, erro := function.GetCartItems(claims.ID)
+	cartItems, erro := h.db.GetCartItems(claims.ID)
 	if erro != nil {
 		log.Println("カートのアイテム取得に失敗:", erro)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -109,7 +113,7 @@ func (h *cartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//ユーザー情報を取得
-	userData, erro := function.GetUserData([]string{"ID = ?"}, []interface{}{claims.ID})
+	userData, erro := h.db.GetUserData([]string{"ID = ?"}, []interface{}{claims.ID})
 	if erro != nil {
 		log.Println("ユーザー情報の取得に失敗:", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -120,7 +124,7 @@ func (h *cartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	log.Println("カートのアイテムが取得されました:", cartItems)
 	w.WriteHeader(http.StatusOK)
 	CartResponse := struct {
-		Cart  []function.Item `json:"cart"`
+		Cart  []utils.Item `json:"cart"`
 		Point float64         `json:"point"`
 	}{
 		Cart:  cartItems,
@@ -131,7 +135,7 @@ func (h *cartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *cartHandler) DeleteCart(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 
 	if err != "" || token == "" {
 		log.Println("トークンが無効です:", err)
@@ -150,7 +154,7 @@ func (h *cartHandler) DeleteCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//　リクエストボディから削除するアイテムの情報を取得
-	var item function.Item
+	var item utils.Item
 	erro = json.NewDecoder(r.Body).Decode(&item)
 	if erro != nil {
 		log.Println("リクエストボディの解析に失敗:", erro)
@@ -158,7 +162,7 @@ func (h *cartHandler) DeleteCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// カートからアイテムを削除する処理を実装
-	erro = function.DeleteCartItem(claims.ID, item.ID)
+	erro = h.db.DeleteCartItem(claims.ID, item.ID)
 	if erro != nil {
 		log.Println("カートのアイテム削除に失敗:", erro)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -171,7 +175,7 @@ func (h *cartHandler) DeleteCart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *cartHandler) EditCart(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 
 	if err != "" || token == "" {
 		log.Println("トークンが無効です:", err)
@@ -190,7 +194,7 @@ func (h *cartHandler) EditCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// リクエストボディから編集内容を取得
-	var item function.Item
+	var item utils.Item
 	erro = json.NewDecoder(r.Body).Decode(&item)
 	if erro != nil {
 		log.Println("リクエストボディの解析に失敗:", erro)
@@ -200,7 +204,7 @@ func (h *cartHandler) EditCart(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("編集内容:", item)
 	// カートのアイテムを編集する処理を実装
-	erro = function.UpdateCartItem(claims.ID, item.ID, item.Quantity, item.IsSelected)
+	erro = h.db.UpdateCartItem(claims.ID, item.ID, item.Quantity, item.IsSelected)
 	if erro != nil {
 		log.Println("カートのアイテム編集に失敗:", erro)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -209,7 +213,7 @@ func (h *cartHandler) EditCart(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//カート情報の取得
-	cartItems, erro := function.GetCartItems(claims.ID)
+	cartItems, erro := h.db.GetCartItems(claims.ID)
 	if erro != nil {
 		log.Println("カートのアイテム取得に失敗:", erro)
 		w.WriteHeader(http.StatusInternalServerError)

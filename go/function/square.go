@@ -2,6 +2,7 @@ package function
 
 import (
 	"animaloop/config"
+	"animaloop/utils"
 	"context"
 	"fmt"
 	"log"
@@ -10,7 +11,7 @@ import (
 	square "github.com/square/square-go-sdk"
 )
 
-func CreateCustomer(user SqlUser) (string, error) {
+func CreateCustomer(user utils.SqlUser) (string, error) {
 	response, err := config.SquareClient.Customers.Create(
 		context.TODO(),
 		&square.CreateCustomerRequest{
@@ -67,7 +68,7 @@ func CheckSquareEmail(email string) bool {
 	return false
 }
 
-func CreateCard(card RequestCard) (string, error) {
+func CreateCard(card utils.RequestCard) (string, error) {
 	response, err := config.SquareClient.Cards.Create(
 		context.TODO(),
 		&square.CreateCardRequest{
@@ -121,7 +122,7 @@ func ChargeCard(customerID, cardID string, amount int64) (string, error) {
 	return *resp.Payment.ReceiptURL, err
 }
 
-func GetCardList(customerID string) ([]CardSummary, error) {
+func GetCardList(customerID string) ([]utils.CardSummary, error) {
 	response, err := config.SquareClient.Cards.List(
 		context.TODO(),
 		&square.ListCardsRequest{
@@ -132,13 +133,13 @@ func GetCardList(customerID string) ([]CardSummary, error) {
 		return nil, fmt.Errorf("failed to list cards: %w", err)
 	}
 	fmt.Printf("RESPONSE TYPE: %T\n", response)
-	summaries := []CardSummary{}
+	summaries := []utils.CardSummary{}
 
 	iter := response.Iterator()
 
 	for iter.Next(context.TODO()) {
 		card := iter.Current()
-		summaries = append(summaries, CardSummary{
+		summaries = append(summaries, utils.CardSummary{
 			ID:        *card.ID,
 			Brand:     string(*card.CardBrand),
 			Last4:     *card.Last4,

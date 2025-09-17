@@ -25,9 +25,7 @@ import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
 import CheckoutComplete from "./page/CheckoutComplete";
 
-
-function App() {
-
+const App: React.FC = () => {
   return (
     <>
       <Routes>
@@ -39,6 +37,12 @@ function App() {
         <Route path={`/login`} element={<Login />} />
         <Route path={`/mypage`} element={<MyPage />} />
         <Route path={`/payment/List`} element={< PaymentList />} />
+        <Route path={`/list/search/:query`} element={<List />} />
+        <Route path={`/list/:category/:subCategory`} element={<List />} />
+        <Route path={`/list/:category/search/:query`} element={<List />} />
+        <Route path={`/list/:category/:subCategory/search/:query`} element={<List />} />
+        <Route path={`/list/:category`} element={<List />} />
+        <Route path={`/list/search/:query`} element={<List />} />
         <Route path={`/list`} element={<List />} />
         <Route path={`/address/list`} element={<AddressList />} />
         <Route path={`/profile/edit`} element={<EditProfile />} />

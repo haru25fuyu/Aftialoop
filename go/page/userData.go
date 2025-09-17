@@ -2,6 +2,7 @@ package page
 
 import (
 	"animaloop/function"
+	"animaloop/utils"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,12 +16,15 @@ import (
 
 // userDataHandler は /user 系のエンドポイントをまとめたハンドラです
 type userDataHandler struct {
+	db *function.Database
 	// ここに DB やサービスを注入しても OK
 }
 
 // NewUserDataHandler はハンドラのコンストラクタ
-func NewUserDataHandler() *userDataHandler {
-	return &userDataHandler{}
+func NewUserDataHandler(db *function.Database) *userDataHandler {
+	return &userDataHandler{
+		db: db,
+	}
 }
 
 // RegisterRoutes がルーティングの登録を行います
@@ -40,7 +44,7 @@ func (h *userDataHandler) RegisterRoutes(r *mux.Router) {
 
 // マイページの取得
 func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
-	token, res := function.CheckUser(w, r)
+	token, res := function.CheckUser(h.db, w, r)
 	if res != "" || token == "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": res})
@@ -48,7 +52,7 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 	}
 	log.Println(token)
 	// トークンを検証
-	var claims *function.User
+	var claims *utils.User
 	claims, err := function.GetUserFromToken(token)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -71,7 +75,7 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		h, err := function.GetHistory(claims.ID, 0)
+		h, err := h.db.GetHistory(claims.ID, 0)
 		if err != nil {
 			errCh <- err
 			return
@@ -83,7 +87,7 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		f, err := function.GetFavoriteItems(claims.ID, 0)
+		f, err := h.db.GetFavoriteItems(claims.ID, 0)
 		if err != nil {
 			errCh <- err
 			return
@@ -95,7 +99,7 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		u, err := function.GetUserData([]string{"id"}, []interface{}{claims.ID})
+		u, err := h.db.GetUserData([]string{"id"}, []interface{}{claims.ID})
 		if err != nil {
 			errCh <- err
 			return
@@ -127,7 +131,7 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 
 // ユーザー情報取得
 func (h *userDataHandler) GetcustomerData(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
@@ -144,7 +148,7 @@ func (h *userDataHandler) GetcustomerData(w http.ResponseWriter, r *http.Request
 	}
 
 	// IDを返す
-	userData, erro := function.GetUserDataAndProfile([]string{"u.ID=?"}, []interface{}{claims.ID})
+	userData, erro := h.db.GetUserDataAndProfile([]string{"u.ID=?"}, []interface{}{claims.ID})
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + erro.Error()})
@@ -162,7 +166,7 @@ func (h *userDataHandler) GetcustomerData(w http.ResponseWriter, r *http.Request
 
 // ユーザー情報取得
 func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -179,7 +183,7 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザー情報取得
-	userData, erro := function.GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
+	userData, erro := h.db.GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "userデータの取得に失敗しました: " + erro.Error()})
@@ -187,7 +191,7 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// プロフィール情報取得
-	profileData, erro := function.GetProfile(claims.ID)
+	profileData, erro := h.db.GetProfile(claims.ID)
 	if erro != nil {
 		log.Println("DB取得失敗:", erro)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -222,7 +226,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, erro := function.CheckUser(w, r)
+	token, erro := function.CheckUser(h.db, w, r)
 	if erro != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -237,7 +241,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var request function.RequestUserProfile
+	var request utils.RequestUserProfile
 	err = json.Unmarshal([]byte(r.FormValue("data")), &request)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -284,16 +288,16 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	log.Println(file)
 
 	// ユーザー情報を取得
-	user := function.SqlUser{
+	user := utils.SqlUser{
 		ID:    claims.ID,
 		Name:  request.Name,
 		Email: request.Email,
 	}
 
 	// 既存プロフィールを取得（←これがキモ！）
-	existingProfile, _ := function.GetProfile(claims.ID)
+	existingProfile, _ := h.db.GetProfile(claims.ID)
 
-	profile := function.Profile{
+	profile := utils.Profile{
 		DateOfBirth: function.Ptr(request.DateOfBirth),
 		Gender:      function.Ptr(request.Gender),
 		PhoneNumber: function.Ptr(request.PhoneNumber),
@@ -313,7 +317,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ユーザー情報更新
-	err = function.UpdateUser(claims.ID, user_map)
+	err = h.db.UpdateUser(claims.ID, user_map)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーデータの更新に失敗しました： " + err.Error()})
@@ -328,7 +332,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// プロフィール情報更新
-	err = function.UpdateProfile(claims.ID, profile_map)
+	err = h.db.UpdateProfile(claims.ID, profile_map)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "プロフィールの更新に失敗しました： " + err.Error()})
@@ -340,7 +344,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -355,7 +359,7 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerData, erro := function.GetUserData([]string{"ID = ?"}, []interface{}{claims.ID})
+	customerData, erro := h.db.GetUserData([]string{"ID = ?"}, []interface{}{claims.ID})
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "カスタマーデータの取得に失敗しました: " + erro.Error()})

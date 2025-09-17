@@ -2,22 +2,28 @@ package function
 
 import (
 	"animaloop/config"
+	"animaloop/utils"
 	"context"
 	"fmt"
 	"log"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
 	recaptcha "cloud.google.com/go/recaptchaenterprise/v2/apiv1"
 	recaptchapb "cloud.google.com/go/recaptchaenterprise/v2/apiv1/recaptchaenterprisepb"
+	"github.com/MicahParks/keyfunc"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ses"
 	"github.com/aws/aws-sdk-go-v2/service/ses/types"
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
+func CheckUser(db *Database, w http.ResponseWriter, r *http.Request) (string, string) {
 	authHeader := r.Header.Get("Authorization")
 
 	// まずは Cookie を試しに取得
@@ -31,9 +37,9 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 
 	var (
 		token   string
-		user    *User
+		user    *utils.User
 		err     error
-		setUser *User
+		setUser *utils.User
 	)
 
 	// Bearer トークンがあればアクセス検証を試みる
@@ -69,7 +75,7 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 		}
 		// もしリフレッシュの有効期限が近ければ Cookie を更新
 		if time.Until(time.Unix(user.Exp, 0)) < 7*24*time.Hour {
-			SetRefreshToken(w, user)
+			SetRefreshToken(db, w, user)
 		}
 		return newToken, ""
 	}
@@ -85,17 +91,17 @@ func CheckUser(w http.ResponseWriter, r *http.Request) (string, string) {
 	}
 	// 既存のリフレッシュトークンが古い or missing なら更新
 	if cookieErr != nil {
-		SetRefreshToken(w, user)
+		SetRefreshToken(db, w, user)
 	} else {
 		// 有効期限切れ間近なら更新
 		if time.Until(time.Unix(user.Exp, 0)) < 7*24*time.Hour {
-			SetRefreshToken(w, user)
+			SetRefreshToken(db, w, user)
 		}
 	}
 	return newToken, ""
 }
 
-func SetRefreshToken(w http.ResponseWriter, user *User) error {
+func SetRefreshToken(db *Database, w http.ResponseWriter, user *utils.User) error {
 	expires_at := time.Now().Add(24 * time.Hour * 14)
 
 	refreshToken, err := GenerateRefreshToken(user)
@@ -113,7 +119,7 @@ func SetRefreshToken(w http.ResponseWriter, user *User) error {
 		Secure:   true,
 	})
 
-	SaveRefreshToken(refreshToken, user.ID)
+	db.SaveRefreshToken(refreshToken, user.ID)
 
 	return nil
 }
@@ -179,7 +185,7 @@ func CreateAssessment(token string) {
 	}
 }
 
-func PrioritizeCard(cards []CardSummary, defaultID string) []CardSummary {
+func PrioritizeCard(cards []utils.CardSummary, defaultID string) []utils.CardSummary {
 	for i := range cards {
 		if cards[i].ID == defaultID {
 			cards[i].IsDefault = true // ← これでOK！
@@ -192,7 +198,7 @@ func PrioritizeCard(cards []CardSummary, defaultID string) []CardSummary {
 	return cards
 }
 
-func LoadUserAndCards(token string) ([]*CardSummary, error) {
+func LoadUserAndCards(db *Database, token string) ([]*utils.CardSummary, error) {
 	// トークンからID取得
 	claims, err := GetUserFromToken(token)
 	if err != nil {
@@ -200,7 +206,7 @@ func LoadUserAndCards(token string) ([]*CardSummary, error) {
 	}
 
 	// ユーザー情報取得
-	userData, err := GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
+	userData, err := db.GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
 	if err != nil {
 		return nil, fmt.Errorf("ユーザー取得失敗: %w", err)
 	}
@@ -216,7 +222,7 @@ func LoadUserAndCards(token string) ([]*CardSummary, error) {
 
 	// カード情報をポインタのスライスに変換
 	// これをしないと、カード情報がコピーされてしまう
-	var cardDataPointers []*CardSummary
+	var cardDataPointers []*utils.CardSummary
 	for i := range cardData {
 		cardDataPointers = append(cardDataPointers, &cardData[i])
 	}
@@ -250,4 +256,189 @@ func SendMail(to string, subject string, htmlContent string) (*ses.SendEmailOutp
 	res, err := client.SendEmail(context.TODO(), input)
 
 	return res, err
+}
+
+// JWTを生成する関数
+func GenerateToken(user *utils.User) (string, error) {
+	claims := jwt.MapClaims{
+		"id":    user.ID,
+		"email": user.Email,
+		"name":  user.Name,
+		"exp":   time.Now().Add(time.Duration(user.Limit) * time.Hour).Unix(), // 例: 1時間の有効期限
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(config.SECRET_KEY))
+}
+
+// リフレッシュトークンを生成する関数
+func GenerateRefreshToken(user *utils.User) (string, error) {
+	claims := jwt.MapClaims{
+		"id":    user.ID,
+		"email": user.Email,
+		"name":  user.Name,
+		"exp":   time.Now().Add(14 * 24 * time.Hour).Unix(), // 例: 14日間の有効期限
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(config.SECRET_REFRESH_KEY))
+}
+
+// トークンからユーザー情報を取得する関数
+func GetUserFromToken(tokenString string) (*utils.User, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return config.SECRET_KEY, nil
+	})
+
+	if err != nil || !token.Valid {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	user := &utils.User{
+		ID:    claims["id"].(string),
+		Email: claims["email"].(string),
+		Name:  claims["name"].(string),
+		Exp:   int64(claims["exp"].(float64)),
+	}
+
+	return user, nil
+}
+
+// リフレッシュトークンからユーザー情報を取得する関数
+func GetUserFromRefreshToken(tokenString string) (*utils.User, error) {
+	if tokenString == "" {
+		return nil, fmt.Errorf("invalid token")
+	}
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+		}
+		return config.SECRET_REFRESH_KEY, nil
+	})
+
+	if err != nil || !token.Valid {
+		return nil, err
+	}
+
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if !ok || !token.Valid {
+		return nil, fmt.Errorf("invalid token")
+	}
+
+	id, ok := claims["id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("id claim is missing or not a string")
+	}
+	email, ok := claims["email"].(string)
+	if !ok {
+		return nil, fmt.Errorf("email claim is missing or not a string")
+	}
+	name, ok := claims["name"].(string)
+	if !ok {
+		return nil, fmt.Errorf("name claim is missing or not a string")
+	}
+
+	user := &utils.User{
+		ID:    id,
+		Email: email,
+		Name:  name,
+	}
+
+	return user, nil
+}
+
+// パスワードをハッシュ化する関数
+func HashPassword(password string) (string, error) {
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+	return string(hashedPassword), nil
+}
+
+// パスワードを検証する関数
+func ComparePassword(hashedPassword, password string) error {
+	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
+}
+
+// サーバー側でアクセストークンを使ってユーザー情報を取得する関数
+func GetGoogleUserInfo(tokenString string) (map[string]interface{}, error) {
+	// 公開鍵セット（JWKS）を取得
+	jwks, err := keyfunc.Get(config.JwksURL, keyfunc.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("JWKS取得失敗: %w", err)
+	}
+
+	// JWTを検証付きでパース
+	token, err := jwt.Parse(tokenString, jwks.Keyfunc)
+	if err != nil {
+		return nil, fmt.Errorf("トークン検証失敗: %w", err)
+	}
+
+	if !token.Valid {
+		return nil, fmt.Errorf("トークンが無効です")
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	return claims, nil
+}
+
+// 構造体をマップに変換する関数
+func StructToMap(s interface{}) (map[string]interface{}, error) {
+	// 受け取った構造体の値を取得
+	val := reflect.ValueOf(s)
+	if val.Kind() == reflect.Ptr {
+		val = val.Elem() // ポインタをデリファレンスする
+	}
+	if val.Kind() != reflect.Struct {
+		return nil, fmt.Errorf("expected a struct, got %s", val.Kind())
+	}
+
+	// 構造体をマップに変換
+	result := make(map[string]interface{})
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Type().Field(i)
+		result[field.Name] = val.Field(i).Interface()
+	}
+
+	return result, nil
+}
+
+// マップを構造体に変換する関数
+func join(arr []string, separator string) string {
+	result := ""
+	for i, val := range arr {
+		if i != 0 {
+			result += separator
+		}
+		result += val
+	}
+	return result
+}
+
+func Ptr[T any](value T) *T {
+	return &value
+}
+
+// 文字列（xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）→ 16バイト
+func UUIDStringToBytes(s string) ([]byte, error) {
+    id, err := uuid.Parse(s)
+    if err != nil { return nil, err }
+    b := id // uuid.UUID は [16]byte のエイリアス
+    return b[:], nil
+}
+
+// 16バイト → ハイフン付きの文字列（36文字）
+func UUIDBytesToString(b []byte) (string, error) {
+    id, err := uuid.FromBytes(b)
+    if err != nil { return "", err }
+    return id.String(), nil
 }

@@ -2,6 +2,7 @@ package page
 
 import (
 	"animaloop/function"
+	"animaloop/utils"
 	"encoding/json"
 	"net/http"
 
@@ -10,12 +11,14 @@ import (
 
 // addressHandler は /address 系のエンドポイントをまとめたハンドラです
 type addressHandler struct {
-	// ここに DB やサービスを注入しても OK
+	db *function.Database
 }
 
 // NewAddressHandler はハンドラのコンストラクタ
-func NewAddressHandler() *addressHandler {
-	return &addressHandler{}
+func NewAddressHandler(db *function.Database) *addressHandler {
+	return &addressHandler{
+		db: db,
+	}
 }
 
 // RegisterRoutes がルーティングの登録を行います
@@ -32,7 +35,7 @@ func (h *addressHandler) RegisterRoutes(r *mux.Router) {
 
 // アドレスの更新
 func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -48,7 +51,7 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//リクエストボディから更新情報を取得
-	var address function.Address
+	var address utils.Address
 	erro = json.NewDecoder(r.Body).Decode(&address)
 	if erro != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -65,15 +68,15 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 	if address.ID == "" {
 		// アドレスの新規保存
 		address_map["UserID"] = claims.ID
-		erro = function.SaveAddress(address_map)
+		erro = h.db.SaveAddress(address_map)
 	} else {
 		// アドレスの更新
-		erro = function.UpdateAddress(address.ID, address_map)
+		erro = h.db.UpdateAddress(address.ID, address_map)
 	}
 
 	if address.Status == 1 {
 		// デフォルトアドレスの更新
-		erro = function.SetStatusAddress(claims.ID, address.ID)
+		erro = h.db.SetStatusAddress(claims.ID, address.ID)
 	}
 
 	if erro != nil {
@@ -88,7 +91,7 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 
 // アドレスの取得
 func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
-	_, err := function.CheckUser(w, r)
+	_, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -96,7 +99,7 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//　postからIDを取得
-	var address function.Address
+	var address utils.Address
 	erro := json.NewDecoder(r.Body).Decode(&address)
 	if erro != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -104,7 +107,7 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// アドレスの取得
-	addressData, erro := function.GetAddress(address.ID)
+	addressData, erro := h.db.GetAddress(address.ID)
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})
@@ -117,7 +120,7 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 
 // アドレスの削除
 func (h *addressHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
-	_, err := function.CheckUser(w, r)
+	_, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -125,7 +128,7 @@ func (h *addressHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//　postからIDを取得
-	var address function.Address
+	var address utils.Address
 	erro := json.NewDecoder(r.Body).Decode(&address)
 	if erro != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -133,7 +136,7 @@ func (h *addressHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// アドレスの削除
-	erro = function.DeleteAddress(address.ID)
+	erro = h.db.DeleteAddress(address.ID)
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました"})
@@ -146,7 +149,7 @@ func (h *addressHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 
 // アドレスリストの取得
 func (h *addressHandler) ListAddresses(w http.ResponseWriter, r *http.Request) {
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -162,7 +165,7 @@ func (h *addressHandler) ListAddresses(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// アドレスリストの取得
-	addressData, erro := function.GetAddressList(claims.ID)
+	addressData, erro := h.db.GetAddressList(claims.ID)
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})

@@ -3,22 +3,29 @@ package page
 import (
 	"animaloop/config"
 	"animaloop/function"
+	"animaloop/utils"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
+	mysql "github.com/go-sql-driver/mysql"
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
 // signupHandler は /signup 系のエンドポイントをまとめたハンドラです
 type signupHandler struct {
 	// ここに DB やサービスを注入しても OK
+	db *function.Database
 }
 
 // NewSignupHandler はハンドラのコンストラクタ
-func NewSignupHandler() *signupHandler {
-	return &signupHandler{}
+func NewSignupHandler(db *function.Database) *signupHandler {
+	return &signupHandler{
+		db: db,
+	}
 }
 
 // RegisterRoutes がルーティングの登録を行います
@@ -31,7 +38,7 @@ func (h *signupHandler) RegisterRoutes(r *mux.Router) {
 // 仮登録
 func (h *signupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	//リクエストボディからパスワードとメールアドレスを取得
-	var user function.SqlUser
+	var user utils.SqlUser
 	err := json.NewDecoder(r.Body).Decode(&user)
 	if err != nil {
 		log.Println("エラーが発生しました")
@@ -48,7 +55,7 @@ func (h *signupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sql_mail, err := function.EmailCheck(user.Email)
+	sql_mail, err := h.db.EmailCheck(user.Email)
 	square_mail := function.CheckSquareEmail(user.Email)
 
 	if sql_mail || square_mail {
@@ -65,7 +72,7 @@ func (h *signupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// トークン生成
-	token, err := function.SetRegistrationToken(&user)
+	token, err := h.db.SetRegistrationToken(&user)
 	if err != nil {
 		log.Fatalf("Failed to set registration token: %s", err)
 		http.Error(w, "Could not set registration token", http.StatusInternalServerError)
@@ -127,7 +134,7 @@ func (h *signupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	userData, err := function.GetUserFromRegistrationToken(token)
+	userData, err := h.db.GetUserFromRegistrationToken(token)
 	if err != nil {
 		log.Println("エラーが発生しました", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -143,7 +150,10 @@ func (h *signupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	userData.ID = id
+	// 外部（Square）のCustomerIDはCustomerIDフィールドへ、
+	// ユーザーの主キーIDは独立したUUIDで生成する
+	userData.CustomerID = id
+	userData.ID = uuid.New().String()
 	prm, err := function.StructToMap(userData)
 	if err != nil {
 		log.Println("エラーが発生しました", err)
@@ -152,16 +162,65 @@ func (h *signupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = function.SaveUser(prm)
+	err = h.db.SaveUser(prm)
 	log.Println(prm["password"])
 	if err != nil {
-		log.Println("エラーが発生しました", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
-		return
+		// 重複キー(1062)などの一意制約違反を判定
+		if me, ok := err.(*mysql.MySQLError); ok && me.Number == 1062 {
+			// ID衝突（PRIMARYキー）なら UUID を再発行して最大3回まで再試行
+			if strings.Contains(me.Message, "ID") || strings.Contains(me.Message, "PRIMARY") {
+				const maxRetry = 3
+				var lastErr error
+				for i := 0; i < maxRetry; i++ {
+					userData.ID = uuid.New().String()
+					prm["ID"] = userData.ID
+					if lastErr = h.db.SaveUser(prm); lastErr == nil {
+						err = nil
+						break
+					}
+					if me2, ok2 := lastErr.(*mysql.MySQLError); !(ok2 && me2.Number == 1062) {
+						// 別のエラーに変わったら中断
+						break
+					}
+				}
+				if err != nil { // 初回の err を成功時に上書きしているので、ここで確認
+					if lastErr != nil {
+						log.Println("ユーザーID重複の再試行にも失敗", lastErr)
+					}
+					w.WriteHeader(http.StatusConflict)
+					json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザー登録が競合しました。時間をおいてもう一度お試しください。"})
+					return
+				}
+			} else if strings.Contains(me.Message, "Email") {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"err_message": "このメールアドレスは既に登録されています"})
+				return
+			} else if strings.Contains(me.Message, "CustomerID") {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"err_message": "この外部IDは既に紐づいています"})
+				return
+			} else if strings.Contains(me.Message, "GoogleID") {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"err_message": "この外部IDは既に紐づいています"})
+				return
+			}else if strings.Contains(me.Message, "AppleID") {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"err_message": "この外部IDは既に紐づいています"})
+				return
+			} else {
+				w.WriteHeader(http.StatusConflict)
+				json.NewEncoder(w).Encode(map[string]string{"err_message": "既に登録済みのデータが存在します"})
+				return
+			}
+		} else {
+			log.Println("エラーが発生しました", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})
+			return
+		}
 	}
 
-	err = function.SaveProfile(userData.ID, map[string]interface{}{})
+	err = h.db.SaveProfile(userData.ID, map[string]interface{}{})
 	if err != nil {
 		log.Println("エラーが発生しました", err)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -170,7 +229,7 @@ func (h *signupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 	}
 
 	// トークン削除
-	err = function.DeleteRegistrationToken(token)
+	err = h.db.DeleteRegistrationToken(token)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました"})

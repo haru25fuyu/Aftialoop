@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"animaloop/function"
+	"animaloop/utils"
 
 	"github.com/gorilla/mux"
 )
@@ -15,11 +16,14 @@ import (
 // pointHandler は /point 系のエンドポイントをまとめたハンドラです
 type pointHandler struct {
 	// ここに DB やサービスを注入しても OK
+	db *function.Database
 }
 
 // NewPointHandler はハンドラのコンストラクタ
-func NewPointHandler() *pointHandler {
-	return &pointHandler{}
+func NewPointHandler(db *function.Database) *pointHandler {
+	return &pointHandler{
+		db: db,
+	}
 }
 
 // RegisterRoutes がルーティングの登録を行います
@@ -30,7 +34,7 @@ func (h *pointHandler) RegisterRoutes(r *mux.Router) {
 // ChargePoint はポイント決済のエンドポイントです
 func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	// ポイント決済の処理を実装
-	token, err := function.CheckUser(w, r)
+	token, err := function.CheckUser(h.db, w, r)
 	if err != "" {
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
@@ -46,7 +50,7 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// リクエストボディから支払い情報を取得
-	var charge function.RequestCharge
+	var charge utils.RequestCharge
 	erro = json.NewDecoder(r.Body).Decode(&charge)
 	if erro != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -55,7 +59,7 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	log.Println(charge)
 
 	// 購入履歴を保存
-	Purchase_ID, erro := function.SavePurchaseHistory(claims.ID, "point", charge.Amount, charge.Items, charge.AddressID, "")
+	Purchase_ID, erro := h.db.SavePurchaseHistory(claims.ID, "point", charge.Amount, charge.Items, charge.AddressID, "")
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "購入履歴の保存に失敗しました" + erro.Error()})
@@ -63,7 +67,7 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ポイント決済の処理を実行
-	erro = function.ChargePoint(claims.ID, charge.Amount)
+	erro = h.db.ChargePoint(claims.ID, charge.Amount)
 	if erro != nil {
 		log.Printf("ポイント決済に失敗: %v", erro)
 		w.WriteHeader(http.StatusInternalServerError)
@@ -73,14 +77,14 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 
 	log.Println("支払い成功")
 
-	SaveReceiptURL := function.SaveReceiptURL(Purchase_ID, "")
+	SaveReceiptURL := h.db.SaveReceiptURL(Purchase_ID, "")
 	if SaveReceiptURL != nil {
 		// レシートURLの保存に失敗(ログに残すがそのまま続行する)
 		log.Printf("レシートURLの保存に失敗: %v", SaveReceiptURL)
 	}
 
 	for _, item := range charge.Items {
-		DeleteCartItem := function.DeleteCartItem(claims.ID, item.ID)
+		DeleteCartItem := h.db.DeleteCartItem(claims.ID, item.ID)
 		if DeleteCartItem != nil {
 			// カートアイテムの削除に失敗(ログに残すがそのまま続行する)
 			log.Printf("カートアイテムの削除に失敗: %v", DeleteCartItem)

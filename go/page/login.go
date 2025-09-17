@@ -2,6 +2,7 @@ package page
 
 import (
 	"animaloop/function"
+	"animaloop/utils"
 
 	"encoding/json"
 	"log"
@@ -18,13 +19,17 @@ type TokenResponse struct {
 
 // loginHandler は /login 系のエンドポイントをまとめたハンドラです
 type loginHandler struct {
+	db *function.Database
 	// ここに DB やサービスを注入しても OK
 }
 
 // NewLoginHandler はハンドラのコンストラクタ
-func NewLoginHandler() *loginHandler {
-	return &loginHandler{}
+func NewLoginHandler(db *function.Database) *loginHandler {
+	return &loginHandler{
+		db: db,
+	}
 }
+
 
 // RegisterRoutes がルーティングの登録を行います
 func (h *loginHandler) RegisterRoutes(r *mux.Router) {
@@ -34,7 +39,7 @@ func (h *loginHandler) RegisterRoutes(r *mux.Router) {
 }
 
 func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var query function.SqlUser
+	var query utils.SqlUser
 	err := json.NewDecoder(r.Body).Decode(&query)
 	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -47,7 +52,7 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := function.GetUserData([]string{"Email = ?"}, []interface{}{query.Email})
+	user, err := h.db.GetUserData([]string{"Email = ?"}, []interface{}{query.Email})
 	if user.Email == "" || err != nil {
 		log.Println("ユーザーが存在しません", err)
 		w.WriteHeader(http.StatusUnauthorized)
@@ -66,7 +71,7 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// トークン生成
-	var token_data function.User
+	var token_data utils.User
 	token_data.ID = user.ID
 	token_data.Email = user.Email
 	token_data.Name = user.Name
@@ -78,7 +83,7 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	function.SetRefreshToken(w, &token_data)
+	function.SetRefreshToken(h.db, w, &token_data)
 
 	response := TokenResponse{
 		AccessToken: token,
@@ -93,7 +98,7 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	// トークンを取得(psotリクエスト)
-	var get function.Token
+	var get utils.Token
 
 	// Decode 成功＋Tokenあり を同時にチェック！
 	err := json.NewDecoder(r.Body).Decode(&get)
@@ -122,11 +127,11 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	// トークンのデータを取得
 	email := payload["email"].(string)
 	//並列でメールアドレスをチェックする
-	sql_mail, err := function.EmailCheck(email)
+	sql_mail, err := h.db.EmailCheck(email)
 	square_mail := function.CheckSquareEmail(email)
 	if sql_mail || square_mail {
 		// ユーザーが存在する場合はログイン処理
-		user, err := function.GetUserData([]string{"Email = ?"}, []interface{}{email})
+		user, err := h.db.GetUserData([]string{"Email = ?"}, []interface{}{email})
 
 		if user.Email == "" || err != nil {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -134,13 +139,13 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = function.UpdateUser(user.ID, map[string]interface{}{
+		err = h.db.UpdateUser(user.ID, map[string]interface{}{
 			"name":      payload["name"].(string),
 			"google_id": payload["sub"].(string),
 		})
 
 		// トークン生成
-		var token_data function.User
+		var token_data utils.User
 		token_data.ID = user.ID
 		token_data.Email = user.Email
 		token_data.Name = payload["name"].(string)
@@ -154,7 +159,7 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// refresh_tokenをOnlyクッキーに
-		err = function.SetRefreshToken(w, &token_data)
+		err = function.SetRefreshToken(h.db, w, &token_data)
 
 		if err != nil {
 			http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
@@ -173,7 +178,7 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザーが存在しない場合はユーザーを作成
-	user := function.SqlUser{
+	user := utils.SqlUser{
 		Email:    email,
 		Name:     payload["name"].(string),
 		GoogleID: payload["sub"].(string),
@@ -196,7 +201,7 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ユーザーを作成
-	err = function.SaveUser(prm)
+	err = h.db.SaveUser(prm)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
@@ -204,7 +209,7 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// プロフィールを作成
-	err = function.SaveProfile(user.ID, map[string]interface{}{})
+	err = h.db.SaveProfile(user.ID, map[string]interface{}{})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
@@ -212,7 +217,7 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//　アクセストークンとリフレッシュトークンを生成
-	var token_data function.User
+	var token_data utils.User
 	token_data.ID = user.ID
 	token_data.Email = user.Email
 	token_data.Name = user.Name
@@ -226,7 +231,7 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// refresh_tokenをOnlyクッキーに
-	err = function.SetRefreshToken(w, &token_data)
+	err = function.SetRefreshToken(h.db, w, &token_data)
 	if err != nil {
 		http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
 		return

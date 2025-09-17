@@ -4,8 +4,7 @@ import (
 	"log"
 	"os"
 
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
+	//_ "github.com/go-function-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/square/square-go-sdk"
 	client "github.com/square/square-go-sdk/client"
@@ -19,30 +18,31 @@ var AllowedOrigins = []string{
 	// 他の許可したいオリジンを追加
 }
 
-var googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
-var googleOAuthClientSecret string;
+const googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
+var googleOAuthClientSecret string
 
 // MySQL接続情報
-var DB *sqlx.DB
-var DB_user = "admin"
-var DB_password = "hU3!K1%26LOSfK"
-var DB_host = "localhost"
-var DB_port = "3306"
-var DB_name = "Animaloop"
-var DB_charset = "utf8mb4"
+const DB_user = "admin"
+const DB_password = "hU3!K1%26LOSfK"
+const DB_host = "localhost"
+const DB_port = "3306"
+const DB_name = "Animaloop"
+const DB_charset = "utf8mb4"
 
-var FromEmail = "info@aftialoop.com"
-var FromName = "Animaloop"
-var FromEmailPassword =	"Animaloop1234"
+const FromEmail = "info@aftialoop.com"
+const FromName = "Animaloop"
+const FromEmailPassword = "Animaloop1234"
+
+const JwksURL = "https://www.googleapis.com/oauth2/v3/certs"
 
 var MAILJET_API_KEY, MAILJET_API_SECRET, SQUARE_ACCESS_TOKEN string
 var SECRET_KEY, SECRET_REFRESH_KEY []byte
 
 var SquareClient = client.NewClient()
 
-var ProjectID = "animaloop-1745409062037"
-var RecaptchaKey = "6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4"
-var RecaptchaAction = "LOGIN"
+const ProjectID = "animaloop-1745409062037"
+const RecaptchaKey = "6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4"
+const RecaptchaAction = "LOGIN"
 
 type OrderStatus int
 
@@ -61,8 +61,7 @@ const (
 func Init() {
 	// MySQL接続
 	var err error
-	dsn := DB_user + ":" + DB_password + "@tcp(" + DB_host + ":" + DB_port + ")/" + DB_name + "?charset=" + DB_charset
-	DB, err = sqlx.Open("mysql", dsn)
+	
 	if err != nil {
 		log.Fatal("MySQL接続エラー:", err)
 	}
