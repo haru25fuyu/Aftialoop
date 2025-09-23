@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useLocation, useParams, useNavigate } from "react-router-dom";
 
 import { Header } from "../component/Header";
 //import { Footer } from '../component/Footer';        // ← .tsx は不要
 import DirectCheckoutModal from "../component/DirectCheckoutModal";
 import BottomBarPortal from "../component/BottomBarPortal"
-import { CartAddBar } from "../SnackBar/AddCart"; // ← カート追加バー
+import QuestionModal from "../modal/QuestionModal";
 
 import { Content } from "../types/Content";
 import { itemImage } from "../types/Content"; // ← itemImage をインポート
@@ -18,19 +18,6 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
 import "swiper/swiper-bundle.css";
 
-// ローカルストレージ用カート追加関数
-const addLocalCart = (item: Content) => {
-    const cart: Content[] = JSON.parse(localStorage.getItem("cart") || "[]");
-    const idx = cart.findIndex((ci) => ci.id === item.id);
-    if (!item.quantity) return;
-    if (idx !== -1) {
-        cart[idx].quantity = (cart[idx].quantity || 1) + item.quantity;
-    } else {
-        cart.push({ ...item, quantity: item.quantity });
-    }
-    localStorage.setItem("cart", JSON.stringify(cart));
-};
-
 // コンポーネント名は大文字で始めるのが慣例
 const Item: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
@@ -40,7 +27,14 @@ const Item: React.FC = () => {
     const location = useLocation();
     const { id } = useParams<{ id: string }>();
     const [orderFlag, setOrderFlag] = useState(false);
-    const [showCartBar, setShowCartBar] = useState(false);
+    const navigate = useNavigate();
+    const [showQModal, setShowQModal] = useState(false);
+
+    const handleSendQuestion = async (text: string) => {
+        if (!item) return;
+        await api.post("/items/question", { itemId: item.id, text });
+        // 必要ならトースト表示や、店側の通知処理へ
+    };
 
     useEffect(() => {
         if (!id) {
@@ -87,70 +81,15 @@ const Item: React.FC = () => {
         }
     };
 
-    const AddCart = () => {
-        if (!item) {
-            alert("商品情報がありません");
-            return;
-        }
-        if (selectQuantity <= 0) {
-            alert("数量は1以上で入力してください。");
-            return;
-        }
+    const goCheckout = () => {
+        if (!item) return alert("商品情報がありません");
+        if (selectQuantity <= 0) return alert("数量は1以上で入力してください。");
 
-        // 受注可能かどうかチェック
-        if (item.quantity <= 0 && !orderFlag) {
-            alert("この商品は現在在庫がありません。");
-            return;
-        } else if (item.quantity <= 0 && orderFlag) {
-            const ok = window.confirm(
-                "この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？"
-            );
-            if (!ok) {
-                console.log("ユーザーがキャンセルしました");
-                return;
-            }
-        } else if (item.quantity < selectQuantity) {
-            alert(`在庫は ${item.quantity} 個です。`);
-            return;
-        }
-
-        const token = localStorage.getItem("token");
-        const addItem: Content = { ...item, quantity: selectQuantity };
-        if (!token) {
-            addLocalCart(addItem);
-        } else {
-            api
-                .post("/cart/add", [addItem])
-                .then((res) => console.log("カートに追加しました:", res.data))
-                .catch(() => addLocalCart(addItem));
-        }
-        setShowCartBar(true);
-    };
-
-    const Purchase = () => {
-        if (!item) {
-            alert("商品情報がありません");
-            return;
-        }
-        if (selectQuantity <= 0) {
-            alert("数量は1以上で入力してください。");
-            return;
-        }
-
-        // 受注可能かどうかチェック
-        if (item.quantity <= 0 && !orderFlag) {
-            alert("この商品は現在在庫がありません。");
-            return;
-        } else if (item.quantity <= 0 && orderFlag) {
-            const ok = window.confirm(
-                "この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？"
-            );
-            if (!ok) {
-                console.log("ユーザーがキャンセルしました");
-                return;
-            }
-        }
-        setShowModal(true);
+        // 在庫/取り寄せチェックはお好みで流用
+        // ここでは簡略化して遷移
+        navigate("/checkout", {
+            state: { item, quantity: selectQuantity } // 受け側で location.state を参照
+        });
     };
 
     return (
@@ -194,7 +133,7 @@ const Item: React.FC = () => {
                                         <span className="font-semibold text-gray-600 text-2xl">
                                             {item.point.toLocaleString()}
                                         </span>{" "}
-                                        pt(ポイントで購入)
+                                        pt(全額ポイントで購入)
                                     </p>
                                     <>
                                         <p className="mt-2">
@@ -217,6 +156,7 @@ const Item: React.FC = () => {
                                     </>
                                     <BottomBarPortal>
                                         {/* 数量・カート・購入ボタン固定バー */}
+                                        {/* 数量指定はあるやつだけにする */}
                                         <div className=" fixed bottom-0 left-0 right-0 z-50 bg-white shadow-lg h-[130px] p-3 md:static md:shadow-none md:p-0">
                                             <div className="flex items-center justify-between w-full mb-3 md:mb-0">
                                                 <span className="text-gray-800 text-base w-16">数量</span>
@@ -250,13 +190,13 @@ const Item: React.FC = () => {
                                             <div className="flex gap-2">
                                                 <button
                                                     className="flex-1 rounded-xl bg-yellow-400 text-black hover:bg-yellow-200 p-3 transition font-medium"
-                                                    onClick={AddCart}
+                                                    onClick={() => setShowQModal(true)}
                                                 >
-                                                    カートに入れる
+                                                    質問をする
                                                 </button>
                                                 <button
                                                     className="flex-1 rounded-xl bg-orange-400 text-black hover:bg-orange-200 p-3 transition font-medium"
-                                                    onClick={Purchase}
+                                                    onClick={goCheckout}
                                                 >
                                                     購入手続きへ
                                                 </button>
@@ -274,7 +214,7 @@ const Item: React.FC = () => {
                         </div>
                     </div>
 
-                    <h2>レビュー</h2>
+                    <h2>コメント</h2>
                     {/* レビューリスト */}
 
                     <DirectCheckoutModal
@@ -288,14 +228,17 @@ const Item: React.FC = () => {
                 <p>商品情報が取得できませんでした。</p>
             )}
 
-            <CartAddBar
-                visible={showCartBar}
-                onClose={() => setShowCartBar(false)}
-                onViewCart={() => (window.location.href = "/cart")}
-                item={item} // カート追加バーに商品情報を渡す
+            <QuestionModal
+                isOpen={showQModal}
+                onClose={() => setShowQModal(false)}
+                onSend={handleSendQuestion}
+                roomTitle={item?.name ? `${item.name} に関するお問い合わせ` : "お問い合わせ"}
+                roomSubtitle="通常1営業日以内に返信"
+                shopAvatarUrl="/images/shop_avatar.png"   // 任意
+                shopOnline
             />
         </div>
     );
 };
 
-export default Item; // ← コンポーネント名と一致！
+export default Item; 

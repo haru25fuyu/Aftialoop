@@ -83,9 +83,9 @@ func (d *Database) GetUserFromRegistrationToken(token string) (utils.SqlUser, er
 	var result utils.SqlUser
 	err := d.DB.Get(&result, query, token, time.Now())
 
-		if err == sql.ErrNoRows {
-			return result, fmt.Errorf("invalid token")
-		}
+	if err == sql.ErrNoRows {
+		return result, fmt.Errorf("invalid token")
+	}
 	return result, nil
 }
 
@@ -130,9 +130,9 @@ func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlU
 	}
 	var user utils.SqlUser
 	err := d.DB.Get(&user, query, values...)
-		if err == sql.ErrNoRows {
-			return user, fmt.Errorf("user not found")
-		}
+	if err == sql.ErrNoRows {
+		return user, fmt.Errorf("user not found")
+	}
 	return user, nil
 }
 
@@ -190,18 +190,18 @@ func (d *Database) GetProfile(id string) (utils.Profile, error) {
 	query := "SELECT DateOfBirth,Gender,PhoneNumber,Bio,IconURL FROM profile WHERE UserID = ?"
 	var profile utils.Profile
 	err := d.DB.Get(&profile, query, id)
-		if err == sql.ErrNoRows {
-			saveErr := d.SaveProfile(id, map[string]interface{}{})
-			if saveErr != nil {
-				return profile, fmt.Errorf("プロフィール作成に失敗しました: %v", saveErr)
-			}
-			// 再度取得
-			err = d.DB.Get(&profile, query, id)
-			if err != nil {
-				return profile, fmt.Errorf("プロフィール取得に失敗しました: %v", err)
-			}
+	if err == sql.ErrNoRows {
+		saveErr := d.SaveProfile(id, map[string]interface{}{})
+		if saveErr != nil {
+			return profile, fmt.Errorf("プロフィール作成に失敗しました: %v", saveErr)
 		}
-		return profile, err
+		// 再度取得
+		err = d.DB.Get(&profile, query, id)
+		if err != nil {
+			return profile, fmt.Errorf("プロフィール取得に失敗しました: %v", err)
+		}
+	}
+	return profile, err
 }
 
 // ユーザーのデフォルトカードを設定する関数
@@ -482,9 +482,9 @@ func (d *Database) GetCardAddressByID(cardID string) (utils.CardSummary, error) 
 	query := "SELECT ID FROM cards WHERE ID = ?"
 	var card utils.CardSummary
 	err := d.DB.Get(&card, query, cardID)
-		if err == sql.ErrNoRows {
-			return card, fmt.Errorf("card not found")
-		}
+	if err == sql.ErrNoRows {
+		return card, fmt.Errorf("card not found")
+	}
 	return card, nil
 }
 
@@ -532,9 +532,9 @@ func (d *Database) GetCartItems(userID string) ([]utils.Item, error) {
 	`
 	var items []utils.Item
 	err := d.DB.Select(&items, query, userID)
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("cart is empty")
-		}
+	if err == sql.ErrNoRows {
+		return nil, fmt.Errorf("cart is empty")
+	}
 	return items, nil
 }
 

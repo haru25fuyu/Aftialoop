@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+html, body, #root {
+  height: 100%;
+}
+
+html, body {
+  overscroll-behavior-y: none;
+  /* 伸縮/チェーン抑止（iOSでも効くこと多い） */
+}
+
+@layer components {
+  .input {
+    @apply w-full h-11 px-3 rounded-xl border outline-none bg-white;
+  }
+
+  .btn {
+    @apply h-9 px-3 rounded-xl border bg-gray-100 hover:bg-gray-200;
+  }
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;

@@ -172,7 +172,7 @@ func DeleteCard(cardID string) error {
 	return err
 }
 
-func GetCardByID(cardID string) (*square.GetCardResponse , error) {
+func GetCardByID(cardID string) (*square.GetCardResponse, error) {
 	response, err := config.SquareClient.Cards.Get(
 		context.TODO(),
 		&square.GetCardsRequest{
