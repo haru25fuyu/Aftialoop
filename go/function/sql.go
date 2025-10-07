@@ -124,7 +124,7 @@ func (d *Database) SaveUser(user map[string]interface{}) error {
 
 // ユーザーデータを取得する関数
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT ID, Email, Name, Password, DefaultCard, DefaultAddress, Point FROM users"
+	query := "SELECT ID, Email, Name, Password, DefaultCard, Point FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -373,6 +373,7 @@ func (d *Database) SaveAddress(address map[string]interface{}) error {
 	query := fmt.Sprintf("INSERT INTO addresses (%s) VALUES (%s)", join(columns, ","), placeholders)
 
 	_, err := d.DB.Exec(query, values...)
+
 	return err
 }
 
@@ -411,6 +412,14 @@ func (d *Database) GetAddressList(user_id string) ([]utils.Address, error) {
 	var addresses []utils.Address
 	err := d.DB.Select(&addresses, query, user_id)
 	return addresses, err
+}
+
+// デフォルトの住所を取得
+func (d *Database) GetDefaultAddress(user_id string) (utils.Address, error) {
+	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,Status FROM addresses WHERE UserID = ? AND Status = 1 LIMIT 1"
+	var address utils.Address
+	err := d.DB.Get(&address, query, user_id)
+	return address, err
 }
 
 // --------------------------------------------------------------------------
@@ -762,4 +771,149 @@ func (d *Database) GetItemImages(itemID string) ([]utils.ItemImage, error) {
 		return nil, fmt.Errorf("商品画像取得に失敗: %w", err)
 	}
 	return images, nil
+}
+
+// フリーマーケット関係
+// 一覧（削除除外・新しい順）
+// 一覧（削除除外・新しい順）
+func (d *Database) ListFleaMarketItems(limit, offset int) ([]utils.FleaMarketItem, error) {
+	var items []utils.FleaMarketItem
+	const q = `
+	  SELECT *
+	  FROM flea_market_items
+	  WHERE DeletedAt IS NULL
+	  ORDER BY CreatedAt DESC
+	  LIMIT ? OFFSET ?
+	`
+	if err := d.DB.Select(&items, q, limit, offset); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+// 単体取得（削除除外）
+func (d *Database) GetFleaMarketItemByID(id int64) (*utils.FleaMarketItem, error) {
+	var item utils.FleaMarketItem
+	const q = `
+	  SELECT *
+	  FROM flea_market_items
+	  WHERE id = ? AND deleted_at IS NULL
+	  LIMIT 1
+	`
+	if err := d.DB.Get(&item, q, id); err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+// 画像取得（削除済みでも参照したい運用ならこのまま、除外したいなら items 同様に条件を）
+func (d *Database) GetFleaMarketItemImages(itemID int64) ([]utils.FleaMarketItemImage, error) {
+	var imgs []utils.FleaMarketItemImage
+	const q = `
+	  SELECT *
+	  FROM flea_market_item_images
+	  WHERE item_id = ?
+	  ORDER BY sort_order
+	`
+	if err := d.DB.Select(&imgs, q, itemID); err != nil {
+		return nil, err
+	}
+	return imgs, nil
+}
+
+// 作成（アイテム＋画像をトランザクションで）
+func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketItemInput) (id int64, err error) {
+	tx, err := d.DB.Beginx()
+	if err != nil {
+		return 0, err
+	}
+
+	// トランザクションの安全な終了（panic対策＋errに応じてcommit/rollback）
+	defer func() {
+		if p := recover(); p != nil {
+			_ = tx.Rollback()
+			panic(p)
+		} else if err != nil {
+			_ = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+
+	// まず items を作成（main_image_url は後で埋める可能性あり）
+	res, err := tx.Exec(`
+	  INSERT INTO flea_market_items
+	  (UserID, Name, Description, Price, Quantity, IsMultiPurchasable, Quality,
+	   CategoryID, MainImageURL, Status, ShipFrom, ShippingFeeType, ShipsWithinDays,
+	   CreatedAt, UpdatedAt)
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+	`,
+		uID,
+		in.Name,
+		in.Description,
+		in.Price,
+		in.Quantity,
+		in.IsMultiPurchasable,
+		in.ItemState,
+		in.CategoryID,
+		in.MainImageURL, // 空ならこのあと更新する
+		0,               // status=出品中
+		in.ShipFrom,
+		in.ShippingFeeType,
+		in.ShipsWithinDays,
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	itemID, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	// 画像のINSERT
+	firstImageURL := ""
+	for i, u := range in.ImageURLs {
+		if _, err = tx.Exec(`
+		  INSERT INTO flea_market_item_images (ItemID, URL, SortOrder)
+		  VALUES (?, ?, ?)
+		`, itemID, u, i); err != nil {
+			return 0, err
+		}
+		if i == 0 {
+			firstImageURL = u
+		}
+	}
+
+	// main_image_url が未指定で、画像があるなら1枚目をメインに
+	if (in.MainImageURL == "" || in.MainImageURL == "null") && firstImageURL != "" {
+		if _, err = tx.Exec(`
+		  UPDATE flea_market_items
+		  SET main_image_url = ?, updated_at = NOW()
+		  WHERE id = ?
+		`, firstImageURL, itemID); err != nil {
+			return 0, err
+		}
+	}
+
+	return itemID, nil
+}
+
+// ソフトデリート（ヒット確認）
+func (d *Database) SoftDeleteFleaMarketItem(id int64, userID string) error {
+	res, err := d.DB.Exec(`
+	  UPDATE flea_market_items
+	  SET deleted_at = NOW()
+	  WHERE id = ? AND user_id = ? AND deleted_at IS NULL
+	`, id, userID)
+	if err != nil {
+		return err
+	}
+	aff, _ := res.RowsAffected()
+	if aff == 0 {
+		// 既に削除済み or 権限なし or 存在しない
+		// 必要に応じて nil でもOK。ここではわかりやすくエラーを返す例に。
+		return fmt.Errorf("no target updated (id=%d, user=%s)", id, userID)
+	}
+	return nil
 }

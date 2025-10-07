@@ -38,7 +38,6 @@ export interface Customer {
   id: string;
   name: string;
   email: string;
-  defaultAddress: string | null;
   defaultCard: string | null;
   point: number;
 }

@@ -366,9 +366,17 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	defoltAddress, erro := h.db.GetDefaultAddress(claims.ID)
+	if erro != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "デフォルトアドレスの取得に失敗しました: " + erro.Error()})
+		return
+	}
+
 	response := map[string]interface{}{
-		"user":  customerData,
-		"token": token,
+		"user":    customerData,
+		"address": defoltAddress.ID,
+		"token":   token,
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -26,6 +26,7 @@ import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
 import CheckoutComplete from "./page/CheckoutComplete";
 import FleaItemCreatePage from './page/FleaItemCreatePage';
+import FleaMarketList from './page/FleaMarketList';
 
 const App: React.FC = () => {
   return (
@@ -51,6 +52,7 @@ const App: React.FC = () => {
         <Route path={`/profile`} element={<Profile />} />
         <Route path={`/item/:id`} element={<Item />} />
         <Route path={`/flea-market/item/:id`} element={<FleaMarketItem />} />
+        <Route path={`/flea-market/list`} element={<FleaMarketList />} />
         <Route path={`/flea-market/sell/create`} element={<FleaItemCreatePage />} />
         <Route path={`/cart`} element={<Cart />} />
         <Route path={`*`} element={<NotFound />} />

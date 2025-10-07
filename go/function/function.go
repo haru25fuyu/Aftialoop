@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -430,15 +431,70 @@ func Ptr[T any](value T) *T {
 
 // 文字列（xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx）→ 16バイト
 func UUIDStringToBytes(s string) ([]byte, error) {
-    id, err := uuid.Parse(s)
-    if err != nil { return nil, err }
-    b := id // uuid.UUID は [16]byte のエイリアス
-    return b[:], nil
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return nil, err
+	}
+	b := id // uuid.UUID は [16]byte のエイリアス
+	return b[:], nil
 }
 
 // 16バイト → ハイフン付きの文字列（36文字）
 func UUIDBytesToString(b []byte) (string, error) {
-    id, err := uuid.FromBytes(b)
-    if err != nil { return "", err }
-    return id.String(), nil
+	id, err := uuid.FromBytes(b)
+	if err != nil {
+		return "", err
+	}
+	return id.String(), nil
+}
+
+// 便利関数 -----------------------------
+
+func ParseInt(s string, def int) int {
+	if s == "" {
+		return def
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return def
+	}
+	return n
+}
+func ParseOptInt(s string) *int {
+	if s == "" {
+		return nil
+	}
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return nil
+	}
+	return &n
+}
+func ParseOptInt64(s string) *int64 {
+	if s == "" {
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return nil
+	}
+	return &n
+}
+func ParseFloat(s string, def float64) float64 {
+	if s == "" {
+		return def
+	}
+	n, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return def
+	}
+	return n
+}
+func ParseBool(s string) bool {
+	switch s {
+	case "1", "true", "TRUE", "True", "on", "yes":
+		return true
+	default:
+		return false
+	}
 }

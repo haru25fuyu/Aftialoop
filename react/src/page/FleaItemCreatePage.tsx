@@ -1,4 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import axios from "axios";
+
+import { ConfirmDialog } from "../modal/ConfirmDialog";
+import {CONFIG} from "../conf/config";
 // NOTE: Tailwind 前提。必要なら api クライアントに差し替えてください。
 // import api from "../conf/api";
 
@@ -23,6 +27,8 @@ export default function FleaItemCreatePage() {
     const [errors, setErrors] = useState<Record<string, string>>({});
 
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+    const [confirmOpen, setConfirmOpen] = useState(false);
 
     // --------- 画像プレビュー URL ---------
     const previews = useMemo(() => images.map((f) => URL.createObjectURL(f)), [images]);
@@ -111,15 +117,12 @@ export default function FleaItemCreatePage() {
     };
 
     // --------- 送信 ---------
-    const submit = async () => {
+    // 送信本体は分離（確認モーダルから呼ぶ）
+    const doSubmit = async () => {
         if (submitting) return;
-        if (!validate()) {
-            window.scrollTo({ top: 0, behavior: "smooth" });
-            return;
-        }
         try {
             setSubmitting(true);
-            // API 連携：FormData で JSON + 画像を送る例
+
             const fd = new FormData();
             fd.append("name", name.trim());
             fd.append("price", String(Number(price)));
@@ -130,23 +133,62 @@ export default function FleaItemCreatePage() {
             fd.append("description", description.trim());
             fd.append("shipping_fee_type", String(shippingFeeType));
             fd.append("ship_from", shipFrom.trim());
-            fd.append("ships_within_days", String(shipsWithinDays));
+            if (shipsWithinDays !== "") fd.append("ships_within_days", String(shipsWithinDays)); // 空は送らない
             fd.append("main_index", String(mainIndex));
             images.forEach((f, i) => fd.append("images", f, f.name || `image_${i}.jpg`));
 
-            // ここを実装環境に合わせて差し替え
-            // await api.post("/flea/items", fd, { headers: { "Content-Type": "multipart/form-data" }});
-            await fakeNetwork();
+            for (const [k, v] of fd.entries()) {
+                console.log("FD", k, v instanceof File ? `${v.name} (${v.size}B)` : v);
+            }
+            const res = await axios.post(CONFIG.BASE_URL + '/flea-market/add/item', fd, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+                        withCredentials: true,
+                        timeout: 20000,
+                    });
 
+            console.log("レスポンス", res.data);
+
+            // サーバが返すID等を使って遷移
+            // const id = res.data?.itemId;
             localStorage.removeItem("flea_item_draft");
             alert("出品が完了しました！");
-            // 例: location.href = "/mypage/items";
-        } catch (e) {
-            console.error(e);
-            alert("出品に失敗しました。少し間を空けて再度お試しください。");
+            // if (id) window.location.href = `/flea/${id}`;
+        } catch (err) {
+            if (axios.isAxiosError(err)) {
+                const status = err.response?.status;
+                const data = err.response?.data;
+
+                console.error("通信エラー", status, data, err.message);
+                // バリデーションエラー（例: { errors: [{field, msg}, ...] }）
+                if (status === 400 && data?.errors) {
+                    const map: Record<string, string> = {};
+                    for (const e of data.errors as Array<{ field: string; msg: string }>) {
+                        map[e.field] = e.msg;
+                    }
+                    setErrors(map);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                    return; // ここで終了（アラートは出さない）
+                }
+
+                // サーバが message を返す場合
+                const msg = data?.message ?? err.message ?? "通信に失敗しました。";
+                alert(msg);
+            } else {
+                console.error(err);
+                alert("不明なエラーが発生しました。");
+            }
         } finally {
             setSubmitting(false);
+            setConfirmOpen(false);
         }
+    };
+
+    const onClickOpenConfirm = () => {
+        if (!validate()) {
+            window.scrollTo({ top: 0, behavior: "smooth" });
+            return;
+        }
+        setConfirmOpen(true);
     };
 
     const saveDraft = () => {
@@ -161,11 +203,14 @@ export default function FleaItemCreatePage() {
             <div className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
                     <h1 className="text-lg font-semibold">出品する</h1>
+                    // ヘッダーのボタン
                     <button
-                        onClick={submit}
+                        onClick={onClickOpenConfirm}
                         className="hidden md:inline-flex px-4 h-10 items-center rounded-xl bg-black text-white disabled:opacity-60"
                         disabled={submitting}
-                    >{submitting ? "送信中…" : "出品する"}</button>
+                    >
+                        {submitting ? "送信中…" : "出品する"}
+                    </button>
                 </div>
             </div>
 
@@ -266,9 +311,39 @@ export default function FleaItemCreatePage() {
             <div className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/95 backdrop-blur border-t">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex gap-3">
                     <button onClick={saveDraft} className="flex-1 h-12 rounded-xl border bg-white">下書き保存</button>
-                    <button onClick={submit} disabled={submitting} className="flex-1 h-12 rounded-xl bg-black text-white disabled:opacity-60">{submitting ? "送信中…" : "出品する"}</button>
+                    <button
+                        onClick={onClickOpenConfirm}
+                        disabled={submitting}
+                        className="flex-1 h-12 rounded-xl bg-black text-white disabled:opacity-60"
+                    >
+                        {submitting ? "送信中…" : "出品する"}
+                    </button>
                 </div>
             </div>
+
+            {/* 確認モーダル */}
+            <ConfirmDialog
+                open={confirmOpen}
+                onClose={() => setConfirmOpen(false)}
+                onConfirm={doSubmit}
+                submitting={submitting}
+                // 表示用のまとめ
+                summary={{
+                    name,
+                    price: Number(price) || 0,
+                    quantity,
+                    total: (Number(price) || 0) * quantity,
+                    isMultiPurchasable,
+                    itemState,
+                    categoryId,
+                    description,
+                    shippingFeeType,
+                    shipFrom,
+                    shipsWithinDays: shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
+                    mainIndex,
+                    previews, // プレビューURL
+                }}
+            />
         </div>
     );
 }
@@ -286,14 +361,3 @@ function Labeled({ label, error, children }: { label: string; error?: string; ch
     );
 }
 
-// 共通スタイル（Tailwind の便宜上、className をまとめ）
-// index.css 等で @layer utilities にしてもOK だが、ここでは簡易に。
-// .input と .btn を使ってます。
-const _styles = `
-`;
-
-
-// 疑似API
-async function fakeNetwork() {
-    await new Promise((r) => setTimeout(r, 800));
-}

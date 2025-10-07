@@ -66,7 +66,7 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
           } else {
             setCustomer(res.data.user);
             localStorage.setItem("token", res.data.token); // トークン更新あれば保存
-            fetchAddress(res.data.user.defaultAddress); // デフォルトアドレスIDを使って住所情報を取得
+            fetchAddress(res.data.address); // デフォルトアドレスIDを使って住所情報を取得
             fetchDefaultCard(res.data.user.defaultCard); // デフォルトカードIDを使ってカード情報を取得
           }
         })

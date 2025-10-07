@@ -69,6 +69,7 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 		// アドレスの新規保存
 		address_map["UserID"] = claims.ID
 		erro = h.db.SaveAddress(address_map)
+
 	} else {
 		// アドレスの更新
 		erro = h.db.UpdateAddress(address.ID, address_map)

@@ -37,7 +37,7 @@ func main() {
 	db, err := function.NewDatabase()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
-	}	
+	}
 
 	log.Println("Server started on: http://localhost:4000")
 
@@ -73,7 +73,10 @@ func main() {
 	// 商品のハンドラを登録
 	itemHandler := page.NewItemHandler(db)
 	itemHandler.RegisterRoutes(r)
-	
+	// フリマのハンドラを登録
+	FleaMarketHandler := page.NewFleaMarketHandler(db)
+	FleaMarketHandler.RegisterRoutes(r)
+
 	// トークンからユーザーidを取得トークンの更新
 	r.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		token, err := function.CheckUser(db, w, r)
@@ -96,8 +99,6 @@ func main() {
 		json.NewEncoder(w).Encode(map[string]string{"customerId": claims.ID})
 
 	})
-
-	
 
 	// サーバーを起動
 	log.Fatal(http.ListenAndServe(":4000", handler))

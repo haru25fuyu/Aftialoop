@@ -43,7 +43,7 @@ const Item: React.FC = () => {
         }
         // ここでAPIから商品情報を取得する処理を追加する
         api
-            .get(`/item/get/${id}`)
+            .get(`/flea-market/get/${id}`)
             .then((res) => {
                 if (res.data) {
                     setItem(res.data.item);

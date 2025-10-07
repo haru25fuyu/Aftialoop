@@ -15,16 +15,15 @@ type User struct {
 
 // ユーザー情報を格納する構造体
 type SqlUser struct {
-	ID             string  `db:"ID" json:"id"`
-	CustomerID     string  `db:"CustomerID" json:"customerID"`
-	Name           string  `db:"Name" json:"name"`
-	Email          string  `db:"Email" json:"email"`
-	Point          float64 `db:"Point" json:"point"`
-	Password       string  `db:"Password" json:"password"`
-	GoogleID       string  `db:"GoogleID" json:"GoogleID"`
-	AppleID        string  `db:"AppleID"`
-	DefaultCard    string  `db:"DefaultCard" json:"defaultCard"`
-	DefaultAddress string  `db:"DefaultAddress" json:"defaultAddress"`
+	ID          string  `db:"ID" json:"id"`
+	CustomerID  string  `db:"CustomerID" json:"customerID"`
+	Name        string  `db:"Name" json:"name"`
+	Email       string  `db:"Email" json:"email"`
+	Point       float64 `db:"Point" json:"point"`
+	Password    string  `db:"Password" json:"password"`
+	GoogleID    string  `db:"GoogleID" json:"GoogleID"`
+	AppleID     string  `db:"AppleID"`
+	DefaultCard string  `db:"DefaultCard" json:"defaultCard"`
 }
 
 type Item struct {
@@ -156,6 +155,59 @@ type ListItemsRequest struct {
 	SortOrder     string   `json:"-"`
 	Page          int      `json:"-"`
 	PageSize      int      `json:"-"`
+}
+
+// 出品アイテム本体
+type FleaMarketItem struct {
+	ID                 int64   `db:"ID"                  json:"id"`
+	UserID             string  `db:"UserID"             json:"userId"` // 出品者
+	Name               string  `db:"Name"                json:"name"`
+	Description        *string `db:"Description"         json:"description,omitempty"`
+	Price              float64 `db:"Price"               json:"price"`
+	Quantity           int     `db:"Quantity"            json:"quantity"`
+	IsMultiPurchasable bool    `db:"IsMultiPurchasable" json:"isMultiPurchasable"`
+	ItemState          int     `db:"Quality"          json:"itemState"` // 0未指定,1新品...
+	CategoryID         *int64  `db:"CategoryID"         json:"categoryId,omitempty"`
+	MainImageURL       string  `db:"MainImageURL"      json:"mainImageUrl"`
+	Status             int     `db:"Status"              json:"status"`            // 0出品中,1取引中,2売却済
+	ShipFrom           *int    `db:"ShipFrom"           json:"shipFrom,omitempty"` // 例：東京都
+	ShippingFeeType    int     `db:"ShippingFeeType"   json:"shippingFeeType"`     // 0:送料込み,1:着払い
+	ShipsWithinDays    *int    `db:"ShipsWithinDays"   json:"shipsWithinDays,omitempty"`
+
+	CreatedAt time.Time  `db:"CreatedAt"          json:"createdAt"`
+	UpdatedAt time.Time  `db:"UpdatedAt"          json:"updatedAt"`
+	DeletedAt *time.Time `db:"DeletedAt"          json:"deletedAt,omitempty"`
+}
+
+// 画像
+type FleaMarketItemImage struct {
+	ID        int64     `db:"id"         json:"id"`
+	ItemID    int64     `db:"item_id"    json:"itemId"`
+	URL       string    `db:"url"        json:"url"`
+	SortOrder int       `db:"sort_order" json:"sortOrder"`
+	CreatedAt time.Time `db:"created_at" json:"createdAt"`
+}
+
+// 一覧レスポンス用（画像サムネを一緒に返したいとき）
+type FleaMarketItemWithImages struct {
+	FleaMarketItem
+	Images []FleaMarketItemImage `json:"images"`
+}
+
+// 作成用の受け口（multipartのパース後やJSON API用）
+type CreateFleaMarketItemInput struct {
+	Name               string   `json:"name"`
+	Price              float64  `json:"price"`
+	Quantity           int      `json:"quantity"`
+	IsMultiPurchasable bool     `json:"isMultiPurchasable"`
+	ItemState          int      `json:"itemState"`
+	CategoryID         *int64   `json:"categoryId,omitempty"`
+	Description        *string  `json:"description,omitempty"`
+	MainImageURL       string   `json:"mainImageUrl"`
+	ImageURLs          []string `json:"imageUrls"`       // 画像を先にアップしてURL化しておく想定
+	ShippingFeeType    int      `json:"shippingFeeType"` // 0送料込み/1着払い
+	ShipFrom           *int     `json:"shipFrom,omitempty"`
+	ShipsWithinDays    *int     `json:"shipsWithinDays,omitempty"`
 }
 
 func (mt *MySQLTime) Scan(value interface{}) error {
