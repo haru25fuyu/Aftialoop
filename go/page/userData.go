@@ -257,7 +257,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		// 画像があるときだけ保存処理
 		defer file.Close()
 
-		dir := "./account_data/icon/"
+		dir := "./static/icon/"
 		react_dir := "/static/icon/"
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			if err := os.MkdirAll(dir, os.ModePerm); err != nil {

@@ -1,8 +1,12 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import axios from "axios";
 
+import InlineSortableImages from "../component/InlineSortableImages";
+import AddImagesModal from "../modal/AddImagesModal";
+
 import { ConfirmDialog } from "../modal/ConfirmDialog";
-import {CONFIG} from "../conf/config";
+import { CONFIG } from "../conf/config";
+
 // NOTE: Tailwind 前提。必要なら api クライアントに差し替えてください。
 // import api from "../conf/api";
 
@@ -13,8 +17,8 @@ export default function FleaItemCreatePage() {
     const [price, setPrice] = useState("");
     const [quantity, setQuantity] = useState(1);
     const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
-    const [itemState, setItemState] = useState(0); // 0=未指定,1=新品,2=未使用に近い,3=目立った傷なし,4=やや傷あり,5=傷や汚れあり
-    const [categoryId, setCategoryId] = useState("");
+    //const [itemState, setItemState] = useState(0); // 0=未指定,1=新品,2=未使用に近い,3=目立った傷なし,4=やや傷あり,5=傷や汚れあり
+    const [type, setType] = useState("");
     const [description, setDescription] = useState("");
     const [shippingFeeType, setShippingFeeType] = useState<0 | 1>(0); // 0:送料込み,1:着払い
     const [shipFrom, setShipFrom] = useState("");
@@ -26,13 +30,15 @@ export default function FleaItemCreatePage() {
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    const fileInputRef = useRef<HTMLInputElement | null>(null);
+    //const fileInputRef = useRef<HTMLInputElement | null>(null);
 
     const [confirmOpen, setConfirmOpen] = useState(false);
+    const [addOpen, setAddOpen] = useState(false);
+    const [imageUrls, setImageUrls] = useState<string[]>([]);
 
     // --------- 画像プレビュー URL ---------
-    const previews = useMemo(() => images.map((f) => URL.createObjectURL(f)), [images]);
-    useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+    //const previews = useMemo(() => images.map((f) => URL.createObjectURL(f)), [images]);
+    //useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
     // --------- バリデーション ---------
     const validate = (): boolean => {
@@ -61,8 +67,8 @@ export default function FleaItemCreatePage() {
                 setPrice(d.price ?? "");
                 setQuantity(d.quantity ?? 1);
                 setIsMultiPurchasable(!!d.isMultiPurchasable);
-                setItemState(d.itemState ?? 0);
-                setCategoryId(d.categoryId ?? "");
+                //setItemState(d.itemState ?? 0);
+                setType(d.type ?? "");
                 setDescription(d.description ?? "");
                 setShippingFeeType(d.shippingFeeType ?? 0);
                 setShipFrom(d.shipFrom ?? "");
@@ -82,8 +88,8 @@ export default function FleaItemCreatePage() {
             price,
             quantity,
             isMultiPurchasable,
-            itemState,
-            categoryId,
+            //itemState,
+            type,
             description,
             shippingFeeType,
             shipFrom,
@@ -91,10 +97,25 @@ export default function FleaItemCreatePage() {
             mainIndex,
         };
         localStorage.setItem(key, JSON.stringify(payload));
-    }, [name, price, quantity, isMultiPurchasable, itemState, categoryId, description, shippingFeeType, shipFrom, shipsWithinDays, mainIndex]);
+    }, [name, price, quantity, isMultiPurchasable, type, description, shippingFeeType, shipFrom, shipsWithinDays, mainIndex]);
 
+    useEffect(() => {
+        // 旧URLを破棄
+        setImageUrls((prev) => {
+            prev.forEach((u) => URL.revokeObjectURL(u));
+            return [];
+        });
+        // 新URLを生成
+        const urls = images.map((f) => URL.createObjectURL(f));
+        setImageUrls(urls);
+
+        // ページ離脱時の最終破棄（保険）
+        return () => {
+            urls.forEach((u) => URL.revokeObjectURL(u));
+        };
+    }, [images]);
     // --------- 画像操作 ---------
-    const onPickImages = (files: FileList | null) => {
+    /*const onPickImages = (files: FileList | null) => {
         if (!files) return;
         const arr = Array.from(files);
         setImages((prev) => [...prev, ...arr]);
@@ -114,7 +135,7 @@ export default function FleaItemCreatePage() {
             return copy;
         });
         if (mainIndex === from) setMainIndex(to);
-    };
+    };*/
 
     // --------- 送信 ---------
     // 送信本体は分離（確認モーダルから呼ぶ）
@@ -128,8 +149,8 @@ export default function FleaItemCreatePage() {
             fd.append("price", String(Number(price)));
             fd.append("quantity", String(quantity));
             fd.append("is_multi_purchasable", String(isMultiPurchasable ? 1 : 0));
-            fd.append("item_state", String(itemState));
-            if (categoryId) fd.append("category_id", categoryId);
+            //fd.append("item_state", String(itemState));
+            fd.append("type", type);
             fd.append("description", description.trim());
             fd.append("shipping_fee_type", String(shippingFeeType));
             fd.append("ship_from", shipFrom.trim());
@@ -141,10 +162,10 @@ export default function FleaItemCreatePage() {
                 console.log("FD", k, v instanceof File ? `${v.name} (${v.size}B)` : v);
             }
             const res = await axios.post(CONFIG.BASE_URL + '/flea-market/add/item', fd, {
-                        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-                        withCredentials: true,
-                        timeout: 20000,
-                    });
+                headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+                withCredentials: true,
+                timeout: 20000,
+            });
 
             console.log("レスポンス", res.data);
 
@@ -203,7 +224,6 @@ export default function FleaItemCreatePage() {
             <div className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b">
                 <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between">
                     <h1 className="text-lg font-semibold">出品する</h1>
-                    // ヘッダーのボタン
                     <button
                         onClick={onClickOpenConfirm}
                         className="hidden md:inline-flex px-4 h-10 items-center rounded-xl bg-black text-white disabled:opacity-60"
@@ -234,20 +254,42 @@ export default function FleaItemCreatePage() {
                                 </div>
                                 <label className="mt-2 flex items-center gap-2 text-sm text-gray-600"><input type="checkbox" checked={isMultiPurchasable} onChange={(e) => setIsMultiPurchasable(e.target.checked)} /> 複数購入を許可する</label>
                             </Labeled>
-                            <Labeled label="商品の状態">
+                            {/*<Labeled label="商品の状態">
                                 <select className="input" value={itemState} onChange={(e) => setItemState(Number(e.target.value))}>
                                     <option value={0}>未指定</option>
-                                    <option value={1}>新品</option>
+                                    s<option value={1}>新品</option>
                                     <option value={2}>未使用に近い</option>
                                     <option value={3}>目立った傷や汚れなし</option>
                                     <option value={4}>やや傷や汚れあり</option>
                                     <option value={5}>傷や汚れあり</option>
                                 </select>
-                            </Labeled>
+                            </Labeled>*/}
                         </div>
-                        <Labeled label="カテゴリ（任意）">
-                            <input className="input" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} placeholder="例：dog-accessory" />
+                        <Labeled label="出品タイプ">
+                            <div className="flex gap-4">
+                                <label>
+                                    <input
+                                        type="radio"
+                                        name="type"
+                                        value="ANIMAL"
+                                        checked={type === "ANIMAL" || type === ""}
+                                        onChange={(e) => setType(e.target.value)}
+                                    />
+                                    生体
+                                </label>
+                                <label>
+                                    <input
+                                        type="radio"
+                                        name="type"
+                                        value="SUPPLY"
+                                        checked={type === "SUPPLY"}
+                                        onChange={(e) => setType(e.target.value)}
+                                    />
+                                    用品
+                                </label>
+                            </div>
                         </Labeled>
+
                         <Labeled label="商品説明" error={errors.description}>
                             <textarea className="input min-h-[120px]" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="サイズ / 使用感 / 注意点など" />
                         </Labeled>
@@ -258,27 +300,14 @@ export default function FleaItemCreatePage() {
                 <section className="bg-white rounded-2xl shadow-sm border p-4">
                     <h2 className="font-semibold mb-3">商品画像</h2>
                     {errors.images && <p className="text-sm text-red-600 mb-2">{errors.images}</p>}
-                    <div className="flex gap-3 flex-wrap">
-                        <button
-                            className="rounded-xl border border-dashed px-4 py-8 w-40 h-40 flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50"
-                            onClick={() => fileInputRef.current?.click()}
-                        >
-                            <span className="text-3xl">＋</span>
-                            <span className="text-xs mt-1">画像を追加</span>
-                            <input ref={fileInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => onPickImages(e.target.files)} />
-                        </button>
-                        {previews.map((src, i) => (
-                            <div key={i} className="relative w-40 h-40 rounded-xl overflow-hidden border">
-                                <img src={src} alt="preview" className="object-cover w-full h-full" />
-                                <div className="absolute top-1 left-1 flex gap-1">
-                                    <button className={`px-2 py-1 rounded-md text-xs ${i === mainIndex ? "bg-yellow-400 text-black" : "bg-black/60 text-white"}`} onClick={() => setMainIndex(i)}>{i === mainIndex ? "メイン" : "メインに"}</button>
-                                    {i > 0 && <button className="px-2 py-1 rounded-md text-xs bg-black/60 text-white" onClick={() => moveImage(i, i - 1)}>←</button>}
-                                    {i < previews.length - 1 && <button className="px-2 py-1 rounded-md text-xs bg-black/60 text-white" onClick={() => moveImage(i, i + 1)}>→</button>}
-                                </div>
-                                <button className="absolute bottom-1 right-1 px-2 py-1 rounded-md text-xs bg-red-500 text-white" onClick={() => removeImage(i)}>削除</button>
-                            </div>
-                        ))}
-                    </div>
+
+                    <InlineSortableImages
+                        files={images}
+                        onChange={(next) => { setImages(next); setMainIndex(0); }} // 先頭=メイン
+                        onOpenAdd={() => setAddOpen(true)}
+                        urls={imageUrls}
+                        max={10}
+                    />
                 </section>
 
                 {/* 配送 */}
@@ -327,22 +356,29 @@ export default function FleaItemCreatePage() {
                 onClose={() => setConfirmOpen(false)}
                 onConfirm={doSubmit}
                 submitting={submitting}
-                // 表示用のまとめ
                 summary={{
                     name,
                     price: Number(price) || 0,
                     quantity,
                     total: (Number(price) || 0) * quantity,
                     isMultiPurchasable,
-                    itemState,
-                    categoryId,
+                    type,
                     description,
                     shippingFeeType,
                     shipFrom,
                     shipsWithinDays: shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
                     mainIndex,
-                    previews, // プレビューURL
+                    files: images,   // ← File[] を渡す
                 }}
+            />
+
+            {/* 画像追加モーダル */}
+            <AddImagesModal
+                open={addOpen}
+                files={images}
+                urls={imageUrls}
+                onClose={() => setAddOpen(false)}
+                onSave={(ordered) => { setImages(ordered); setMainIndex(0); setAddOpen(false); }} // 先頭=メイン
             />
         </div>
     );
@@ -360,4 +396,3 @@ function Labeled({ label, error, children }: { label: string; error?: string; ch
         </div>
     );
 }
-

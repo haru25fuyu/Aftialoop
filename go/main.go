@@ -12,72 +12,40 @@ import (
 	"github.com/rs/cors"
 )
 
-// トークン情報
-type TokenResponse struct {
-	AccessToken string `json:"access_token"`
-	TokenType   string `json:"token_type"`
-	ExpiresIn   int    `json:"expires_in"`
-}
-
 func main() {
-	r := mux.NewRouter()
-
+	// ===== 初期設定 =====
 	config.Init()
 
-	// CORS設定
-	corsOptions := cors.New(cors.Options{
-		AllowedOrigins:       config.AllowedOrigins,
-		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:       []string{"Content-Type", "Authorization"},
-		AllowCredentials:     true,
-		OptionsSuccessStatus: http.StatusOK,
-	})
-
-	handler := corsOptions.Handler(r)
+	// DB初期化
 	db, err := function.NewDatabase()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	log.Println("Server started on: http://localhost:4000")
+	// ===== ルーター作成 =====
+	r := mux.NewRouter()
 
+	// 静的ファイル（/static/...）を登録
+	fs := http.FileServer(http.Dir("/var/www/web/Aftialoop/go/static"))
+	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
+
+	// ===== 各ハンドラ登録 =====
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Hello World!"))
 	})
 
-	r.HandleFunc("/name", func(w http.ResponseWriter, r *http.Request) {
+	// APIルート
+	page.NewUserDataHandler(db).RegisterRoutes(r)
+	page.NewAddressHandler(db).RegisterRoutes(r)
+	page.NewLoginHandler(db).RegisterRoutes(r)
+	page.NewSignupHandler(db).RegisterRoutes(r)
+	page.NewCartHandler(db).RegisterRoutes(r)
+	page.NewCardHandler(db).RegisterRoutes(r)
+	page.NewPointHandler(db).RegisterRoutes(r)
+	page.NewItemHandler(db).RegisterRoutes(r)
+	page.NewFleaMarketHandler(db).RegisterRoutes(r)
 
-	})
-
-	// ユーザーデータのハンドラを登録
-	userDataHandler := page.NewUserDataHandler(db)
-	userDataHandler.RegisterRoutes(r)
-	// アドレスのハンドラを登録
-	addressHandler := page.NewAddressHandler(db)
-	addressHandler.RegisterRoutes(r)
-	// ログインのハンドラを登録
-	loginHandler := page.NewLoginHandler(db)
-	loginHandler.RegisterRoutes(r)
-	// サインアップのハンドラを登録
-	signupHandler := page.NewSignupHandler(db)
-	signupHandler.RegisterRoutes(r)
-	// カートのハンドラを登録
-	cartHandler := page.NewCartHandler(db)
-	cartHandler.RegisterRoutes(r)
-	// カードのハンドラを登録
-	cardHandler := page.NewCardHandler(db)
-	cardHandler.RegisterRoutes(r)
-	// ポイントのハンドラを登録
-	pointHandler := page.NewPointHandler(db)
-	pointHandler.RegisterRoutes(r)
-	// 商品のハンドラを登録
-	itemHandler := page.NewItemHandler(db)
-	itemHandler.RegisterRoutes(r)
-	// フリマのハンドラを登録
-	FleaMarketHandler := page.NewFleaMarketHandler(db)
-	FleaMarketHandler.RegisterRoutes(r)
-
-	// トークンからユーザーidを取得トークンの更新
+	// トークン更新ルート
 	r.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
 		token, err := function.CheckUser(db, w, r)
 		if err != "" {
@@ -86,7 +54,6 @@ func main() {
 			return
 		}
 
-		// トークンからIdを取得
 		claims, erro := function.GetUserFromToken(token)
 		if erro != nil {
 			w.WriteHeader(http.StatusUnauthorized)
@@ -94,12 +61,22 @@ func main() {
 			return
 		}
 
-		// IDを返す
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]string{"customerId": claims.ID})
-
 	})
 
-	// サーバーを起動
+	// ===== CORS設定 =====
+	corsOptions := cors.New(cors.Options{
+		AllowedOrigins:       config.AllowedOrigins, // 例: []string{"https://dev.aftialoop.com"}
+		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:       []string{"Content-Type", "Authorization"},
+		AllowCredentials:     true,
+		OptionsSuccessStatus: http.StatusOK,
+	})
+
+	handler := corsOptions.Handler(r)
+
+	// ===== サーバー起動 =====
+	log.Println("Server started on: https://go.aftialoop.com (port 4000)")
 	log.Fatal(http.ListenAndServe(":4000", handler))
 }

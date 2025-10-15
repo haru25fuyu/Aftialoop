@@ -1,116 +1,125 @@
-import React, { useEffect } from "react";
+// src/modal/ConfirmDialog.tsx
+import React, { useMemo, useEffect } from "react";
 
+type Summary = {
+    name: string;
+    price: number;
+    quantity: number;
+    total: number;
+    isMultiPurchasable: boolean;
+    // itemState?: number;
+    type: string;
+    description: string;
+    shippingFeeType: 0 | 1;
+    shipFrom: string;
+    shipsWithinDays?: number; // 空のときは undefined を受ける
+    files: File[];        // ← ここをFile[]に
+    mainIndex: number;      // プレビューURL（useMemoで生成）
+};
 
-
-export function ConfirmDialog({ open, onClose, onConfirm, submitting, summary, }: {
+export function ConfirmDialog({
+    open,
+    onClose,
+    onConfirm,
+    submitting,
+    summary,
+}: {
     open: boolean;
     onClose: () => void;
     onConfirm: () => void;
     submitting: boolean;
-    summary: {
-        name: string;
-        price: number;
-        quantity: number;
-        total: number;
-        isMultiPurchasable: boolean;
-        itemState: number;
-        categoryId: string;
-        description: string;
-        shippingFeeType: 0 | 1;
-        shipFrom: string;
-        shipsWithinDays?: number;
-        mainIndex: number;
-        previews: string[];
-    };
+    summary: Summary;
 }) {
 
-    useEffect(() => {
-        if (!open) return;
-        const scrollY = window.scrollY;
-        const prev = {
-            position: document.body.style.position,
-            top: document.body.style.top,
-            left: document.body.style.left,
-            right: document.body.style.right,
-            width: document.body.style.width,
-        };
-        document.body.style.position = "fixed";
-        document.body.style.top = `-${scrollY}px`;
-        document.body.style.left = "0";
-        document.body.style.right = "0";
-        document.body.style.width = "100%";
-        return () => {
-            document.body.style.position = prev.position;
-            document.body.style.top = prev.top;
-            document.body.style.left = prev.left;
-            document.body.style.right = prev.right;
-            document.body.style.width = prev.width;
-            window.scrollTo(0, scrollY);
-        };
-    }, [open]);
-
+    const urls = useMemo(() => summary.files.map(f => URL.createObjectURL(f)), [summary.files]);
+    useEffect(() => () => { urls.forEach(u => URL.revokeObjectURL(u)); }, [urls]);
     if (!open) return null;
 
-    const stateLabel = ["未指定", "新品", "未使用に近い", "目立った傷や汚れなし", "やや傷や汚れあり", "傷や汚れあり"][summary.itemState] ?? "未指定";
-    const feeLabel = summary.shippingFeeType === 0 ? "送料込み（出品者負担）" : "着払い（購入者負担）";
+    const {
+        name,
+        price,
+        quantity,
+        total,
+        isMultiPurchasable,
+        // itemState,
+        type,
+        description,
+        shippingFeeType,
+        shipFrom,
+        shipsWithinDays,
+        mainIndex,
+    } = summary;
 
-    // 背景スクロール抑止（簡易）
+    const fmt = (n: number) => n.toLocaleString("ja-JP");
 
+    const typeLabel = type === "ANIMAL" ? "生体" : type === "SUPPLY" ? "用品" : "未選択";
+    const shipFeeLabel = shippingFeeType === 0 ? "送料込み（出品者負担）" : "着払い（購入者負担）";
+    const shipsLabel =
+        shipsWithinDays == null ? "未選択" :
+            shipsWithinDays === 1 ? "1日以内" :
+                shipsWithinDays === 2 ? "2日以内" :
+                    shipsWithinDays === 4 ? "4日以内" :
+                        shipsWithinDays === 7 ? "1週間以内" : `${shipsWithinDays}日以内`;
 
     return (
-        <div
-            className="fixed inset-0 z-[100] flex items-end md:items-center justify-center"
-            aria-modal="true" role="dialog"
-        >
-            <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-            <div className="relative w-full md:max-w-2xl bg-white rounded-t-2xl md:rounded-2xl shadow-lg p-4 md:p-6 max-h-[90vh] overflow-auto">
-                <h3 className="text-lg font-semibold mb-4">この内容で出品しますか？</h3>
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
+            <div className="bg-white w-[92%] max-w-2xl rounded-2xl shadow-xl">
+                <div className="px-5 py-4 border-b flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">この内容で出品しますか？</h3>
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">×</button>
+                </div>
 
-                {/* 画像スライド（横スクロール） */}
-                {summary.previews.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
-                        {summary.previews.map((src, i) => (
-                            <div key={i} className={`relative w-28 h-28 flex-shrink-0 rounded-lg overflow-hidden border ${i === summary.mainIndex ? "ring-2 ring-yellow-400" : ""}`}>
-                                <img src={src} alt={`preview-${i}`} className="object-cover w-full h-full" />
-                                {i === summary.mainIndex && (
-                                    <span className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-yellow-400 text-black">メイン</span>
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                )}
-
-                <div className="space-y-2 text-sm">
-                    <KV k="商品名" v={summary.name} />
-                    <KV k="価格" v={`${summary.price.toLocaleString()} 円`} />
-                    <KV k="数量" v={`${summary.quantity} 点`} />
-                    <KV k="小計" v={`${summary.total.toLocaleString()} 円`} strong />
-                    <KV k="複数購入" v={summary.isMultiPurchasable ? "許可する" : "許可しない"} />
-                    <KV k="状態" v={stateLabel} />
-                    {summary.categoryId && <KV k="カテゴリ" v={summary.categoryId} />}
-                    <KV k="送料" v={feeLabel} />
-                    <KV k="発送元" v={summary.shipFrom} />
-                    {summary.shipsWithinDays !== undefined && <KV k="発送目安" v={`${summary.shipsWithinDays}日以内`} />}
+                <div className="p-5 space-y-4 max-h-[70vh] overflow-auto">
+                    {/* 画像サマリ */}
                     <div>
-                        <div className="text-gray-500 mb-1">商品説明</div>
-                        <div className="whitespace-pre-wrap bg-gray-50 rounded-xl p-3 border">{summary.description}</div>
+                        <div className="text-sm text-gray-600 mb-2">画像</div>
+                        <div className="flex gap-2 flex-wrap">
+                            {urls.length === 0 ? (
+                                <div className="text-gray-500 text-sm">画像は選択されていません</div>
+                            ) : (
+                                urls.map((src, i) => (
+                                    <div key={i} className={`relative w-20 h-20 rounded-lg overflow-hidden border ${i === mainIndex ? "ring-2 ring-yellow-400" : ""}`}>
+                                        <img src={src} className="w-full h-full object-cover" />
+                                        {i === mainIndex && (
+                                            <span className="absolute bottom-0 left-0 right-0 text-[10px] text-black bg-yellow-300/90 text-center">メイン</span>
+                                        )}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 基本 */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <Row label="商品名" value={name || "（未入力）"} />
+                        <Row label="出品タイプ" value={typeLabel} />
+                        <Row label="価格" value={`${fmt(price)} 円`} />
+                        <Row label="数量" value={`${quantity} 個${isMultiPurchasable ? "（複数購入可）" : ""}`} />
+                        <Row label="送料負担" value={shipFeeLabel} />
+                        <Row label="発送元" value={shipFrom || "（未入力）"} />
+                        <Row label="発送までの目安" value={shipsLabel} />
+                        <Row label="合計金額" value={`${fmt(total)} 円`} strong />
+                    </div>
+
+                    {/* 説明 */}
+                    <div>
+                        <div className="text-sm text-gray-600 mb-1">商品説明</div>
+                        <div className="whitespace-pre-wrap text-sm border rounded-lg p-3">
+                            {description || "（未入力）"}
+                        </div>
                     </div>
                 </div>
 
-                <div className="mt-5 flex gap-2">
-                    <button
-                        className="flex-1 h-11 rounded-xl border bg-white"
-                        onClick={onClose}
-                        disabled={submitting}
-                    >
-                        修正する
+                <div className="px-5 py-4 border-t flex justify-end gap-2">
+                    <button onClick={onClose} className="px-4 h-10 rounded-xl border bg-white">
+                        戻る
                     </button>
                     <button
-                        className="flex-1 h-11 rounded-xl bg-black text-white disabled:opacity-60"
                         onClick={onConfirm}
                         disabled={submitting}
+                        className="px-4 h-10 rounded-xl bg-black text-white disabled:opacity-60"
                     >
-                        {submitting ? "送信中…" : "この内容で出品する"}
+                        {submitting ? "送信中…" : "出品する"}
                     </button>
                 </div>
             </div>
@@ -118,11 +127,11 @@ export function ConfirmDialog({ open, onClose, onConfirm, submitting, summary, }
     );
 }
 
-function KV({ k, v, strong }: { k: string; v: React.ReactNode; strong?: boolean }) {
+function Row({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
     return (
-        <div className="flex items-start justify-between gap-4">
-            <div className="text-gray-500">{k}</div>
-            <div className={`text-right ${strong ? "font-semibold" : ""}`}>{v}</div>
+        <div className="text-sm">
+            <div className="text-gray-500">{label}</div>
+            <div className={strong ? "font-semibold" : ""}>{value}</div>
         </div>
     );
 }

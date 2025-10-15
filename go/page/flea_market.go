@@ -91,18 +91,17 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	price := function.ParseFloat(r.FormValue("price"), 0)
 	quantity := function.ParseInt(r.FormValue("quantity"), 1)
 	isMulti := function.ParseBool(r.FormValue("is_multi_purchasable"))
-	itemState := function.ParseInt(r.FormValue("item_state"), 0)
 	shipFeeType := function.ParseInt(r.FormValue("shipping_fee_type"), 0)
 	shipFrom := function.ParseInt(r.FormValue("ship_from"), 0)
 	shipsWithin := function.ParseOptInt(r.FormValue("ships_within_days"))
-	categoryID := function.ParseOptInt64(r.FormValue("category_id"))
 	mainIndex := function.ParseInt(r.FormValue("main_index"), 0)
+	type_ := r.FormValue("type")
 
 	// ---- 画像を保存して URL 配列を作る ----
 	files := r.MultipartForm.File["images"]
 	imageURLs := make([]string, 0, len(files))
 
-	uploadDir := "./uploads/flea" // 環境に合わせて
+	uploadDir := "./static/flea" // 環境に合わせて
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		http.Error(w, "failed to create upload dir", http.StatusInternalServerError)
 		return
@@ -151,8 +150,7 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		Price:              price,
 		Quantity:           quantity,
 		IsMultiPurchasable: isMulti,
-		ItemState:          itemState,
-		CategoryID:         categoryID,
+		Type:               type_,
 		Description:        description,
 		MainImageURL:       mainURL,
 		ImageURLs:          imageURLs,

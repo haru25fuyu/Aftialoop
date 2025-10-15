@@ -166,9 +166,8 @@ type FleaMarketItem struct {
 	Price              float64 `db:"Price"               json:"price"`
 	Quantity           int     `db:"Quantity"            json:"quantity"`
 	IsMultiPurchasable bool    `db:"IsMultiPurchasable" json:"isMultiPurchasable"`
-	ItemState          int     `db:"Quality"          json:"itemState"` // 0未指定,1新品...
-	CategoryID         *int64  `db:"CategoryID"         json:"categoryId,omitempty"`
-	MainImageURL       string  `db:"MainImageURL"      json:"mainImageUrl"`
+	Type               string  `db:"Type" json:"type"`
+	MainImageURL       string  `db:"MainImageURL"      json:"main_image_url"`
 	Status             int     `db:"Status"              json:"status"`            // 0出品中,1取引中,2売却済
 	ShipFrom           *int    `db:"ShipFrom"           json:"shipFrom,omitempty"` // 例：東京都
 	ShippingFeeType    int     `db:"ShippingFeeType"   json:"shippingFeeType"`     // 0:送料込み,1:着払い
@@ -200,10 +199,9 @@ type CreateFleaMarketItemInput struct {
 	Price              float64  `json:"price"`
 	Quantity           int      `json:"quantity"`
 	IsMultiPurchasable bool     `json:"isMultiPurchasable"`
-	ItemState          int      `json:"itemState"`
-	CategoryID         *int64   `json:"categoryId,omitempty"`
+	Type               string   `json:"type"`
 	Description        *string  `json:"description,omitempty"`
-	MainImageURL       string   `json:"mainImageUrl"`
+	MainImageURL       string   `json:"main_image_url"`
 	ImageURLs          []string `json:"imageUrls"`       // 画像を先にアップしてURL化しておく想定
 	ShippingFeeType    int      `json:"shippingFeeType"` // 0送料込み/1着払い
 	ShipFrom           *int     `json:"shipFrom,omitempty"`

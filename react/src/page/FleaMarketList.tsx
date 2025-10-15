@@ -1,9 +1,12 @@
 import React, { useEffect } from 'react';
 
 import { Content } from '../types/Content.ts';
+
 import Header from '../component/Header.tsx';
 import MainImage from '../component/MainImage.tsx';
+
 import api from '../conf/api.ts';
+import { CONFIG } from '../conf/config.ts';
 
 import '../css/List.css';
 
@@ -18,7 +21,7 @@ const FleaMarketList: React.FC = () => {
         api.post(`/flea-market/list`)
             .then((res) => {
                 setContents(res.data);
-                console.log(res.data);
+                console.log(contents[0]?.is_selected);
             }).catch((err) => {
                 console.error(err);
             });
@@ -33,13 +36,14 @@ const FleaMarketList: React.FC = () => {
             <main className=" w-full">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-[90%] mx-auto">
                     {contents.map((item) => (
+                        console.log(item.main_image_url),
                         <div
                             key={item.id}
                             className="flex flex-row md:flex-col border rounded shadow-sm bg-white p-4"
                         >
                             {/* 画像 */}
                             <img
-                                src={item.main_image_url}
+                                src={item.main_image_url ? CONFIG.BASE_URL + item.main_image_url : "/data/noimage.png"}
                                 alt={item.name}
                                 className="w-24 h-32 object-cover rounded md:w-full md:h-auto"
                             />

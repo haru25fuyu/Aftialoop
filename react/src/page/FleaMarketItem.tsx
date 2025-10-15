@@ -18,7 +18,7 @@ import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
 import "swiper/swiper-bundle.css";
 
-// コンポーネント名は大文字で始めるのが慣例
+
 const Item: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
     const [item, setItem] = useState<Content | null>(null);
@@ -43,7 +43,7 @@ const Item: React.FC = () => {
         }
         // ここでAPIから商品情報を取得する処理を追加する
         api
-            .get(`/flea-market/get/${id}`)
+            .get(`/item/get/${id}`)
             .then((res) => {
                 if (res.data) {
                     setItem(res.data.item);

@@ -780,7 +780,7 @@ func (d *Database) ListFleaMarketItems(limit, offset int) ([]utils.FleaMarketIte
 	var items []utils.FleaMarketItem
 	const q = `
 	  SELECT *
-	  FROM flea_market_items
+	  FROM flea_items
 	  WHERE DeletedAt IS NULL
 	  ORDER BY CreatedAt DESC
 	  LIMIT ? OFFSET ?
@@ -796,7 +796,7 @@ func (d *Database) GetFleaMarketItemByID(id int64) (*utils.FleaMarketItem, error
 	var item utils.FleaMarketItem
 	const q = `
 	  SELECT *
-	  FROM flea_market_items
+	  FROM flea_items
 	  WHERE id = ? AND deleted_at IS NULL
 	  LIMIT 1
 	`
@@ -811,7 +811,7 @@ func (d *Database) GetFleaMarketItemImages(itemID int64) ([]utils.FleaMarketItem
 	var imgs []utils.FleaMarketItemImage
 	const q = `
 	  SELECT *
-	  FROM flea_market_item_images
+	  FROM flea_item_images
 	  WHERE item_id = ?
 	  ORDER BY sort_order
 	`
@@ -842,20 +842,20 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 
 	// まず items を作成（main_image_url は後で埋める可能性あり）
 	res, err := tx.Exec(`
-	  INSERT INTO flea_market_items
-	  (UserID, Name, Description, Price, Quantity, IsMultiPurchasable, Quality,
-	   CategoryID, MainImageURL, Status, ShipFrom, ShippingFeeType, ShipsWithinDays,
+	  INSERT INTO flea_items
+	  (UserID, Name, Description, Price, Quantity,Type, IsMultiPurchasable,
+	   MainImageURL, Status, ShipFrom, ShippingFeeType, ShipsWithinDays,
 	   CreatedAt, UpdatedAt)
-	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
 	`,
 		uID,
 		in.Name,
 		in.Description,
 		in.Price,
 		in.Quantity,
+		in.Type,
 		in.IsMultiPurchasable,
-		in.ItemState,
-		in.CategoryID,
+
 		in.MainImageURL, // 空ならこのあと更新する
 		0,               // status=出品中
 		in.ShipFrom,
@@ -875,7 +875,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 	firstImageURL := ""
 	for i, u := range in.ImageURLs {
 		if _, err = tx.Exec(`
-		  INSERT INTO flea_market_item_images (ItemID, URL, SortOrder)
+		  INSERT INTO flea_item_images (ItemID, URL, SortOrder)
 		  VALUES (?, ?, ?)
 		`, itemID, u, i); err != nil {
 			return 0, err
@@ -888,7 +888,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 	// main_image_url が未指定で、画像があるなら1枚目をメインに
 	if (in.MainImageURL == "" || in.MainImageURL == "null") && firstImageURL != "" {
 		if _, err = tx.Exec(`
-		  UPDATE flea_market_items
+		  UPDATE flea_items
 		  SET main_image_url = ?, updated_at = NOW()
 		  WHERE id = ?
 		`, firstImageURL, itemID); err != nil {
@@ -902,7 +902,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 // ソフトデリート（ヒット確認）
 func (d *Database) SoftDeleteFleaMarketItem(id int64, userID string) error {
 	res, err := d.DB.Exec(`
-	  UPDATE flea_market_items
+	  UPDATE flea_items
 	  SET deleted_at = NOW()
 	  WHERE id = ? AND user_id = ? AND deleted_at IS NULL
 	`, id, userID)

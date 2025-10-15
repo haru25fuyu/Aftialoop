@@ -18,7 +18,7 @@ const List: React.FC = () => {
     const [contents, setContents] = React.useState<Content[]>([]);
 
     useEffect(() => {
-        api.post(`item/list?`).then((res) => {
+        api.post(`item/list`,{}).then((res) => {
             setContents(res.data);
             console.log(res.data);
         }).catch((err) => {
@@ -64,8 +64,7 @@ const List: React.FC = () => {
                                     <div className="text-xs text-pink-600 mt-1">
                                         {item.point}ポイント <span className="text-red-500">(3%)</span>
                                     </div>
-
-                                    <div className="text-xs text-blue-600 mt-1">prime 翌日配送</div>
+                                    
                                     <div className="text-xs text-gray-500">無料配送 {item.arrivalDate} にお届け</div>
                                 </div>
 
