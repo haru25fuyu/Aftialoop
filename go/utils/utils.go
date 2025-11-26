@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -157,6 +158,18 @@ type ListItemsRequest struct {
 	PageSize      int      `json:"-"`
 }
 
+type FleaMarketListLite struct {
+	ID    uint64  `json:"id"`
+	Name  string  `json:"name"`
+	Price float64 `json:"price"`
+	Type  string  `json:"type"` // "ANIMAL" or "SUPPLY"
+
+	MainImageURL *string `json:"main_image_url"`
+
+	SellerName    string  `json:"seller_name"`
+	SellerIconURL *string `json:"seller_icon_url"`
+}
+
 // 出品アイテム本体
 type FleaMarketItem struct {
 	ID                 int64   `db:"ID"                  json:"id"`
@@ -193,6 +206,20 @@ type FleaMarketItemWithImages struct {
 	Images []FleaMarketItemImage `json:"images"`
 }
 
+type AnimalDetails struct {
+	Locality   *string `json:"locality"`
+	HatchDate  *string `json:"hatch_date"`
+	Generation *string `json:"generation"`
+	Size       *string `json:"size"`
+	Sex        *string `json:"sex"`
+}
+
+type SupplyDetails struct {
+	Brand      *string `json:"brand"`
+	SKU        *string `json:"sku"`
+	NetWeightG *int    `json:"net_weight_g"`
+}
+
 // 作成用の受け口（multipartのパース後やJSON API用）
 type CreateFleaMarketItemInput struct {
 	Name               string   `json:"name"`
@@ -206,6 +233,60 @@ type CreateFleaMarketItemInput struct {
 	ShippingFeeType    int      `json:"shippingFeeType"` // 0送料込み/1着払い
 	ShipFrom           *int     `json:"shipFrom,omitempty"`
 	ShipsWithinDays    *int     `json:"shipsWithinDays,omitempty"`
+}
+
+type DraftPayload struct {
+	Name               *string         `json:"name"`
+	Description        *string         `json:"description"`
+	Price              *string         `json:"price"`
+	Quantity           *int            `json:"quantity"`
+	Type               *string         `json:"type"`
+	IsMultiPurchasable *int            `json:"is_multi_purchasable"`
+	ShippingFeeType    *int            `json:"shipping_fee_type"`
+	ShipFrom           *int            `json:"ship_from_id"`
+	ShipsWithinDays    *int            `json:"ships_within_days"`
+	MainImageURL       *string         `json:"main_image_url"`
+	TempImageURLs      *[]string       `json:"temp_image_urls"`
+	Details            json.RawMessage `json:"details,omitempty"`
+}
+
+type SaveDraftRequest struct {
+	DraftID *uint64      `json:"draft_id"` // null=新規作成, 有り=更新
+	Payload DraftPayload `json:"payload"`
+}
+
+type SaveDraftResponse struct {
+	DraftID uint64 `json:"draft_id"`
+	SavedAt string `json:"saved_at"`
+}
+
+type DraftListItem struct {
+	DraftID uint64 `json:"draft_id"`
+	// タイトル列がないので Name をそのまま表示用に使う（無ければ "ドラフト #ID" をフロントで補う）
+	Name      *string `json:"name"`
+	UpdatedAt string  `json:"updated_at"`
+	Status    int     `json:"status"`
+}
+
+type DraftListResponse struct {
+	Items      []DraftListItem `json:"items"`
+	NextOffset int             `json:"next_offset"`
+}
+
+type LatestDraftResponse struct {
+	DraftID            uint64    `json:"draft_id"`
+	Name               *string   `json:"name"`
+	Description        *string   `json:"description"`
+	Price              *string   `json:"price"`
+	Quantity           *int      `json:"quantity"`
+	Type               *string   `json:"type"`
+	IsMultiPurchasable *int      `json:"is_multi_purchasable"`
+	ShippingFeeType    *int      `json:"shipping_fee_type"`
+	ShipFrom           *string   `json:"ship_from"`
+	ShipsWithinDays    *int      `json:"ships_within_days"`
+	MainImageURL       *string   `json:"main_image_url"`
+	TempImageURLs      *[]string `json:"temp_image_urls"`
+	UpdatedAt          string    `json:"updated_at"`
 }
 
 func (mt *MySQLTime) Scan(value interface{}) error {

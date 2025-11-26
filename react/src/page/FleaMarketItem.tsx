@@ -7,7 +7,7 @@ import DirectCheckoutModal from "../component/DirectCheckoutModal";
 import BottomBarPortal from "../component/BottomBarPortal"
 import QuestionModal from "../modal/QuestionModal";
 
-import { Content } from "../types/Content";
+import { fleaContent } from "../types/Content";
 import { itemImage } from "../types/Content"; // ← itemImage をインポート
 
 import api from "../conf/api";
@@ -21,7 +21,7 @@ import "swiper/swiper-bundle.css";
 
 const Item: React.FC = () => {
     const [showModal, setShowModal] = useState(false);
-    const [item, setItem] = useState<Content | null>(null);
+    const [item, setItem] = useState<fleaContent | null>(null);
     const [images, setImages] = useState<itemImage[]>([]);
     const [selectQuantity, setSelectQuantity] = useState(1);
     const location = useLocation();

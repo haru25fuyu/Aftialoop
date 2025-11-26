@@ -1,7 +1,11 @@
+import { useContext } from "react";
+
 import api from "../conf/api";
 import { ITEM_STATUS_LABELS } from "../conf/config";
 
 import { Content } from "../types/Content";
+
+import { ToastCtx } from "./toast-context";
 
 //// トークンが期限切れかを確認する関数
 //function isTokenExpired(token: string | null): boolean {
@@ -75,3 +79,8 @@ export function hasAllFlags(status: number, flags: number[]): boolean {
   return (status & combined) === combined;
 }
 
+export function useToast() {
+    const ctx = useContext(ToastCtx);
+    if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
+    return ctx.toast;
+}

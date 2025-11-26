@@ -1,6 +1,8 @@
 // src/modal/ConfirmDialog.tsx
 import React, { useMemo, useEffect } from "react";
 
+import { PREFS } from "../conf/config"
+
 type Summary = {
     name: string;
     price: number;
@@ -11,7 +13,7 @@ type Summary = {
     type: string;
     description: string;
     shippingFeeType: 0 | 1;
-    shipFrom: string;
+    shipFromId: number | null;
     shipsWithinDays?: number; // 空のときは undefined を受ける
     files: File[];        // ← ここをFile[]に
     mainIndex: number;      // プレビューURL（useMemoで生成）
@@ -45,7 +47,7 @@ export function ConfirmDialog({
         type,
         description,
         shippingFeeType,
-        shipFrom,
+        shipFromId,
         shipsWithinDays,
         mainIndex,
     } = summary;
@@ -96,7 +98,10 @@ export function ConfirmDialog({
                         <Row label="価格" value={`${fmt(price)} 円`} />
                         <Row label="数量" value={`${quantity} 個${isMultiPurchasable ? "（複数購入可）" : ""}`} />
                         <Row label="送料負担" value={shipFeeLabel} />
-                        <Row label="発送元" value={shipFrom || "（未入力）"} />
+                        <Row
+                            label="発送元"
+                            value={PREFS.find(p => p.id === shipFromId)?.name || "（未入力）"}
+                        />
                         <Row label="発送までの目安" value={shipsLabel} />
                         <Row label="合計金額" value={`${fmt(total)} 円`} strong />
                     </div>

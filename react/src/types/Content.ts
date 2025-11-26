@@ -48,3 +48,33 @@ export interface itemImage {
   url: string;
   sort_num: number;
 }
+
+export const FLEA_ITEM_TYPES = ["ANIMAL", "SUPPLY"] as const;
+export type FleaItemType = (typeof FLEA_ITEM_TYPES)[number];
+export interface fleaContent {
+  id: string;
+  isMultiPurchasable: boolean;
+  main_image_url: string;
+  name: string;
+  price: number;
+  quantity: number;
+  shipFrom: number;
+  shippingFeeType: number;
+  shipsWithinDays: number;
+  status: number;
+  type: FleaItemType;
+  userId: string;
+}
+
+export interface FleaListContent {
+  id: string;
+  userId: string;
+  name: string;
+  price: number;
+  main_image_url: string | null;
+
+  seller_name: string;
+  seller_icon_url: string | null;
+
+  type: FleaItemType;
+}

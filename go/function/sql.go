@@ -3,7 +3,10 @@ package function
 import (
 	"animaloop/config"
 	"animaloop/utils"
+	"context"
 	"database/sql"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -94,9 +97,9 @@ func (d *Database) DeleteRegistrationToken(token string) error {
 	return err
 }
 
-// --------------------------------------------------------------------------
+// ============================================================
 // ユーザー関係
-// ---------------------------------------------------------------------------
+// ============================================================
 // ユーザーの保存
 func (d *Database) SaveUser(user map[string]interface{}) error {
 	// カラム名と値のスライスを生成
@@ -262,9 +265,9 @@ func (d *Database) SaveRefreshToken(token string, user_id string) error {
 	return err
 }
 
-//--------------------------------------------------------------------------
+//============================================================
 // ユーザー興味関係
-//---------------------------------------------------------------------------
+//============================================================
 
 // お気に入りと商品情報をjoinして取得
 func (d *Database) GetFavoriteItems(user_id string, limit int) ([]map[string]interface{}, error) {
@@ -332,9 +335,9 @@ func (d *Database) DeleteHistory(user_id string, item_id string) error {
 	return nil
 }
 
-// --------------------------------------------------------------------------
+// ============================================================
 // 住所関係
-// ---------------------------------------------------------------------------
+// ============================================================
 // 住所の更新
 func (d *Database) UpdateAddress(id string, address map[string]interface{}) error {
 	setClauses := []string{}
@@ -422,9 +425,9 @@ func (d *Database) GetDefaultAddress(user_id string) (utils.Address, error) {
 	return address, err
 }
 
-// --------------------------------------------------------------------------
+// ============================================================
 // カード関係
-// ---------------------------------------------------------------------------
+// ============================================================
 // カードのアドレス情報を保存
 func (d *Database) SaveOrUpdateCardAddress(userID, cardID string, addressID string) error {
 	// 既に存在するか確認
@@ -497,9 +500,9 @@ func (d *Database) GetCardAddressByID(cardID string) (utils.CardSummary, error) 
 	return card, nil
 }
 
-// --------------------------------------------------------------------------
+// ============================================================
 // カート関係
-// ---------------------------------------------------------------------------
+// ============================================================
 // カートにアイテムを追加
 func (d *Database) AddToCart(userID string, item utils.Item) error {
 	// 既に存在するか確認
@@ -574,9 +577,9 @@ func (d *Database) UpdateCartItem(userID, itemID string, quantity int, isSelecte
 	return nil
 }
 
-// --------------------------------------------------------------------------
+//============================================================
 // 購入履歴関係
-// ---------------------------------------------------------------------------
+//============================================================
 
 // 　購入履歴を保存
 func (d *Database) SavePurchaseHistory(userID, cardID string, amount int64, items []utils.Item,
@@ -656,9 +659,9 @@ func (d *Database) GetPurchaseHistory(userID string, limit int) ([]utils.Purchas
 	return history, nil
 }
 
-// --------------------------------------------------------------------------------------
+// ============================================================
 // ポイント関係
-// --------------------------------------------------------------------------------------
+// ============================================================
 // ポイントで決済を行う関数
 func (d *Database) ChargePoint(userID string, amount int64) error {
 	// ユーザーのポイントを取得
@@ -704,9 +707,9 @@ func (d *Database) AddPoint(userID string, amount int64) error {
 	return nil
 }
 
-//---------------------------------------------------------------------------
+//============================================================
 // 商品関係
-//---------------------------------------------------------------------------
+//============================================================
 
 // 商品を取得
 func (d *Database) GetItemByID(id string) (*utils.Item, error) {
@@ -773,32 +776,81 @@ func (d *Database) GetItemImages(itemID string) ([]utils.ItemImage, error) {
 	return images, nil
 }
 
+// ============================================================
 // フリーマーケット関係
+// ============================================================
 // 一覧（削除除外・新しい順）
 // 一覧（削除除外・新しい順）
-func (d *Database) ListFleaMarketItems(limit, offset int) ([]utils.FleaMarketItem, error) {
-	var items []utils.FleaMarketItem
+func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMarketListLite, error) {
 	const q = `
-	  SELECT *
-	  FROM flea_items
-	  WHERE DeletedAt IS NULL
-	  ORDER BY CreatedAt DESC
-	  LIMIT ? OFFSET ?
-	`
-	if err := d.DB.Select(&items, q, limit, offset); err != nil {
+SELECT
+  f.ID,
+  f.Name,
+  f.Price,
+  f.Type,
+  f.MainImageURL,
+  u.Name      AS seller_name,
+  p.IconURL   AS seller_icon_url
+FROM flea_items AS f
+LEFT JOIN users   AS u ON u.ID     = f.UserID
+LEFT JOIN profile AS p ON p.UserID = f.UserID
+WHERE f.DeletedAt IS NULL
+ORDER BY f.CreatedAt DESC
+LIMIT ? OFFSET ?;
+`
+	rows, err := db.DB.Query(q, limit, offset)
+	if err != nil {
 		return nil, err
 	}
-	return items, nil
+	defer rows.Close()
+
+	items := make([]utils.FleaMarketListLite, 0, limit)
+
+	for rows.Next() {
+		var (
+			it            utils.FleaMarketListLite
+			mainURL       sql.NullString
+			sellerName    sql.NullString
+			sellerIconURL sql.NullString
+		)
+
+		if err := rows.Scan(
+			&it.ID,
+			&it.Name,
+			&it.Price,
+			&it.Type,
+			&mainURL,
+			&sellerName,
+			&sellerIconURL,
+		); err != nil {
+			return nil, err
+		}
+
+		if mainURL.Valid {
+			s := mainURL.String
+			it.MainImageURL = &s
+		}
+		if sellerName.Valid {
+			it.SellerName = sellerName.String
+		}
+		if sellerIconURL.Valid {
+			s := sellerIconURL.String
+			it.SellerIconURL = &s
+		}
+
+		items = append(items, it)
+	}
+	return items, rows.Err()
 }
 
 // 単体取得（削除除外）
 func (d *Database) GetFleaMarketItemByID(id int64) (*utils.FleaMarketItem, error) {
 	var item utils.FleaMarketItem
 	const q = `
-	  SELECT *
-	  FROM flea_items
-	  WHERE id = ? AND deleted_at IS NULL
-	  LIMIT 1
+		SELECT *
+		FROM flea_items
+		WHERE id = ? AND deleted_at IS NULL
+		LIMIT 1
 	`
 	if err := d.DB.Get(&item, q, id); err != nil {
 		return nil, err
@@ -914,6 +966,266 @@ func (d *Database) SoftDeleteFleaMarketItem(id int64, userID string) error {
 		// 既に削除済み or 権限なし or 存在しない
 		// 必要に応じて nil でもOK。ここではわかりやすくエラーを返す例に。
 		return fmt.Errorf("no target updated (id=%d, user=%s)", id, userID)
+	}
+	return nil
+}
+
+func (db *Database) FindFleaItemOwnerID(ctx context.Context, itemID uint64) (string, error) {
+	const q = `
+        SELECT UserId
+        FROM flea_items
+        WHERE ID = ? AND DeletedAt IS NULL
+    `
+
+	var uid string
+	err := db.DB.QueryRowContext(ctx, q, itemID).Scan(&uid)
+	if err != nil {
+		return "", err
+	}
+	return uid, nil
+}
+
+// 生体の詳細保存
+func (db *Database) UpsertAnimalDetails(
+	ctx context.Context,
+	itemID uint64,
+	d *utils.AnimalDetails,
+) error {
+	if d == nil {
+		return nil // 送ってこなかったら何もしない運用でもOK
+	}
+
+	_, err := db.DB.ExecContext(ctx, `
+        INSERT INTO flea_item_animal_details
+            (item_id, locality, hatch_date, generation, size, sex)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            locality   = VALUES(locality),
+            hatch_date = VALUES(hatch_date),
+            generation = VALUES(generation),
+            size       = VALUES(size),
+            sex        = VALUES(sex)
+    `,
+		itemID,
+		d.Locality,
+		d.HatchDate, // string(YYYY-MM-DD)で投げてれば MySQL 側でDATEに入る
+		d.Generation,
+		d.Size,
+		d.Sex,
+	)
+	return err
+}
+
+// 用品の詳細
+func (db *Database) UpsertSupplyDetails(
+	ctx context.Context,
+	itemID uint64,
+	d *utils.SupplyDetails,
+) error {
+	if d == nil {
+		return nil
+	}
+
+	_, err := db.DB.ExecContext(ctx, `
+        INSERT INTO flea_item_supply_details
+            (item_id, brand, sku, net_weight_g)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            brand        = VALUES(brand),
+            sku          = VALUES(sku),
+            net_weight_g = VALUES(net_weight_g)
+    `,
+		itemID,
+		d.Brand,
+		d.SKU,
+		d.NetWeightG,
+	)
+	return err
+}
+
+// -----------------------------------------------------------
+// 下書き関係
+// ------------------------------------------------------------
+func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.DraftPayload) (id uint64, savedAt time.Time, err error) {
+	if db.DB == nil {
+		return 0, time.Time{}, errors.New("db not ready")
+	}
+
+	// TempImageURLs は JSON 文字列にして保存（列が TEXT/JSON どちらでもOK）
+	var tempJSON *string
+	if p.TempImageURLs != nil {
+		b, _ := json.Marshal(*p.TempImageURLs)
+		s := string(b)
+		tempJSON = &s // nil のままなら NULL で入る
+	}
+
+	// INSERT ... SET なら列数と値数の不一致が起きない
+	res, err := db.DB.ExecContext(ctx, `
+		INSERT INTO flea_item_drafts
+		SET UserID = ?,
+		    Name = ?,
+		    Description = ?,
+		    Price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
+		    Quantity = ?,
+		    Type = ?,
+		    IsMultiPurchasable = COALESCE(?, 0),
+		    MainImageURL = ?,
+		    TempImageURLs = ?,
+		    Status = 0,
+		    ShipFrom = ?,
+		    ShippingFeeType = ?,
+		    ShipsWithinDays = ?,
+		    CreatedAt = NOW(),
+		    UpdatedAt = NOW()
+	`,
+		userID,
+		p.Name, p.Description,
+		p.Price, p.Price, p.Price,
+		p.Quantity,
+		p.Type,
+		p.IsMultiPurchasable,
+		p.MainImageURL,
+		tempJSON,
+		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
+	)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("insert draft: %w", err)
+	}
+
+	lastID, _ := res.LastInsertId()
+	id = uint64(lastID)
+	if err = db.DB.QueryRowContext(ctx, `SELECT UpdatedAt FROM flea_item_drafts WHERE ID=?`, id).Scan(&savedAt); err != nil {
+		return 0, time.Time{}, fmt.Errorf("select updated_at: %w", err)
+	}
+	return id, savedAt, nil
+}
+
+func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID uint64, p utils.DraftPayload) (savedAt time.Time, err error) {
+	if db.DB == nil {
+		return time.Time{}, errors.New("db not ready")
+	}
+
+	var exists bool
+	if err = db.DB.QueryRowContext(ctx, `SELECT EXISTS(SELECT 1 FROM flea_item_drafts WHERE ID=? AND UserID=? AND Status=0)`, draftID, userID).Scan(&exists); err != nil {
+		return
+	}
+	if !exists {
+		return time.Time{}, sql.ErrNoRows
+	}
+
+	var tempJSON *string
+	if p.TempImageURLs != nil {
+		b, _ := json.Marshal(p.TempImageURLs)
+		s := string(b)
+		tempJSON = &s
+	}
+
+	_, err = db.DB.ExecContext(ctx, `
+    UPDATE flea_item_drafts
+       SET Name = COALESCE(?, Name),
+           Description = COALESCE(?, Description),
+           Price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
+           Quantity = COALESCE(?, Quantity),
+           Type = COALESCE(?, Type),
+           IsMultiPurchasable = COALESCE(?, IsMultiPurchasable),
+           MainImageURL = COALESCE(?, MainImageURL),
+           TempImageURLs = COALESCE(?, TempImageURLs),
+           ShipFrom = COALESCE(?, ShipFrom),
+           ShippingFeeType = COALESCE(?, ShippingFeeType),
+           ShipsWithinDays = COALESCE(?, ShipsWithinDays),
+           UpdatedAt = NOW()
+     WHERE ID=? AND UserID=? AND Status=0
+  `,
+		p.Name, p.Description,
+		p.Price, p.Price, p.Price,
+		p.Quantity, p.Type, p.IsMultiPurchasable,
+		p.MainImageURL, tempJSON,
+		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
+		draftID, userID,
+	)
+	if err != nil {
+		return
+	}
+	err = db.DB.QueryRowContext(ctx, `SELECT UpdatedAt FROM flea_item_drafts WHERE ID=?`, draftID).Scan(&savedAt)
+	return
+}
+
+func (db *Database) GetDraftByID(ctx context.Context, userID string, draftID uint64) (utils.LatestDraftResponse, error) {
+	var out utils.LatestDraftResponse
+	if db.DB == nil {
+		return out, errors.New("db not ready")
+	}
+
+	var updated time.Time
+	var tempJSON sql.NullString
+	err := db.DB.QueryRowContext(ctx, `
+    SELECT ID, Name, Description,
+           CASE WHEN Price IS NULL THEN NULL ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM Price)) END,
+           Quantity, Type, IsMultiPurchasable,
+           MainImageURL, TempImageURLs,
+           ShipFrom, ShippingFeeType, ShipsWithinDays, UpdatedAt
+      FROM flea_item_drafts
+     WHERE ID=? AND UserID=? AND Status=0
+  `, draftID, userID).Scan(
+		&out.DraftID, &out.Name, &out.Description,
+		&out.Price, &out.Quantity, &out.Type, &out.IsMultiPurchasable,
+		&out.MainImageURL, &tempJSON,
+		&out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays, &updated,
+	)
+	if err != nil {
+		return out, err
+	}
+
+	if tempJSON.Valid {
+		var arr []string
+		_ = json.Unmarshal([]byte(tempJSON.String), &arr)
+		out.TempImageURLs = &arr
+	}
+	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
+	return out, nil
+}
+
+func (db *Database) ListDraftsByUser(ctx context.Context, userID string, limit, offset int) (utils.DraftListResponse, error) {
+	var out utils.DraftListResponse
+	if db.DB == nil {
+		return out, errors.New("db not ready")
+	}
+
+	rows, err := db.DB.QueryContext(ctx, `
+    SELECT ID, Name, UpdatedAt, Status
+      FROM flea_item_drafts
+     WHERE UserID=? AND Status=0
+     ORDER BY UpdatedAt DESC
+     LIMIT ? OFFSET ?
+  `, userID, limit, offset)
+	if err != nil {
+		return out, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var it utils.DraftListItem
+		var updated time.Time
+		if err := rows.Scan(&it.DraftID, &it.Name, &updated, &it.Status); err != nil {
+			return out, err
+		}
+		it.UpdatedAt = updated.UTC().Format(time.RFC3339)
+		out.Items = append(out.Items, it)
+	}
+	out.NextOffset = offset + len(out.Items)
+	return out, nil
+}
+
+func (db *Database) ArchiveDraft(ctx context.Context, userID string, draftID uint64) error {
+	if db.DB == nil {
+		return errors.New("db not ready")
+	}
+	res, err := db.DB.ExecContext(ctx, `UPDATE flea_item_drafts SET Status=2, UpdatedAt=NOW() WHERE ID=? AND UserID=? AND Status=0`, draftID, userID)
+	if err != nil {
+		return err
+	}
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return sql.ErrNoRows
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 import React, { useEffect } from 'react';
+import { Link } from 'react-router-dom';
 
-import { Content } from '../types/Content.ts';
+import { FleaListContent } from '../types/Content.ts';
 
 import Header from '../component/Header.tsx';
 import MainImage from '../component/MainImage.tsx';
@@ -15,71 +16,84 @@ const FleaMarketList: React.FC = () => {
     //const search = useLocation().search;
     //const query = new URLSearchParams(search);
     //const type = query.get('type');
-    const [contents, setContents] = React.useState<Content[]>([]);
+    const [contents, setContents] = React.useState<FleaListContent[]>([]);
 
     useEffect(() => {
         api.post(`/flea-market/list`)
             .then((res) => {
                 setContents(res.data);
-                console.log(contents[0]?.is_selected);
+                console.log(res.data);
             }).catch((err) => {
                 console.error(err);
             });
     }, []);
-
     return (
         <div>
             <header>
                 <Header />
                 {/*<MainImage image={"/data/IMG_3589.JPG"} title={"GOODS LIST"} />*/}
             </header>
-            <main className=" w-full">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 w-[90%] mx-auto">
-                    {contents.map((item) => (
-                        console.log(item.main_image_url),
-                        <div
-                            key={item.id}
-                            className="flex flex-row md:flex-col border rounded shadow-sm bg-white p-4"
-                        >
-                            {/* 画像 */}
-                            <img
-                                src={item.main_image_url ? CONFIG.BASE_URL + item.main_image_url : "/data/noimage.png"}
-                                alt={item.name}
-                                className="w-24 h-32 object-cover rounded md:w-full md:h-auto"
-                            />
+            <main className="w-full">
+                <div className="w-[94%] mx-auto grid grid-cols-1 lg:grid-cols-[240px,minmax(0,1fr)] gap-6">
 
-                            {/* 詳細情報 */}
-                            <div className="flex flex-col justify-between flex-1 ml-3 md:ml-0 md:mt-3 text-sm">
-                                <div>
-                                    <h3 className="font-semibold text-gray-800 text-sm md:text-base line-clamp-2">
-                                        {item.name}
-                                    </h3>
-
-                                    <div className="text-yellow-500 text-xs mt-1">
-                                        ★ 5.0 <span className="text-gray-500">({100})</span>
-                                    </div>
-
-                                    <div className="text-red-600 font-bold text-lg mt-1">
-                                        {item.price.toLocaleString()}円
-                                    </div>
-
-                                    <div className="text-xs text-pink-600 mt-1">
-                                        {item.point}ポイント <span className="text-red-500">(3%)</span>
-                                    </div>
-
-                                    <div className="text-xs text-blue-600 mt-1">prime 翌日配送</div>
-                                    {/*<div className="text-xs text-gray-500">無料配送 {item.arrivalDate} にお届け</div>*/}
-                                </div>
-
-                                <button className="bg-yellow-400 hover:bg-yellow-500 text-black text-sm font-semibold py-2 w-full rounded mt-3">
-                                    カートに入れる
-                                </button>
-                            </div>
+                    {/* サイドバー（PCのみ） */}
+                    <aside className="hidden lg:block">
+                        <div className="bg-white rounded-2xl shadow-sm border p-4 space-y-3 text-sm">
+                            <h2 className="font-semibold mb-2">絞り込み一覧</h2>
+                            {/* タイプ・価格・地域フィルタなど */}
                         </div>
-                    ))}
+                    </aside>
+
+                    {/* 商品グリッド */}
+                    <section>
+                        <div className="grid grid-cols-3 gap-2 md:grid-cols-4 xl:grid-cols-5">
+                            {contents.map((item) => (
+                                <a
+                                    key={item.id}
+                                    href={`/item/${item.id}`}
+                                    className="block border rounded-xl bg-white shadow-sm hover:shadow-md transition-shadow overflow-hidden"
+                                >
+                                    {/* 画像 */}
+                                    <img
+                                        src={
+                                            item.main_image_url
+                                                ? CONFIG.BASE_URL + item.main_image_url
+                                                : "/data/noimage.png"
+                                        }
+                                        alt={item.name}
+                                        className="w-full aspect-[11/12] object-cover"
+                                    />
+
+                                    {/* 下部：アイコン + テキストブロック */}
+                                    <div className="p-2 flex gap-2">
+                                        {/* 出品者アイコン */}
+                                        <img
+                                            src={
+                                                item.seller_icon_url
+                                                    ? CONFIG.BASE_URL + item.seller_icon_url + "?t=" + new Date().getTime()
+                                                    : "/data/noicon.png"
+                                            }
+                                            alt={item.seller_name}
+                                            className="w-6 h-6 rounded-full object-cover shrink-0"
+                                        />
+
+                                        {/* 商品名 & 価格 */}
+                                        <div className="flex-1 min-w-0">
+                                            <h3 className="font-semibold text-sm line-clamp-2 leading-tight">
+                                                {item.name}
+                                            </h3>
+
+                                            <p className="text-red-600 font-bold mt-1 text-sm">
+                                                {item.price.toLocaleString()}円
+                                            </p>
+                                        </div>
+                                    </div>
+                                </a>
+                            ))}
+                        </div>
+                    </section>
                 </div>
             </main>
-
         </div>
     );
 };
