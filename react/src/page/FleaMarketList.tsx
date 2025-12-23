@@ -5,8 +5,9 @@ import { FleaListContent, Customer } from '../types/Content.ts';
 
 import Header from '../component/Header.tsx';
 import MainImage from '../component/MainImage.tsx';
+import { PriceWithPerks } from '../component/PriceWithPerks.tsx';
 
-import api from '../conf/api.ts';
+import api, { getAccessToken } from '../conf/api.ts';
 import { CONFIG } from '../conf/config.ts';
 
 import '../css/List.css';
@@ -28,7 +29,7 @@ const FleaMarketList: React.FC = () => {
                 console.error(err);
             });
 
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
         if (token && token !== 'undefined') {
             api.post('/customer', {})
                 .then((res) => {
@@ -122,22 +123,10 @@ const FleaMarketList: React.FC = () => {
                             <div className="max-w-screen-lg mx-auto px-2">
                                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 md:gap-3">
                                     {contents.map((item) => {
-                                        const basePrice = item.price;
-
-                                        let discount = 0;
-                                        if (user && user.point > 0) {
-                                            const usablePoint = Math.min(user.point, basePrice);
-                                            discount = Math.floor(usablePoint * num);
-                                        }
-
-                                        const hasDiscount = discount > 0;
-                                        const finalPrice = basePrice - discount;
-                                        const bigDiscount = discount >= 100;
-
                                         return (
                                             <a
                                                 key={item.id}
-                                                href={`/item/${item.id}`}
+                                                href={`/flea-market/item/${item.id}`}
                                                 className="group block bg-white border border-gray-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow overflow-hidden"
                                             >
                                                 {/* 画像 */}
@@ -164,37 +153,11 @@ const FleaMarketList: React.FC = () => {
                                                         {item.name}
                                                     </h3>
 
-                                                    <p className="text-gray-900 font-bold mt-1 text-sm">
-                                                        {(hasDiscount ? finalPrice : basePrice).toLocaleString()}円
-                                                    </p>
-
-                                                    {hasDiscount ? (
-                                                        <>
-                                                            <p className="text-gray-400 line-through text-xs">
-                                                                {basePrice.toLocaleString()}円
-                                                            </p>
-                                                            <p className="mt-0.5">
-                                                                <span className="inline-block px-1.5 py-[1px] rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold tracking-wide">
-                                                                    サブスク優待
-                                                                </span>
-                                                            </p>
-
-                                                            {/* 割引額の行（緑 or グレーでメリハリ） */}
-                                                            <p
-                                                                className={
-                                                                    bigDiscount
-                                                                        ? "text-emerald-600 text-[11px] mt-0.5 font-semibold"
-                                                                        : "text-gray-500 text-[11px] mt-0.5"
-                                                                }
-                                                            >
-                                                                ポイント利用で{discount.toLocaleString()}円おトク
-                                                            </p>
-                                                        </>
-                                                    ) : (
-                                                        <p className="text-gray-500 text-[11px] mt-0.5">
-                                                            サブスクポイント利用でおトクに
-                                                        </p>
-                                                    )}
+                                                    <PriceWithPerks
+                                                        price={item.price}
+                                                        user={user}
+                                                        num={num}
+                                                    />
 
                                                     <p className="text-gray-500 font-medium mt-0.5 text-[11px]">
                                                         送料込み

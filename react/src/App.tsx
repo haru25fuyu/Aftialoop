@@ -1,6 +1,11 @@
 import { Routes, Route } from 'react-router-dom';
+import { useEffect } from "react";
 
 import './css/App.css'
+
+import { initAuthOnce } from "./conf/api";
+
+import RequireAuth from "./component/RequireAuth";
 
 import Home from './page/Home'
 import SignUp from './page/SignUp';
@@ -28,42 +33,43 @@ import CheckoutComplete from "./page/CheckoutComplete";
 import FleaItemCreatePage from './page/FleaItemCreatePage';
 import FleaMarketList from './page/FleaMarketList';
 
+
 const App: React.FC = () => {
+  useEffect(() => {
+    (async () => {
+      await initAuthOnce();
+    })();
+  }, []);
   return (
     <>
       <Routes>
-        <Route path={`/`} element={<Home />} />
-        <Route path={`/paymentForm`} element={<Home />} />
-        <Route path={`/signup`} element={<SignUp />} />
-        <Route path={`/signup/complete`} element={<SignUpComplete />} />
-        <Route path={`/register/confirm`} element={<RegisterConfirm />} />
-        <Route path={`/login`} element={<Login />} />
-        <Route path={`/mypage`} element={<MyPage />} />
-        <Route path={`/payment/List`} element={< PaymentList />} />
-        <Route path={`/list/search/:query`} element={<List />} />
-        <Route path={`/list/:category/:subCategory`} element={<List />} />
-        <Route path={`/list/:category/search/:query`} element={<List />} />
-        <Route path={`/list/:category/:subCategory/search/:query`} element={<List />} />
-        <Route path={`/list/:category`} element={<List />} />
-        <Route path={`/list/search/:query`} element={<List />} />
-        <Route path={`/list`} element={<List />} />
-        <Route path={`/address/list`} element={<AddressList />} />
-        <Route path={`/profile/edit`} element={<EditProfile />} />
-        <Route path={`/profile`} element={<Profile />} />
-        <Route path={`/item/:id`} element={<Item />} />
-        <Route path={`/flea-market/item/:id`} element={<FleaMarketItem />} />
-        <Route path={`/flea-market/list`} element={<FleaMarketList />} />
-        <Route path={`/flea-market/sell/create`} element={<FleaItemCreatePage />} />
-        <Route path={`/cart`} element={<Cart />} />
-        <Route path={`*`} element={<NotFound />} />
-        <Route path={`/contact`} element={<Contact />} />
-        <Route path={`/filetree`} element={<FileTree />} />
-        <Route path={`/checkout`} element={<Checkout />} />
-        {/* <Route path={`/payment/complete`} element={<PaymentComplete />} /> */}
-        <Route path={`/checkout/address`} element={<SelectAddress />} />
-        <Route path={`/checkout/payment`} element={<SelectPayment />} />
-        <Route path={`/checkout/complete`} element={<CheckoutComplete />} />
-        {/* <Route path={`/payment/form`} element={<PaymentForm />} /> */}
+        {/* public */}
+        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
+        <Route path="/signup/complete" element={<SignUpComplete />} />
+        <Route path="/register/confirm" element={<RegisterConfirm />} />
+        <Route path="/contact" element={<Contact />} />
+        <Route path="*" element={<NotFound />} />
+
+        {/* protected */}
+        <Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />
+        <Route path="/address/list" element={<RequireAuth><AddressList /></RequireAuth>} />
+        <Route path="/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route path="/profile/edit" element={<RequireAuth><EditProfile /></RequireAuth>} />
+        <Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />
+        <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
+        <Route path="/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
+        <Route path="/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
+        <Route path="/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
+
+        <Route path="/flea-market/list" element={<RequireAuth><FleaMarketList /></RequireAuth>} />
+        <Route path="/flea-market/item/:id" element={<RequireAuth><FleaMarketItem /></RequireAuth>} />
+        <Route path="/flea-market/sell/create" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
+
+        {/* list/item を公開にするかは方針次第 */}
+        <Route path="/list" element={<List />} />
+        <Route path="/item/:id" element={<Item />} />
       </Routes>
     </>
   )

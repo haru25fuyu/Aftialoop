@@ -9,14 +9,15 @@ import ContentsList from '../component/ContentsList';
 import { Content } from '../types/Content';
 import BasicContent, { LinkContent } from '../component/Content';
 
-import api from '../conf/api';
+import api, { getAccessToken } from '../conf/api';
 import { LogOut } from 'lucide-react';
 
 const MyPage: React.FC = () => {
     const [isLoginModalOpen, setLoginModalOpen] = useState(false);
     const [reloadTrigger, setReloadTrigger] = useState(0);
     useEffect(() => {
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
+        console.log("MyPage トークン確認:", token);
         if (!token || token === 'undefined') {
             setLoginModalOpen(true); // ← ここだけにする
             return;
@@ -24,26 +25,21 @@ const MyPage: React.FC = () => {
 
         api.post('/mypage')
             .then((res) => {
-                const expirationTime = Date.now() / 1000 + 3600;
-                localStorage.setItem('token', res.data.access_token);
-                localStorage.setItem('expirationTime', expirationTime.toString());
+                console.log("マイページ情報:", res.data);
             })
             .catch((err) => {
                 console.error(err);
-                localStorage.removeItem('token');
-                localStorage.removeItem('expirationTime');
                 setLoginModalOpen(true); // ← navigate せずモーダル表示
             });
     }, [reloadTrigger]);
 
     const handleLoginSuccess = () => {
+        console.log("ログイン成功 - MyPage");
         setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
     };
 
     const Logout = (isLogout: boolean) => {
         if (isLogout) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('expirationTime');
             setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
         }
     };

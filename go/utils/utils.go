@@ -191,6 +191,13 @@ type FleaMarketItem struct {
 	DeletedAt *time.Time `db:"DeletedAt"          json:"deletedAt,omitempty"`
 }
 
+type FleaMarketItemDetail struct {
+	FleaMarketItem
+
+	UserName string `db:"UserName" json:"seller_name"`
+	UserIcon string `db:"UserIcon" json:"seller_icon_url"`
+}
+
 // 画像
 type FleaMarketItemImage struct {
 	ID        int64     `db:"id"         json:"id"`
@@ -207,17 +214,35 @@ type FleaMarketItemWithImages struct {
 }
 
 type AnimalDetails struct {
-	Locality   *string `json:"locality"`
-	HatchDate  *string `json:"hatch_date"`
-	Generation *string `json:"generation"`
-	Size       *string `json:"size"`
-	Sex        *string `json:"sex"`
+	Locality   *string `db:"locality"   json:"locality"`
+	HatchDate  *string `db:"hatch_date" json:"hatch_date"` // time.Time にしてもOK
+	Generation *string `db:"generation" json:"generation"`
+	Size       *string `db:"size"       json:"size"`
+	Sex        *string `db:"sex"        json:"sex"`
 }
 
 type SupplyDetails struct {
-	Brand      *string `json:"brand"`
-	SKU        *string `json:"sku"`
-	NetWeightG *int    `json:"net_weight_g"`
+	Brand      *string `db:"brand"        json:"brand"`
+	SKU        *string `db:"sku"          json:"sku"`
+	NetWeightG *int    `db:"net_weight_g" json:"net_weight_g"`
+}
+
+type FleaMarketItemDetails struct {
+	Animal *AnimalDetails `json:"animal_details,omitempty"`
+	Supply *SupplyDetails `json:"supply_details,omitempty"`
+}
+
+type FleaItemMessage struct {
+	ID              int64  `json:"id"`
+	ItemID          int64  `json:"itemId"`
+	ParentMessageID *int64 `json:"parentMessageId,omitempty"`
+	Body            string `json:"body"`
+
+	UserID   string `db:"user_id" json:"userId"`
+	UserName string `db:"user_name" json:"userName"`
+	UserIcon string `db:"user_icon" json:"userIcon"`
+
+	CreatedAt int64 `json:"createdAt"` // ms
 }
 
 // 作成用の受け口（multipartのパース後やJSON API用）
@@ -287,6 +312,11 @@ type LatestDraftResponse struct {
 	MainImageURL       *string   `json:"main_image_url"`
 	TempImageURLs      *[]string `json:"temp_image_urls"`
 	UpdatedAt          string    `json:"updated_at"`
+}
+
+type AddMessageRequest struct {
+	ParentMessageID *uint64 `json:"parentMessageId"`
+	Body            string  `json:"body"`
 }
 
 func (mt *MySQLTime) Scan(value interface{}) error {

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, Link, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { UserRound } from "lucide-react";
 
 import { Header } from '../component/Header';
 import LoginModal from '../modal/Login';
 
-import api from '../conf/api';
+import api, { getAccessToken } from '../conf/api';
 import { CONFIG } from '../conf/config';
 
 type Inputs = {
@@ -43,7 +43,7 @@ const Profile: React.FC = () => {
 
     useEffect(() => {
         // ユーザー情報を取得
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
         if (!token || token === 'undefined') {
             setLoginModalOpen(true);
         }
@@ -69,8 +69,6 @@ const Profile: React.FC = () => {
             })
             .catch((err) => {
                 console.error(err);
-                localStorage.removeItem('token');
-                localStorage.removeItem('expirationTime');
                 setLoginModalOpen(true);
             });
     }, [reloadTrigger]);

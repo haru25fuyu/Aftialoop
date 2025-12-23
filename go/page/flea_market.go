@@ -34,6 +34,7 @@ func NewFleaMarketHandler(db *function.Database) *FleaMarketHandler {
 
 func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	//商品取得
+	r.HandleFunc("/flea-market/item/{id}", h.GetFleaMarketItem).Methods("GET")
 
 	// 一覧・新規出品
 	r.HandleFunc("/flea-market/list", h.ListFleaMarket).Methods("POST")
@@ -54,12 +55,16 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/flea-market/item/{id:[0-9]+}/supply-details",
 		h.UpsertSupplyDetails,
 	).Methods("POST")
+
+	// コメント関係
+	r.HandleFunc("/flea-market/item/{id}/messages", h.GetFleaMarketItemMessages).Methods("GET")
+	r.HandleFunc("/flea-market/item/{id}/messages", h.AddFleaMarketItemMessage).Methods("POST")
 }
 
 // JWT からユーザーID（string）を取り出す共通ヘルパ
 func (h *FleaMarketHandler) currentUserIDFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
-	token, erro := function.CheckUser(h.db, w, r)
-	if erro != "" || token == "" {
+	token, err := function.CheckUser(h.db, w, r)
+	if err != nil || token == "" {
 		return "", errors.New("unauthorized")
 	}
 	claims, err := function.GetUserFromToken(token)
@@ -67,6 +72,45 @@ func (h *FleaMarketHandler) currentUserIDFromRequest(w http.ResponseWriter, r *h
 		return "", errors.New("unauthorized")
 	}
 	return claims.ID, nil
+}
+
+func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Request) {
+	// クエリパラメータから item_id を取得
+	itemIDStr := mux.Vars(r)["id"]
+	log.Println("Fetching flea market item with ID:", itemIDStr)
+	itemID, err := strconv.ParseUint(itemIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid item_id", http.StatusBadRequest)
+		return
+	}
+
+	item, err := h.db.GetFleaMarketItemByID(itemID)
+	if err != nil {
+		log.Println("failed to fetch flea item:", err)
+		http.Error(w, "failed to fetch item", http.StatusInternalServerError)
+		return
+	}
+	log.Println("Fetched flea market item:", item)
+
+	detail, err := h.db.GetFleaMarketItemDetail(item.ID, item.Type)
+	if err != nil {
+		log.Println("failed to fetch flea item detail:", err)
+		http.Error(w, "failed to fetch item detail", http.StatusInternalServerError)
+		return
+	}
+
+	//　画像のURLリストも取得
+	images, err := h.db.GetFleaMarketItemImages(itemID)
+	if err != nil {
+		log.Println("failed to fetch flea item images:", err)
+		http.Error(w, "failed to fetch item images", http.StatusInternalServerError)
+		return
+	}
+
+	resp := map[string]any{"item": item, "images": images, "details": detail}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // GET /flea-market/list?limit=20&offset=0 でもOK（POSTならBodyから取得）
@@ -92,7 +136,7 @@ func (h *FleaMarketHandler) ListFleaMarket(w http.ResponseWriter, r *http.Reques
 //   - images[] (複数)
 func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Request) {
 	// 認証チェック
-	userID, err := h.currentUserIDFromRequest(w, r)
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil || userID == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -210,7 +254,7 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 
 // 保存（新規 or 更新）
 func (h *FleaMarketHandler) SaveFleaDraft(w http.ResponseWriter, r *http.Request) {
-	uid, err := h.currentUserIDFromRequest(w, r)
+	uid, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -267,7 +311,7 @@ func (h *FleaMarketHandler) SaveFleaDraft(w http.ResponseWriter, r *http.Request
 
 // 1件取得
 func (h *FleaMarketHandler) GetFleaDraftByID(w http.ResponseWriter, r *http.Request) {
-	uid, err := h.currentUserIDFromRequest(w, r)
+	uid, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		http.Error(w, "unauthorized", 401)
 		return
@@ -295,7 +339,7 @@ func (h *FleaMarketHandler) GetFleaDraftByID(w http.ResponseWriter, r *http.Requ
 
 // 一覧
 func (h *FleaMarketHandler) ListFleaDrafts(w http.ResponseWriter, r *http.Request) {
-	uid, err := h.currentUserIDFromRequest(w, r)
+	uid, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		http.Error(w, "unauthorized", 401)
 		return
@@ -316,7 +360,7 @@ func (h *FleaMarketHandler) ListFleaDrafts(w http.ResponseWriter, r *http.Reques
 
 // アーカイブ（削除扱い）
 func (h *FleaMarketHandler) DeleteFleaDraft(w http.ResponseWriter, r *http.Request) {
-	uid, err := h.currentUserIDFromRequest(w, r)
+	uid, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		http.Error(w, "unauthorized", 401)
 		return
@@ -348,7 +392,7 @@ type AnimalDetailsRequest struct {
 }
 
 func (h *FleaMarketHandler) UpsertAnimalDetails(w http.ResponseWriter, r *http.Request) {
-	uid, err := h.currentUserIDFromRequest(w, r)
+	uid, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -406,7 +450,7 @@ type SupplyDetailsRequest struct {
 }
 
 func (h *FleaMarketHandler) UpsertSupplyDetails(w http.ResponseWriter, r *http.Request) {
-	uid, err := h.currentUserIDFromRequest(w, r)
+	uid, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
@@ -456,4 +500,97 @@ func (h *FleaMarketHandler) UpsertSupplyDetails(w http.ResponseWriter, r *http.R
 	}
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *FleaMarketHandler) GetFleaMarketItemMessages(w http.ResponseWriter, r *http.Request) {
+	// --- itemID の取得 ---
+	itemIDStr := mux.Vars(r)["id"]
+	itemID, err := strconv.ParseUint(itemIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid item_id", http.StatusBadRequest)
+		return
+	}
+
+	// --- DBからメッセージ一覧を取得 ---
+	messages, err := h.db.GetFleaItemMessages(itemID)
+	if err != nil {
+		log.Println("failed to get flea item messages:", err)
+		http.Error(w, "failed to fetch messages", http.StatusInternalServerError)
+		return
+	}
+
+	log.Println("Fetched flea item messages:", messages[0])
+	// --- レスポンス ---
+	resp := map[string]any{
+		"messages": messages,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
+}
+
+func (h *FleaMarketHandler) AddFleaMarketItemMessage(w http.ResponseWriter, r *http.Request) {
+	itemIDStr := mux.Vars(r)["id"]
+	itemID, err := strconv.ParseUint(itemIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	user_id, err := function.CheckUser(h.db, w, r)
+	if err != nil || user_id == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": err.Error()})
+		return
+	}
+
+	var req utils.AddMessageRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "bad json", http.StatusBadRequest)
+		return
+	}
+
+	newID, err := h.db.AddFleaItemMessage(itemID, user_id, req.ParentMessageID, req.Body)
+	if err != nil {
+		log.Println("failed insert:", err)
+		http.Error(w, "insert failed", 500)
+		return
+	}
+
+	//　通知の送信(初期メールのみ)
+	// 出品者からのメッセージなら購入希望者へ(過去にメッセージを送っている人全員に)
+	// 購入希望者からのメッセージなら出品者へ
+	//商品情報の取得
+	item, err := h.db.GetFleaMarketItemByID(itemID)
+	if err != nil {
+		log.Println("failed to get item for notification:", err)
+	} else {
+		if item.UserID == user_id {
+			//出品者からのメッセージ
+			userIDs, err := h.db.GetFleaItemMessageUserIDs(itemID, user_id)
+			if err != nil {
+				log.Println("failed to get message user ids for notification:", err)
+			} else {
+				subject := "【Animaloop】コメントした商品へのメッセージ通知"
+				hbody := fmt.Sprintf("あなたがコメントした商品「%s」にメッセージが届きました。Animaloopにログインして確認してください。\n\n商品URL: https://animaloop.com/flea-market/item/%d", item.Name, item.ID)
+				//通知メールの送信
+				for _, toUserID := range userIDs {
+					go function.SendFleaMarketMessageNotificationEmail(h.db, toUserID, subject, hbody)
+				}
+			}
+		} else {
+			subject := "【Animaloop】出品した商品へのメッセージ通知"
+			hbody := fmt.Sprintf("あなたが出品した商品「%s」にメッセージが届きました。Animaloopにログインして確認してください。\n\n商品URL: https://animaloop.com/flea-market/item/%d", item.Name, item.ID)
+			//購入希望者からのメッセージ
+			go function.SendFleaMarketMessageNotificationEmail(h.db, item.UserID, subject, hbody)
+		}
+	}
+
+	json.NewEncoder(w).Encode(map[string]any{
+		"id":              newID,
+		"userId":          user_id,
+		"parentMessageId": req.ParentMessageID,
+		"body":            req.Body,
+		"createdAt":       time.Now().UTC().Format(time.RFC3339),
+	})
 }

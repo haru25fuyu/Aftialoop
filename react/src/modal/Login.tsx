@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
+import axios from 'axios';
 
 import { GoogleOAuth } from '../component/GoogleOAuth';
-import api from '../conf/api';
+import api, { afterLogin } from '../conf/api';
 
 type Inputs = {
     name: string,
@@ -36,21 +37,21 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
     }, [isOpen]);
 
     const onSubmit = async (data: Inputs) => {
-        api.post('/login', data)
-            .then((res) => {
-                const expiresIn = res.data.expires_in;
-                const expirationTime = Date.now() / 1000 + expiresIn;
+        try {
+            const res = await api.post("/login", data);
 
-                localStorage.setItem('token', res.data.access_token);
-                localStorage.setItem('expirationTime', expirationTime.toString());
-
-                onLoginSuccess(); // ← これを呼ぶ
-                onClose();        // ← モーダル閉じる
-            })
-            .catch((err) => {
-                setError(err.response?.data?.err_message || 'ログインに失敗しました');
-            });
+            await afterLogin(res.data.access_token);
+            onLoginSuccess();
+            onClose();
+        } catch (err) {
+            if (axios.isAxiosError(err)) {
+                setError(err.response?.data?.err_message ?? "ログインに失敗しました");
+            } else {
+                setError("予期しないエラーが発生しました");
+            }
+        }
     };
+
 
     if (!isOpen) return null;
 

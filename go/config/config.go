@@ -19,6 +19,7 @@ var AllowedOrigins = []string{
 }
 
 const googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
+
 var googleOAuthClientSecret string
 
 // MySQL接続情報
@@ -47,21 +48,20 @@ const RecaptchaAction = "LOGIN"
 type OrderStatus int
 
 const (
-	OrderStatusPending OrderStatus = iota + 1 // 1: 未決済
-	OrderStatusPaid                           // 2: 決済済み
-	OrderStatusPreparing                      // 3: 発送準備中
-	OrderStatusShipped                        // 4: 発送済み
-	OrderStatusDelivered                      // 5: 配送完了
-	OrderStatusCancelled                      // 6: キャンセル
-	OrderStatusReturned                       // 7: 返品中
-	OrderStatusRefunded                       // 8: 返金済み
+	OrderStatusPending   OrderStatus = iota + 1 // 1: 未決済
+	OrderStatusPaid                             // 2: 決済済み
+	OrderStatusPreparing                        // 3: 発送準備中
+	OrderStatusShipped                          // 4: 発送済み
+	OrderStatusDelivered                        // 5: 配送完了
+	OrderStatusCancelled                        // 6: キャンセル
+	OrderStatusReturned                         // 7: 返品中
+	OrderStatusRefunded                         // 8: 返金済み
 )
-
 
 func Init() {
 	// MySQL接続
 	var err error
-	
+
 	if err != nil {
 		log.Fatal("MySQL接続エラー:", err)
 	}
@@ -92,5 +92,3 @@ func Init() {
 	)
 
 }
-
-

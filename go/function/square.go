@@ -33,6 +33,23 @@ func CreateCustomer(user utils.SqlUser) (string, error) {
 	return *response.Customer.ID, nil
 }
 
+func DeleteCustomer(customerID string) error {
+	response, err := config.SquareClient.Customers.Delete(
+		context.TODO(),
+		&square.DeleteCustomersRequest{
+			CustomerID: customerID,
+		},
+	)
+	if err != nil {
+		log.Fatalf("Error deleting customer: %v", err)
+		return err
+	}
+
+	log.Printf("削除された顧客ID: %s\n", response)
+
+	return nil
+}
+
 func CheckSquareEmail(email string) bool {
 	response, err := config.SquareClient.Customers.Search(
 		context.TODO(),

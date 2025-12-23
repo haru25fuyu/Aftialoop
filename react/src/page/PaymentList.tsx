@@ -6,7 +6,7 @@ import { Header } from '../component/Header';
 import SquarePayment from '../modal/EditPayment';
 import LoginModal from '../modal/Login';
 
-import api from '../conf/api';
+import api, { getAccessToken } from '../conf/api';
 
 import { Payment } from '../types/Content';
 
@@ -21,22 +21,15 @@ const PaymentList: React.FC = () => {
     useEffect(() => {
         api.post("/card/list",)
             .then((res) => {
-                console.log(res.data);
-                if (!res.data.token) {
-                    // IDが取れなかったら強制ログアウト
-                    localStorage.removeItem("token");
-                    localStorage.removeItem("expirationTime");
+                const token = getAccessToken();
+                if (!token || token === 'undefined') {
                     setLoginModalOpen(true);
-                } else {
-                    localStorage.setItem("token", res.data.token); // トークン更新あれば保存
                 }
                 setPayments(res.data.card);
                 console.log("カード一覧取得:", res.data.card);
             })
             .catch((err) => {
                 console.error(err);
-                localStorage.removeItem("token");
-                localStorage.removeItem("expirationTime");
                 setLoginModalOpen(true);
             });
 

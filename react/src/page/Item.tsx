@@ -10,13 +10,14 @@ import { CartAddBar } from "../SnackBar/AddCart"; // ← カート追加バー
 import { Content } from "../types/Content";
 import { itemImage } from "../types/Content"; // ← itemImage をインポート
 
-import api from "../conf/api";
+import api, { getAccessToken } from "../conf/api";
 import { hasAllFlags } from "../conf/function"; // getItemStatusLabels をインポート
 import { ITEM__STATUS } from "../conf/config"; // ITEM__STATUS をインポート
 
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
 import "swiper/swiper-bundle.css";
+import { get } from "react-hook-form";
 
 // ローカルストレージ用カート追加関数
 const addLocalCart = (item: Content) => {
@@ -114,9 +115,9 @@ const Item: React.FC = () => {
             return;
         }
 
-        const token = localStorage.getItem("token");
+        const token = getAccessToken();
         const addItem: Content = { ...item, quantity: selectQuantity };
-        if (!token) {
+        if (!token || token === "undefined") {
             addLocalCart(addItem);
         } else {
             api

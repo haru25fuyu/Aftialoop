@@ -8,7 +8,6 @@ import EditAddress from '../modal/EditAddress';
 
 import api from '../conf/api';
 import { Address } from '../types/Content';
-import { set } from 'react-hook-form';
 
 const SelectAddress: React.FC = () => {
     const [address, setAddress] = React.useState<Address[]>([])

@@ -1,6 +1,9 @@
 import { GoogleOAuthProvider } from "@react-oauth/google";
 import { GoogleLogin } from "@react-oauth/google";
 import api from "../conf/api.ts";
+import { afterLogin } from "../conf/api.ts";
+import React from "react";
+import axios from "axios";
 
 type Props = {
     onLoginSuccess?: () => void;
@@ -8,7 +11,7 @@ type Props = {
 
 export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess }) => {
 
-    const handleLoginSuccess = (response: { credential?: string }) => {
+    const handleLoginSuccess = async (response: { credential?: string }) => {
         if (!response.credential) {
             console.error("ログイン失敗: credential が undefined です");
             return;
@@ -16,27 +19,25 @@ export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess }) => {
         console.log("ログイン成功:", response);
         const token = { token: response.credential };
 
-        api.post("/auth/google", token)
-            .then((res) => {
-                console.log("ログイン成功:", res.data.access_token);
-                const expiresIn = res.data.expires_in;
-                const expirationTime = Date.now() / 1000 + expiresIn; // 秒単位で保存
+        try {
+            const res = await api.post("/auth/google", token);
 
-                localStorage.setItem("token", res.data.access_token);
-                localStorage.setItem("expirationTime", expirationTime);
+            console.log("ログイン成功:", res.data.access_token);
 
-                if (onLoginSuccess) {
-                    onLoginSuccess();
-                } else {
-                    window.location.href = '/';
-                }
+            await afterLogin(res.data.access_token);
 
-            })
-            .catch((err) => {
-                console.error("ログイン失敗:", err);
-                localStorage.setItem("token", "");
-                localStorage.setItem("expirationTime", "");
-            });
+            onLoginSuccess?.();
+            if (!onLoginSuccess) window.location.href = "/";
+        } catch (err) {
+            if (axios.isAxiosError(err)) {
+                console.error(
+                    "ログイン失敗:",
+                    err.response?.data?.err_message ?? "ログインに失敗しました"
+                );
+            } else {
+                console.error("予期しないエラー:", err);
+            }
+        }
     };
 
     const handleLoginFailure = () => {

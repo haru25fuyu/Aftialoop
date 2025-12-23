@@ -3,11 +3,13 @@ package page
 import (
 	"animaloop/function"
 	"animaloop/utils"
+	"time"
 
 	"encoding/json"
 	"log"
 	"net/http"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -29,7 +31,6 @@ func NewLoginHandler(db *function.Database) *loginHandler {
 		db: db,
 	}
 }
-
 
 // RegisterRoutes がルーティングの登録を行います
 func (h *loginHandler) RegisterRoutes(r *mux.Router) {
@@ -83,7 +84,12 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	function.SetRefreshToken(h.db, w, &token_data)
+	err = function.SetRefreshToken(h.db, w, user.ID)
+	if err != nil {
+		log.Println("リフレッシュトークン設定失敗", err)
+		http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
+		return
+	}
 
 	response := TokenResponse{
 		AccessToken: token,
@@ -159,9 +165,10 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// refresh_tokenをOnlyクッキーに
-		err = function.SetRefreshToken(h.db, w, &token_data)
+		err = function.SetRefreshToken(h.db, w, user.ID)
 
 		if err != nil {
+			log.Println("リフレッシュトークン設定失敗", err)
 			http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
 			return
 		}
@@ -178,21 +185,48 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ユーザーが存在しない場合はユーザーを作成
-	user := utils.SqlUser{
-		Email:    email,
-		Name:     payload["name"].(string),
-		GoogleID: payload["sub"].(string),
+	name, _ := payload["name"].(string)
+	if name == "" {
+		name, _ = payload["given_name"].(string) // tokeninfoなら入ってることがある
+	}
+	if name == "" {
+		name = "user"
 	}
 
+	sub, _ := payload["sub"].(string)
+	if sub == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "GoogleIDが取得できません"})
+		return
+	}
+
+	user := utils.SqlUser{
+		ID:       uuid.New().String(),
+		Email:    email,
+		Name:     name,
+		GoogleID: sub,
+	}
+
+	log.Println("[google new] start email:", email, "payload keys:", payload)
+
+	nameAny, ok := payload["name"]
+	log.Println("[google new] payload.name:", nameAny, "ok:", ok)
+
+	subAny, ok := payload["sub"]
+	log.Println("[google new] payload.sub:", subAny, "ok:", ok)
+
 	// スクエアのカスタマーを作成
+	log.Println("[google new] before CreateCustomer")
 	squareResponse, err := function.CreateCustomer(user)
 	if err != nil {
-		log.Fatalf("Error creating customer: %v", err)
+		log.Printf("Error creating customer: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
 		return
 	}
-	user.ID = squareResponse
+	user.CustomerID = squareResponse
+
+	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
 
 	prm, err := function.StructToMap(user)
 	if err != nil {
@@ -201,20 +235,26 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ユーザーを作成
+	log.Println("[google new] before CreateCustomer")
 	err = h.db.SaveUser(prm)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました" + err.Error()})
+		function.DeleteCustomer(squareResponse)
 		return
 	}
+	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
 
 	// プロフィールを作成
+	log.Println("[google new] before CreateCustomer")
 	err = h.db.SaveProfile(user.ID, map[string]interface{}{})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました" + err.Error()})
+		function.DeleteCustomer(squareResponse)
 		return
 	}
+	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
 
 	//　アクセストークンとリフレッシュトークンを生成
 	var token_data utils.User
@@ -223,15 +263,17 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	token_data.Name = user.Name
 	token_data.Limit = 1
 
-	token, err = function.GenerateToken(&token_data)
+	log.Println("[google new] before CreateCustomer")
 
+	token, err = function.GenerateTokenWithTTL(user.ID, 15*time.Minute)
+	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
 	if err != nil {
 		http.Error(w, "Could not generate token", http.StatusInternalServerError)
 		return
 	}
 
 	// refresh_tokenをOnlyクッキーに
-	err = function.SetRefreshToken(h.db, w, &token_data)
+	err = function.SetRefreshToken(h.db, w, user.ID)
 	if err != nil {
 		http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
 		return

@@ -4,6 +4,10 @@ import (
 	"animaloop/config"
 	"animaloop/utils"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -24,104 +28,78 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
-func CheckUser(db *Database, w http.ResponseWriter, r *http.Request) (string, string) {
+// CheckUser はリクエストからアクセストークンとリフレッシュトークンを確認し、ユーザーIDを返します。
+// return: userID, newAccessToken(if refreshed), errMsg
+func CheckUser(db *Database, w http.ResponseWriter, r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 
-	// まずは Cookie を試しに取得
-	refreshCookie, cookieErr := r.Cookie("refresh_token")
-
-	// Authorization も Cookie もない → ここで早期リターン
-	if authHeader == "" && cookieErr != nil {
-		log.Println("❌ トークンが見つかりません")
-		return "", "トークンが有りません"
-	}
-
-	var (
-		token   string
-		user    *utils.User
-		err     error
-		setUser *utils.User
-	)
-
-	// Bearer トークンがあればアクセス検証を試みる
+	// ① Access token があればまず検証
 	if strings.HasPrefix(authHeader, "Bearer ") {
-		token = strings.TrimPrefix(authHeader, "Bearer ")
-		user, err = GetUserFromToken(token)
-		if err != nil {
-			log.Println("❌ アクセストークンの検証に失敗:", err)
-			user = nil
+		token := strings.TrimPrefix(authHeader, "Bearer ")
+		u, err := GetUserFromToken(token)
+		if err == nil && u != nil && u.ID != "" {
+			return u.ID, nil
 		}
 	}
 
-	// アクセスに失敗 or トークンなし の場合はリフレッシュトークンを使う
-	if user == nil {
-		// Cookie が取得できていなければここで諦める
-		if cookieErr != nil {
-			log.Println("❌ リフレッシュトークンも取得できず:", cookieErr)
-			return "", "アクセストークンが期限切れです"
-		}
-		// Refresh トークンからユーザー復元を試みる
-		user, err = GetUserFromRefreshToken(refreshCookie.Value)
-		if err != nil || user == nil {
-			log.Println("❌ リフレッシュトークン検証失敗:", err)
-			return "", "アクセストークンが期限切れです"
-		}
-		// リフレッシュ成功 → 新しいアクセストークンを発行
-		setUser = user
-		setUser.Limit = 2 * 60 * 60 // 2時間後に設定
-		newToken, err := GenerateToken(setUser)
-		if err != nil {
-			log.Println("❌ アクセストークン再発行エラー:", err)
-			return "", "サーバーエラー"
-		}
-		// もしリフレッシュの有効期限が近ければ Cookie を更新
-		if time.Until(time.Unix(user.Exp, 0)) < 7*24*time.Hour {
-			SetRefreshToken(db, w, user)
-		}
-		return newToken, ""
-	}
-
-	// アクセストークンが valid な場合はこちら
-	setUser = user
-	setUser.Limit = 2 * 60 * 60 // 2時間後に設定
-	newToken, err := GenerateToken(setUser)
-	log.Println(GetUserFromToken(newToken))
+	// ② ダメなら refresh
+	userID, _, err := TryRefresh(db, w, r)
 	if err != nil {
-		log.Println("❌ アクセストークン再発行エラー:", err)
-		return "", "サーバーエラー"
+		return "", err
 	}
-	// 既存のリフレッシュトークンが古い or missing なら更新
-	if cookieErr != nil {
-		SetRefreshToken(db, w, user)
-	} else {
-		// 有効期限切れ間近なら更新
-		if time.Until(time.Unix(user.Exp, 0)) < 7*24*time.Hour {
-			SetRefreshToken(db, w, user)
-		}
-	}
-	return newToken, ""
+	return userID, nil
 }
 
-func SetRefreshToken(db *Database, w http.ResponseWriter, user *utils.User) error {
-	expires_at := time.Now().Add(24 * time.Hour * 14)
-
-	refreshToken, err := GenerateRefreshToken(user)
-	if err != nil {
-		return err
+func TryRefresh(db *Database, w http.ResponseWriter, r *http.Request) (string, string, error) {
+	c, err := r.Cookie("refresh_token")
+	if err != nil || c.Value == "" {
+		return "", "", errors.New("refresh token not found")
 	}
 
-	//新しいアクセストークンをクッキーに保存
-	http.SetCookie(w, &http.Cookie{
-		Name:     "refresh_token",
-		Value:    refreshToken,
-		Expires:  expires_at,
-		HttpOnly: true,
-		SameSite: http.SameSiteNoneMode,
-		Secure:   true,
-	})
+	prefix := c.Value
+	if len(prefix) > 20 {
+		prefix = prefix[:20]
+	}
+	log.Println("[refresh cookie] len=", len(c.Value), "prefix=", prefix)
 
-	db.SaveRefreshToken(refreshToken, user.ID)
+	user, refreshExp, err := db.GetUserByRefreshToken(c.Value)
+	if err != nil || user == nil || user.ID == "" {
+		return "", "", errors.New("invalid refresh token")
+	}
 
+	// Access token 再発行（15分）
+	user.Limit = 15 * 60
+	newAccess, err := GenerateTokenWithTTL(user.ID, 15*time.Minute)
+	if err != nil {
+		return "", "", err
+	}
+
+	// refresh ローテ（残り7日未満）
+	if time.Until(time.Unix(refreshExp, 0)) < 7*24*time.Hour {
+		newRefresh := MustRandom(64)
+		newExp := time.Now().UTC().Add(14 * 24 * time.Hour)
+
+		if err := db.RotateRefreshToken(user.ID, c.Value, newRefresh, newExp); err != nil {
+			return "", "", err
+		}
+		SetRefreshCookie(w, newRefresh, newExp) // ←これだけ
+	}
+
+	// 新Accessはヘッダで返す
+	w.Header().Set("X-New-Access-Token", newAccess)
+
+	return user.ID, newAccess, nil
+}
+
+func SetRefreshToken(db *Database, w http.ResponseWriter, userID string) error {
+	expiresAt := time.Now().UTC().Add(14 * 24 * time.Hour)
+	refreshToken := MustRandom(64)
+
+	SetRefreshCookie(w, refreshToken, expiresAt)
+
+	if err := db.SaveRefreshToken(refreshToken, userID, expiresAt); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -199,21 +177,15 @@ func PrioritizeCard(cards []utils.CardSummary, defaultID string) []utils.CardSum
 	return cards
 }
 
-func LoadUserAndCards(db *Database, token string) ([]*utils.CardSummary, error) {
-	// トークンからID取得
-	claims, err := GetUserFromToken(token)
-	if err != nil {
-		return nil, fmt.Errorf("トークン無効: %w", err)
-	}
-
+func LoadUserAndCards(db *Database, user_id string) ([]*utils.CardSummary, error) {
 	// ユーザー情報取得
-	userData, err := db.GetUserData([]string{"id = ?"}, []interface{}{claims.ID})
+	userData, err := db.GetUserDataByID(user_id)
 	if err != nil {
 		return nil, fmt.Errorf("ユーザー取得失敗: %w", err)
 	}
 
 	// カード一覧取得
-	cardData, err := GetCardList(claims.ID)
+	cardData, err := GetCardList(userData.ID)
 	if err != nil {
 		return nil, fmt.Errorf("カード取得失敗: %w", err)
 	}
@@ -256,16 +228,20 @@ func SendMail(to string, subject string, htmlContent string) (*ses.SendEmailOutp
 	}
 	res, err := client.SendEmail(context.TODO(), input)
 
+	if err != nil {
+		fmt.Printf("Error sending email: %v\n", err)
+	}
+
+	//　送信履歴の保存
+
 	return res, err
 }
 
 // JWTを生成する関数
 func GenerateToken(user *utils.User) (string, error) {
 	claims := jwt.MapClaims{
-		"id":    user.ID,
-		"email": user.Email,
-		"name":  user.Name,
-		"exp":   time.Now().Add(time.Duration(user.Limit) * time.Hour).Unix(), // 例: 1時間の有効期限
+		"id":  user.ID,
+		"exp": time.Now().Add(time.Duration(user.Limit) * time.Second).Unix(),
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -275,10 +251,8 @@ func GenerateToken(user *utils.User) (string, error) {
 // リフレッシュトークンを生成する関数
 func GenerateRefreshToken(user *utils.User) (string, error) {
 	claims := jwt.MapClaims{
-		"id":    user.ID,
-		"email": user.Email,
-		"name":  user.Name,
-		"exp":   time.Now().Add(14 * 24 * time.Hour).Unix(), // 例: 14日間の有効期限
+		"id":  user.ID,
+		"exp": time.Now().Add(14 * 24 * time.Hour).Unix(), // 例: 14日間の有効期限
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -291,26 +265,44 @@ func GetUserFromToken(tokenString string) (*utils.User, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return config.SECRET_KEY, nil
+		return []byte(config.SECRET_KEY), nil
 	})
-
 	if err != nil || !token.Valid {
-		return nil, err
+		return nil, fmt.Errorf("invalid token: %w", err)
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
-	if !ok || !token.Valid {
-		return nil, fmt.Errorf("invalid token")
+	if !ok {
+		return nil, fmt.Errorf("invalid claims")
 	}
 
-	user := &utils.User{
-		ID:    claims["id"].(string),
-		Email: claims["email"].(string),
-		Name:  claims["name"].(string),
-		Exp:   int64(claims["exp"].(float64)),
+	id, _ := claims["id"].(string)
+	if id == "" {
+		return nil, fmt.Errorf("token missing id")
 	}
 
-	return user, nil
+	// expは型が float64 になりがち。無くてもOKにする
+	var exp int64
+	switch v := claims["exp"].(type) {
+	case float64:
+		exp = int64(v)
+	case int64:
+		exp = v
+	case json.Number:
+		n, _ := v.Int64()
+		exp = n
+	}
+
+	return &utils.User{ID: id, Exp: exp}, nil
+}
+
+func GenerateTokenWithTTL(userID string, ttl time.Duration) (string, error) {
+	claims := jwt.MapClaims{
+		"id":  userID,
+		"exp": time.Now().Add(ttl).Unix(),
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(config.SECRET_KEY))
 }
 
 // リフレッシュトークンからユーザー情報を取得する関数
@@ -338,19 +330,9 @@ func GetUserFromRefreshToken(tokenString string) (*utils.User, error) {
 	if !ok {
 		return nil, fmt.Errorf("id claim is missing or not a string")
 	}
-	email, ok := claims["email"].(string)
-	if !ok {
-		return nil, fmt.Errorf("email claim is missing or not a string")
-	}
-	name, ok := claims["name"].(string)
-	if !ok {
-		return nil, fmt.Errorf("name claim is missing or not a string")
-	}
 
 	user := &utils.User{
-		ID:    id,
-		Email: email,
-		Name:  name,
+		ID: id,
 	}
 
 	return user, nil
@@ -446,6 +428,42 @@ func UUIDBytesToString(b []byte) (string, error) {
 		return "", err
 	}
 	return id.String(), nil
+}
+
+// 指定バイト数のランダムな16進文字列を生成する関数
+func MustRandom(nBytes int) string {
+	b := make([]byte, nBytes)
+	if _, err := rand.Read(b); err != nil {
+		// ここで失敗するのは致命的なので panic でOK
+		panic(err)
+	}
+	return hex.EncodeToString(b)
+}
+
+// リフレッシュトークン用のCookieを設定する関数
+func SetRefreshCookie(w http.ResponseWriter, token string, expiresAt time.Time) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     "refresh_token",
+		Value:    token,
+		Path:     "/", // ✅ これに戻す
+		Expires:  expiresAt,
+		MaxAge:   int(time.Until(expiresAt).Seconds()),
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteNoneMode, // ✅ クロスオリジンなら基本これ
+		// Domain: ".aftialoop.com",       // ✅ サブドメイン共有したいなら追加
+	})
+}
+
+// ユーザーIDにメールを送信する関数
+func SendFleaMarketMessageNotificationEmail(db *Database, userID string, subject string, htmlContent string) error {
+	user, err := db.GetUserDataByID(userID)
+	if err != nil {
+		return fmt.Errorf("ユーザー取得失敗: %w", err)
+	}
+
+	_, err = SendMail(user.Email, subject, htmlContent)
+	return err
 }
 
 // 便利関数 -----------------------------

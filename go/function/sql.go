@@ -107,6 +107,15 @@ func (d *Database) SaveUser(user map[string]interface{}) error {
 	values := []interface{}{}
 	for key, value := range user {
 		log.Println(key, value)
+		if key == "GoogleID" && value == "" {
+			continue
+		}
+		if key == "Password" && value == "" {
+			continue
+		}
+		if key == "AppleID" && value == "" {
+			continue
+		}
 		columns = append(columns, key)
 		values = append(values, value)
 	}
@@ -137,6 +146,10 @@ func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlU
 		return user, fmt.Errorf("user not found")
 	}
 	return user, nil
+}
+
+func (d *Database) GetUserDataByID(userID string) (utils.SqlUser, error) {
+	return d.GetUserData([]string{"ID = ?"}, []interface{}{userID})
 }
 
 // ユーザー情報を更新する関数
@@ -253,7 +266,7 @@ func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (
 }
 
 // ユーザーのリフレッシュトークンを保存する関数
-func (d *Database) SaveRefreshToken(token string, user_id string) error {
+func (d *Database) SaveRefreshToken(token string, user_id string, expiresAt time.Time) error {
 	//　ユーザーIDが一致するトークンを削除
 	_, err := d.DB.Exec("DELETE FROM refresh_tokens WHERE UserID = ?", user_id)
 	if err != nil {
@@ -261,12 +274,12 @@ func (d *Database) SaveRefreshToken(token string, user_id string) error {
 	}
 
 	// 新しいリフレッシュトークンを保存
-	_, err = d.DB.Exec("INSERT INTO refresh_tokens (Token, UserId, ExpiresAt) VALUES (?, ?, ?)", token, user_id, time.Now().Add(14*24*time.Hour))
+	_, err = d.DB.Exec("INSERT INTO refresh_tokens (RefreshToken, UserId, ExpiresAt) VALUES (?, ?, ?)", token, user_id, expiresAt)
 	return err
 }
 
 //============================================================
-// ユーザー興味関係
+// プロフィール興味関係
 //============================================================
 
 // お気に入りと商品情報をjoinして取得
@@ -335,6 +348,65 @@ func (d *Database) DeleteHistory(user_id string, item_id string) error {
 	return nil
 }
 
+// -------------------------------------------------------------
+// リフレッシュトークン
+// -------------------------------------------------------------
+// refresh token → userID + expiresAt を取得
+func (d *Database) GetUserByRefreshToken(token string) (*utils.User, int64, error) {
+	var userID string
+	var expiresAt time.Time
+
+	err := d.DB.QueryRow(`
+		SELECT UserID, ExpiresAt
+		FROM refresh_tokens
+		WHERE RefreshToken = ?
+		LIMIT 1
+	`, token).Scan(&userID, &expiresAt)
+	log.Println("GetUserByRefreshToken:", token, userID, expiresAt, err)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, 0, errors.New("refresh token not found: " + err.Error())
+		}
+		return nil, 0, err
+	}
+
+	// 期限切れ
+	if time.Now().UTC().After(expiresAt) {
+		return nil, 0, errors.New("refresh token expired: " + err.Error())
+	}
+
+	return &utils.User{ID: userID}, expiresAt.Unix(), nil
+}
+
+func (d *Database) RotateRefreshToken(
+	userID string,
+	oldToken string,
+	newToken string,
+	newExpiresAt time.Time,
+) error {
+	_, err := d.DB.Exec(`
+		UPDATE refresh_tokens
+		SET RefreshToken = ?, ExpiresAt = ?, CreatedAt = UTC_TIMESTAMP()
+		WHERE UserID = ? AND RefreshToken = ?
+	`, newToken, newExpiresAt, userID, oldToken)
+
+	return err
+}
+
+func (d *Database) CreateRefreshToken(userID string, token string, expiresAt time.Time) error {
+	_, err := d.DB.Exec(`
+		INSERT INTO refresh_tokens (UserID, RefreshToken, ExpiresAt)
+		VALUES (?, ?, ?)
+		ON DUPLICATE KEY UPDATE
+			RefreshToken = VALUES(RefreshToken),
+			ExpiresAt = VALUES(ExpiresAt),
+			CreatedAt = UTC_TIMESTAMP()
+	`, userID, token, expiresAt)
+
+	return err
+}
+
 // ============================================================
 // 住所関係
 // ============================================================
@@ -381,10 +453,10 @@ func (d *Database) SaveAddress(address map[string]interface{}) error {
 }
 
 // 住所の取得
-func (d *Database) GetAddress(id string) (utils.Address, error) {
-	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,Status FROM addresses WHERE ID = ?"
+func (d *Database) GetAddress(id string, user_id string) (utils.Address, error) {
+	query := "SELECT ID,Name,Phone,UserID,PostCode,Pref,Address1,Address2,Address3,Status FROM addresses WHERE ID = ? AND UserID = ? LIMIT 1"
 	var address utils.Address
-	err := d.DB.Get(&address, query, id)
+	err := d.DB.Get(&address, query, id, user_id)
 	if err == sql.ErrNoRows {
 		return address, fmt.Errorf("address not found")
 	}
@@ -442,7 +514,7 @@ func (d *Database) SaveOrUpdateCardAddress(userID, cardID string, addressID stri
 		// 存在する → 更新
 		updateQuery := `
 			UPDATE user_payment_methods 
-			SET AddressID = ?, UpdatedAt = NOW() 
+			SET AddressID = ?, UpdatedAt = UTC_TIMESTAMP() 
 			WHERE CardID = ? AND UserID = ?
 		`
 		_, err := d.DB.Exec(updateQuery, addressID, cardID, userID)
@@ -454,7 +526,7 @@ func (d *Database) SaveOrUpdateCardAddress(userID, cardID string, addressID stri
 		// 存在しない → 追加
 		insertQuery := `
 			INSERT INTO user_payment_methods (UserID, CardID, AddressID, CreatedAt, UpdatedAt) 
-			VALUES (?, ?, ?, NOW(), NOW())
+			VALUES (?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
 		`
 		_, err := d.DB.Exec(insertQuery, userID, cardID, addressID)
 		if err != nil {
@@ -587,7 +659,7 @@ func (d *Database) SavePurchaseHistory(userID, cardID string, amount int64, item
 	// 購入履歴の保存してそのIDを取得
 	query := `
 		INSERT INTO purchase_history (UserID, PaymentMethod, TotalPrice, AddressID, PurchaseDate, ReceiptURL)
-		VALUES (?, ?, ?, ?, NOW(), ?)
+		VALUES (?, ?, ?, ?, UTC_TIMESTAMP(), ?)
 	`
 	result, err := d.DB.Exec(query, userID, cardID, amount, addressID, url)
 	if err != nil {
@@ -725,7 +797,7 @@ func (d *Database) GetItemByID(id string) (*utils.Item, error) {
 func (d *Database) SaveItem(item *utils.Item) error {
 	query := `
 		INSERT INTO items (Name, Price, CostPrice, Point, Description, CreatedAt, UpdatedAt) 
-		VALUES (?, ?, ?, ?, ?, NOW(), NOW())
+		VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
 	`
 	_, err := d.DB.Exec(query, item.Name, item.Price, item.CostPrice, item.Point, item.Description)
 	if err != nil {
@@ -737,7 +809,7 @@ func (d *Database) SaveItem(item *utils.Item) error {
 // 商品を更新
 func (d *Database) UpdateItem(id string, item *utils.Item) error {
 	query := `
-		UPDATE items SET Name = ?, Price = ?, Description = ?, CostPrice = ?, Point = ?, UpdatedAt = NOW() WHERE ID = ?
+		UPDATE items SET Name = ?, Price = ?, Description = ?, CostPrice = ?, Point = ?, UpdatedAt = UTC_TIMESTAMP() WHERE ID = ?
 	`
 	_, err := d.DB.Exec(query, item.Name, item.Price, item.Description, item.CostPrice, item.Point, id)
 	if err != nil {
@@ -783,21 +855,21 @@ func (d *Database) GetItemImages(itemID string) ([]utils.ItemImage, error) {
 // 一覧（削除除外・新しい順）
 func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMarketListLite, error) {
 	const q = `
-SELECT
-  f.ID,
-  f.Name,
-  f.Price,
-  f.Type,
-  f.MainImageURL,
-  u.Name      AS seller_name,
-  p.IconURL   AS seller_icon_url
-FROM flea_items AS f
-LEFT JOIN users   AS u ON u.ID     = f.UserID
-LEFT JOIN profile AS p ON p.UserID = f.UserID
-WHERE f.DeletedAt IS NULL
-ORDER BY f.CreatedAt DESC
-LIMIT ? OFFSET ?;
-`
+		SELECT
+		  f.ID,
+		  f.Name,
+		  f.Price,
+		  f.Type,
+		  f.MainImageURL,
+		  u.Name      AS seller_name,
+		  p.IconURL   AS seller_icon_url
+		FROM flea_items AS f
+		LEFT JOIN users   AS u ON u.ID     = f.UserID
+		LEFT JOIN profile AS p ON p.UserID = f.UserID
+		WHERE f.DeletedAt IS NULL
+		ORDER BY f.CreatedAt DESC
+		LIMIT ? OFFSET ?;
+		`
 	rows, err := db.DB.Query(q, limit, offset)
 	if err != nil {
 		return nil, err
@@ -844,13 +916,22 @@ LIMIT ? OFFSET ?;
 }
 
 // 単体取得（削除除外）
-func (d *Database) GetFleaMarketItemByID(id int64) (*utils.FleaMarketItem, error) {
-	var item utils.FleaMarketItem
+func (d *Database) GetFleaMarketItemByID(id uint64) (*utils.FleaMarketItemDetail, error) {
+	var item utils.FleaMarketItemDetail
+	log.Println("GetFleaMarketItemByID called with id:", id)
 	const q = `
-		SELECT *
-		FROM flea_items
-		WHERE id = ? AND deleted_at IS NULL
-		LIMIT 1
+	SELECT 
+    f.*, 
+    u.Name AS UserName,
+    p.IconURL AS UserIcon
+	FROM flea_items AS f
+	JOIN users AS u
+	  ON u.ID = f.UserID
+	LEFT JOIN profile AS p
+	  ON p.UserID = u.ID
+	WHERE f.ID = ?
+	  AND f.DeletedAt IS NULL
+	LIMIT 1;
 	`
 	if err := d.DB.Get(&item, q, id); err != nil {
 		return nil, err
@@ -858,19 +939,23 @@ func (d *Database) GetFleaMarketItemByID(id int64) (*utils.FleaMarketItem, error
 	return &item, nil
 }
 
-// 画像取得（削除済みでも参照したい運用ならこのまま、除外したいなら items 同様に条件を）
-func (d *Database) GetFleaMarketItemImages(itemID int64) ([]utils.FleaMarketItemImage, error) {
-	var imgs []utils.FleaMarketItemImage
+func (d *Database) GetFleaMarketItemImages(itemID uint64) ([]utils.ItemImage, error) {
 	const q = `
-	  SELECT *
-	  FROM flea_item_images
-	  WHERE item_id = ?
-	  ORDER BY sort_order
-	`
-	if err := d.DB.Select(&imgs, q, itemID); err != nil {
+        SELECT
+            ID,
+            ItemID,
+            SortNum,
+            URL
+        FROM flea_item_images
+        WHERE ItemID = ?
+        ORDER BY SortNum ASC, ID ASC;
+    `
+
+	var images []utils.ItemImage
+	if err := d.DB.Select(&images, q, itemID); err != nil {
 		return nil, err
 	}
-	return imgs, nil
+	return images, nil
 }
 
 // 作成（アイテム＋画像をトランザクションで）
@@ -898,7 +983,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 	  (UserID, Name, Description, Price, Quantity,Type, IsMultiPurchasable,
 	   MainImageURL, Status, ShipFrom, ShippingFeeType, ShipsWithinDays,
 	   CreatedAt, UpdatedAt)
-	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
 	`,
 		uID,
 		in.Name,
@@ -941,7 +1026,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 	if (in.MainImageURL == "" || in.MainImageURL == "null") && firstImageURL != "" {
 		if _, err = tx.Exec(`
 		  UPDATE flea_items
-		  SET main_image_url = ?, updated_at = NOW()
+		  SET main_image_url = ?, updated_at = UTC_TIMESTAMP()
 		  WHERE id = ?
 		`, firstImageURL, itemID); err != nil {
 			return 0, err
@@ -955,7 +1040,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 func (d *Database) SoftDeleteFleaMarketItem(id int64, userID string) error {
 	res, err := d.DB.Exec(`
 	  UPDATE flea_items
-	  SET deleted_at = NOW()
+	  SET deleted_at = UTC_TIMESTAMP()
 	  WHERE id = ? AND user_id = ? AND deleted_at IS NULL
 	`, id, userID)
 	if err != nil {
@@ -983,6 +1068,33 @@ func (db *Database) FindFleaItemOwnerID(ctx context.Context, itemID uint64) (str
 		return "", err
 	}
 	return uid, nil
+}
+
+// 動物詳細取得
+func (d *Database) GetAnimalDetailsByItemID(itemID int64) (*utils.AnimalDetails, error) {
+	const q = `
+		SELECT
+			locality,
+			hatch_date,
+			generation,
+			size,
+			sex
+		FROM flea_item_animal_details
+		WHERE item_id = ?
+		LIMIT 1;
+	`
+
+	var detail utils.AnimalDetails
+	if err := d.DB.Get(&detail, q, itemID); err != nil {
+		// 詳細が存在しない場合は sql.ErrNoRows が返るので、
+		// それは「nil, nil」で返すと扱いやすい。
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &detail, nil
 }
 
 // 生体の詳細保存
@@ -1043,6 +1155,161 @@ func (db *Database) UpsertSupplyDetails(
 	return err
 }
 
+// 用品詳細取得
+func (d *Database) GetSupplyDetailsByItemID(itemID int64) (*utils.SupplyDetails, error) {
+	const q = `
+		SELECT
+			brand,
+			sku,
+			net_weight_g
+		FROM flea_item_supply_details
+		WHERE item_id = ?
+		LIMIT 1;
+	`
+
+	var detail utils.SupplyDetails
+	if err := d.DB.Get(&detail, q, itemID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return &detail, nil
+}
+
+func (d *Database) GetFleaMarketItemDetail(id int64, item_type string) (*utils.FleaMarketItemDetails, error) {
+	detail := &utils.FleaMarketItemDetails{}
+
+	switch item_type {
+	case "animal":
+		ad, err := d.GetAnimalDetailsByItemID(id)
+		if err != nil {
+			return nil, err
+		}
+		detail.Animal = ad
+
+	case "supply":
+		sd, err := d.GetSupplyDetailsByItemID(id)
+		if err != nil {
+			return nil, err
+		}
+		detail.Supply = sd
+
+	// 将来 type が増えたらここに case を足していく
+	default:
+		// 何もしない（詳細なしアイテム）
+	}
+
+	return detail, nil
+}
+
+// -----------------------------------------------------------
+// コメント関係の処理
+// -----------------------------------------------------------
+func (d *Database) GetFleaItemMessages(itemID uint64) ([]*utils.FleaItemMessage, error) {
+
+	rows, err := d.DB.Query(`
+        SELECT flea_item_messages.ID, ItemID, ParentMessageID, flea_item_messages.UserID, Body, flea_item_messages.CreatedAt,users.Name,profile.IconURL
+        FROM flea_item_messages
+		join users on users.ID = flea_item_messages.UserID
+		join profile on profile.UserID = users.ID
+        WHERE ItemID = ? AND DeletedAt IS NULL
+        ORDER BY CreatedAt ASC, ID ASC
+    `, itemID)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make([]*utils.FleaItemMessage, 0)
+
+	for rows.Next() {
+		var (
+			id, iid            int64
+			parent             sql.NullInt64
+			userID, body       string
+			userName, userIcon sql.NullString
+			createdAt          time.Time
+		)
+
+		if err := rows.Scan(&id, &iid, &parent, &userID, &body, &createdAt, &userName, &userIcon); err != nil {
+			return nil, err
+		}
+
+		var p *int64
+		if parent.Valid {
+			v := parent.Int64
+			p = &v
+		}
+
+		result = append(result, &utils.FleaItemMessage{
+			ID:              id,
+			ItemID:          iid,
+			ParentMessageID: p,
+			UserID:          userID,
+			Body:            body,
+			UserName:        userName.String,
+			UserIcon:        userIcon.String,
+			CreatedAt:       createdAt.UnixMilli(),
+		})
+	}
+
+	return result, nil
+}
+
+func (d *Database) AddFleaItemMessage(itemID uint64, userID string, parentID *uint64, body string) (int64, error) {
+
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return 0, fmt.Errorf("body empty")
+	}
+
+	res, err := d.DB.Exec(`
+        INSERT INTO flea_item_messages (ItemID, ParentMessageID, UserID, Body, CreatedAt)
+        VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
+    `, itemID, parentID, userID, body)
+
+	if err != nil {
+		return 0, err
+	}
+
+	newID, err := res.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return newID, nil
+}
+
+// 　コメントしたユーザーID一覧を取得
+func (d *Database) GetFleaItemMessageUserIDs(itemID uint64, user_id string) ([]string, error) {
+	rows, err := d.DB.Query(`
+    SELECT DISTINCT UserID
+    FROM flea_item_messages
+    WHERE ItemID = ?
+      AND DeletedAt IS NULL
+      AND UserID != ?
+`, itemID, user_id)
+
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var userIDs []string
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		userIDs = append(userIDs, userID)
+	}
+
+	return userIDs, nil
+}
+
 // -----------------------------------------------------------
 // 下書き関係
 // ------------------------------------------------------------
@@ -1075,8 +1342,8 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 		    ShipFrom = ?,
 		    ShippingFeeType = ?,
 		    ShipsWithinDays = ?,
-		    CreatedAt = NOW(),
-		    UpdatedAt = NOW()
+		    CreatedAt = UTC_TIMESTAMP(),
+		    UpdatedAt = UTC_TIMESTAMP()
 	`,
 		userID,
 		p.Name, p.Description,
@@ -1133,7 +1400,7 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
            ShipFrom = COALESCE(?, ShipFrom),
            ShippingFeeType = COALESCE(?, ShippingFeeType),
            ShipsWithinDays = COALESCE(?, ShipsWithinDays),
-           UpdatedAt = NOW()
+           UpdatedAt = UTC_TIMESTAMP()
      WHERE ID=? AND UserID=? AND Status=0
   `,
 		p.Name, p.Description,
@@ -1220,7 +1487,7 @@ func (db *Database) ArchiveDraft(ctx context.Context, userID string, draftID uin
 	if db.DB == nil {
 		return errors.New("db not ready")
 	}
-	res, err := db.DB.ExecContext(ctx, `UPDATE flea_item_drafts SET Status=2, UpdatedAt=NOW() WHERE ID=? AND UserID=? AND Status=0`, draftID, userID)
+	res, err := db.DB.ExecContext(ctx, `UPDATE flea_item_drafts SET Status=2, UpdatedAt=UTC_TIMESTAMP() WHERE ID=? AND UserID=? AND Status=0`, draftID, userID)
 	if err != nil {
 		return err
 	}

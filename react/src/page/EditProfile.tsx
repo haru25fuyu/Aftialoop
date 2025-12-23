@@ -7,7 +7,7 @@ import axios from 'axios';
 import { Header } from '../component/Header';
 import LoginModal from '../modal/Login'; // ← ここ忘れず
 
-import api from '../conf/api';
+import api,{getAccessToken} from '../conf/api';
 import { CONFIG } from '../conf/config';
 
 type Inputs = {
@@ -44,7 +44,7 @@ const EditProfile: React.FC = () => {
     };
 
     useEffect(() => {
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
         if (!token || token === 'undefined') {
             setShowLoginModal(true);
             return;
@@ -75,8 +75,6 @@ const EditProfile: React.FC = () => {
             })
             .catch((err) => {
                 console.error(err);
-                localStorage.removeItem('token');
-                localStorage.removeItem('expirationTime');
                 setShowLoginModal(true);
             });
     }, [reloadTrigger]);
@@ -107,10 +105,7 @@ const EditProfile: React.FC = () => {
         formData.append('data', JSON.stringify(jsonData));
         if (selectedFile) formData.append('image', selectedFile);
 
-        axios.post(CONFIG.BASE_URL + '/profile/edit', formData, {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-            withCredentials: true,
-        })
+        api.post(CONFIG.BASE_URL + '/profile/edit', formData)
             .then((res) => {
                 console.log(res.data);
                 navigate('/profile', { replace: true, state: { change: true } });

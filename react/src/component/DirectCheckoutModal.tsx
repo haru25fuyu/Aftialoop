@@ -59,21 +59,15 @@ const DirectCheckoutModal: React.FC<DirectCheckoutModalProps> = ({ item, isOpen,
         .then((res) => {
           console.log(res.data);
           if (!res.data.user.id) {
-            // IDが取れなかったら強制ログアウト
-            localStorage.removeItem("token");
-            localStorage.removeItem("expirationTime");
             setLoginModalOpen(true);
           } else {
             setCustomer(res.data.user);
-            localStorage.setItem("token", res.data.token); // トークン更新あれば保存
             fetchAddress(res.data.address); // デフォルトアドレスIDを使って住所情報を取得
             fetchDefaultCard(res.data.user.defaultCard); // デフォルトカードIDを使ってカード情報を取得
           }
         })
         .catch((err) => {
           console.error(err);
-          localStorage.removeItem("token");
-          localStorage.removeItem("expirationTime");
         });
 
     };

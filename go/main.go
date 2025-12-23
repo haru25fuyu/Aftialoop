@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -46,23 +48,90 @@ func main() {
 	page.NewFleaMarketHandler(db).RegisterRoutes(r)
 
 	// トークン更新ルート
-	r.HandleFunc("/refresh", func(w http.ResponseWriter, r *http.Request) {
-		token, err := function.CheckUser(db, w, r)
-		if err != "" {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+	r.HandleFunc("/auth/refresh", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
 
-		claims, erro := function.GetUserFromToken(token)
-		if erro != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		c, err := r.Cookie("refresh_token")
+		if err != nil {
+			log.Println("[refresh] cookie read error:", err)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if c.Value == "" {
+			log.Println("[refresh] refresh_token is empty")
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		log.Println("[refresh] got cookie refresh_token len=", len(c.Value))
+
+		user, expUnix, err := db.GetUserByRefreshToken(c.Value)
+		if err != nil {
+			log.Println("[refresh] GetUserByRefreshToken failed:", err)
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		log.Println("[refresh] user ok:", user.ID, "refreshExp:", time.Unix(expUnix, 0).UTC())
+
+		user.Limit = 15 * 60
+		access, err := function.GenerateToken(user)
+		if err != nil {
+			log.Println("[refresh] GenerateToken failed:", err)
+			http.Error(w, "server error", http.StatusInternalServerError)
 			return
 		}
 
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"customerId": claims.ID})
+		if time.Until(time.Unix(expUnix, 0)) < 7*24*time.Hour {
+			newRefresh := function.MustRandom(64)
+			newExp := time.Now().UTC().Add(14 * 24 * time.Hour)
+
+			if err := db.RotateRefreshToken(user.ID, c.Value, newRefresh, newExp); err != nil {
+				log.Println("[refresh] RotateRefreshToken failed:", err)
+				http.Error(w, "server error", http.StatusInternalServerError)
+				return
+			}
+			function.SetRefreshCookie(w, newRefresh, newExp)
+		}
+
+		w.Header().Set("X-New-Access-Token", access)
+		w.WriteHeader(http.StatusNoContent)
+	})
+
+	r.HandleFunc("/me", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		auth := r.Header.Get("Authorization")
+		if !strings.HasPrefix(auth, "Bearer ") {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		token := strings.TrimPrefix(auth, "Bearer ")
+		u, err := function.GetUserFromToken(token)
+		if err != nil || u == nil || u.ID == "" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		// DBから最新プロフィール（表示用だけ）
+		profile, err := db.GetUserDataAndProfile([]string{"u.ID=?"}, []interface{}{u.ID}) // displayName/iconUrlを返す関数を作る
+		if err != nil {
+			http.Error(w, "server error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"user": map[string]any{
+				"name":    profile.Name,
+				"iconUrl": profile.IconURL,
+			},
+		})
 	})
 
 	// ===== CORS設定 =====
@@ -70,6 +139,7 @@ func main() {
 		AllowedOrigins:       config.AllowedOrigins, // 例: []string{"https://dev.aftialoop.com"}
 		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowedHeaders:       []string{"Content-Type", "Authorization"},
+		ExposedHeaders:       []string{"x-new-access-token"}, // ★ 追加
 		AllowCredentials:     true,
 		OptionsSuccessStatus: http.StatusOK,
 	})

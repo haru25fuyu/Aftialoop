@@ -2,8 +2,9 @@ import { useContext } from "react";
 
 import api from "../conf/api";
 import { ITEM_STATUS_LABELS } from "../conf/config";
+import {PREFS} from "../conf/config";
 
-import { Content } from "../types/Content";
+import { Content,UserProfile } from "../types/Content";
 
 import { ToastCtx } from "./toast-context";
 
@@ -83,4 +84,27 @@ export function useToast() {
     const ctx = useContext(ToastCtx);
     if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
     return ctx.toast;
+}
+
+export function getPrefName(id: number): string {
+  const pref = PREFS.find(p => p.id === id);
+  return pref ? pref.name : "未設定";
+}
+
+export const setUserProfile = (p: UserProfile | null) => {
+  if (!p) {
+    localStorage.removeItem("user_profile");
+    return;
+  }
+  localStorage.setItem("user_profile", JSON.stringify(p));
+};
+
+export function loadUserProfile(): UserProfile | null {
+  const raw = localStorage.getItem("user_profile");
+  if (!raw) return null;
+  try { return JSON.parse(raw) as UserProfile; } catch { return null; }
+}
+
+export function clearUserProfile() {
+  localStorage.removeItem("user_profile");
 }

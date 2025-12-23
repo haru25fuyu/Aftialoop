@@ -7,7 +7,7 @@ import { Content } from '../types/Content';
 import { ContentsList } from '../component/ContentsList';
 import { CartContent } from '../component/Content';
 
-import api from '../conf/api';
+import api,{getAccessToken} from '../conf/api';
 //import { Input } from '../types/Input';
 
 
@@ -22,7 +22,7 @@ const Cart: React.FC = () => {
 
     useEffect(() => {
         // トークンが存在するか確認
-        const token = localStorage.getItem('token');
+        const token = getAccessToken();
         if (!token) {
             const storedCart = localStorage.getItem('cart');
             if (storedCart) {
@@ -52,8 +52,6 @@ const Cart: React.FC = () => {
                     if (res.data) {
                         setCart(res.data.cart || []);
                         setPoint(res.data.point);
-                        // トークン保存
-                        localStorage.setItem('token', res.data.token);
                         // ローカルストレージのカート情報は削除
                         localStorage.removeItem('cart');
                     }

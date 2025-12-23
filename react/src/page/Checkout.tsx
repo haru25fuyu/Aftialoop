@@ -43,9 +43,6 @@ const Checkout: React.FC = () => {
     api.post("/card/list",)
       .then((res) => {
         console.log(res.data);
-        if (res.data.token) {
-          localStorage.setItem("token", res.data.token); // トークン更新あれば保存
-        }
         setPaymentList(res.data.card);
         console.log("カード一覧取得:", res.data.card);
       })
@@ -70,12 +67,10 @@ const Checkout: React.FC = () => {
       .then((res) => {
         console.log(res.data);
         if (!res.data.user) {
-          // IDが取れなかったら強制ログアウト
-          localStorage.removeItem("token");
-          localStorage.removeItem("expirationTime");
+          setCustomer(null);
+          setLoginModalOpen(true);
         } else {
           setCustomer(res.data.user);
-          localStorage.setItem("token", res.data.token); // トークン更新あれば保存
           // ローカルストレージから選択した住所を取得
           const selectedAddress = localStorage.getItem('selectedAddress');
           if (selectedAddress) {
@@ -96,8 +91,6 @@ const Checkout: React.FC = () => {
         setCustomer(null);
         setLoginModalOpen(true);
         console.error(err);
-        localStorage.removeItem("token");
-        localStorage.removeItem("expirationTime");
       });
 
 
