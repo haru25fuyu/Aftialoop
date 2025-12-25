@@ -159,10 +159,11 @@ type ListItemsRequest struct {
 }
 
 type FleaMarketListLite struct {
-	ID    uint64  `json:"id"`
-	Name  string  `json:"name"`
-	Price float64 `json:"price"`
-	Type  string  `json:"type"` // "ANIMAL" or "SUPPLY"
+	ID         uint64  `json:"id"`
+	Name       string  `json:"name"`
+	Price      float64 `json:"price"`
+	SellerRate float64 `json:"seller_rate"`
+	Type       string  `json:"type"` // "ANIMAL" or "SUPPLY"
 
 	MainImageURL *string `json:"main_image_url"`
 
@@ -177,6 +178,7 @@ type FleaMarketItem struct {
 	Name               string  `db:"Name"                json:"name"`
 	Description        *string `db:"Description"         json:"description,omitempty"`
 	Price              float64 `db:"Price"               json:"price"`
+	SellerRate         float64 `db:"SellerRate"          json:"seller_rate"`
 	Quantity           int     `db:"Quantity"            json:"quantity"`
 	IsMultiPurchasable bool    `db:"IsMultiPurchasable" json:"isMultiPurchasable"`
 	Type               string  `db:"Type" json:"type"`
@@ -249,6 +251,7 @@ type FleaItemMessage struct {
 type CreateFleaMarketItemInput struct {
 	Name               string   `json:"name"`
 	Price              float64  `json:"price"`
+	SellerRate         float64  `json:"seller_rate"`
 	Quantity           int      `json:"quantity"`
 	IsMultiPurchasable bool     `json:"isMultiPurchasable"`
 	Type               string   `json:"type"`

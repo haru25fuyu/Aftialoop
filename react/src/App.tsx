@@ -15,23 +15,23 @@ import Login from './page/Login';
 //import PaymentForm from './page/PaymentForm';
 //import PaymentComplete from './page/PaymentComplete';
 import MyPage from './page/MyPage';
-import PaymentList from './page/PaymentList';
+//import PaymentList from './page/PaymentList';
 import List from './page/List';
 import EditProfile from './page/EditProfile';
 import Profile from './page/Profile';
 import AddressList from './page/AddressList';
 import Item from './page/Item';
-import FleaMarketItem from './page/FleaMarketItem';
+import FleaMarketItem from './page/FleaMarket/FleaMarketItem';
 import Cart from './page/Cart';
 import NotFound from './page/NotFound';
 import Contact from './page/Contact';
-import FileTree from './page/SetFile';
 import Checkout from './page/Checkout';
 import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
 import CheckoutComplete from "./page/CheckoutComplete";
-import FleaItemCreatePage from './page/FleaItemCreatePage';
-import FleaMarketList from './page/FleaMarketList';
+import FleaItemCreatePage from './page/FleaMarket/FleaItemCreatePage';
+import FleaMarketList from './page/FleaMarket/FleaMarketList';
+import FleaMarketCheckout from './page/FleaMarket/FleaMarketCheckout';
 
 
 const App: React.FC = () => {
@@ -66,6 +66,10 @@ const App: React.FC = () => {
         <Route path="/flea-market/list" element={<RequireAuth><FleaMarketList /></RequireAuth>} />
         <Route path="/flea-market/item/:id" element={<RequireAuth><FleaMarketItem /></RequireAuth>} />
         <Route path="/flea-market/sell/create" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
+        <Route path="/flea-market/checkout/:id" element={<RequireAuth><FleaMarketCheckout /></RequireAuth>} />
+        <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
+        <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
+        <Route path="/flea-market/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
 
         {/* list/item を公開にするかは方針次第 */}
         <Route path="/list" element={<List />} />

@@ -3,6 +3,8 @@ package config
 import (
 	"log"
 	"os"
+	"sync/atomic"
+	"time"
 
 	//_ "github.com/go-function-driver/mysql"
 	"github.com/joho/godotenv"
@@ -57,6 +59,14 @@ const (
 	OrderStatusReturned                         // 7: 返品中
 	OrderStatusRefunded                         // 8: 返金済み
 )
+
+type FleaConfig struct {
+	BaseRate  float64
+	MaxRate   float64
+	UpdatedAt time.Time
+}
+
+var FleaCfg atomic.Value // FleaConfig を入れる
 
 func Init() {
 	// MySQL接続

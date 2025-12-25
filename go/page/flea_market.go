@@ -80,7 +80,7 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 	log.Println("Fetching flea market item with ID:", itemIDStr)
 	itemID, err := strconv.ParseUint(itemIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "invalid item_id", http.StatusBadRequest)
+		http.Error(w, "invalid item_id"+err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -157,6 +157,24 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	price := function.ParseFloat(r.FormValue("price"), 0)
+	// 追加：seller_rate
+	sellerRateStr := r.FormValue("seller_rate")
+
+	// ベース(標準)をサーバー側でも保持しておく（信用できるのはサーバー）
+	cfg := function.GetFleaConfig()
+	BASE_RATE := cfg.BaseRate
+	MAX_RATE := cfg.MaxRate
+
+	sellerRate := BASE_RATE
+	if sellerRateStr != "" {
+		sellerRate = function.ParseFloat(sellerRateStr, BASE_RATE)
+	}
+
+	// 範囲ガード（不正値は弾く or 丸める。誠実路線なら弾くがオススメ）
+	if sellerRate < BASE_RATE || sellerRate > MAX_RATE {
+		http.Error(w, "invalid seller_rate", http.StatusBadRequest)
+		return
+	}
 	quantity := function.ParseInt(r.FormValue("quantity"), 1)
 	isMulti := function.ParseBool(r.FormValue("is_multi_purchasable"))
 	shipFeeType := function.ParseInt(r.FormValue("shipping_fee_type"), 0)

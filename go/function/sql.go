@@ -49,6 +49,101 @@ func NewDatabase() (*Database, error) {
 	return &Database{DB: db}, nil
 }
 
+func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
+	rows, err := d.DB.Query(`
+		SELECT ` + "`key`" + `, ` + "`value`" + `, updated_at
+		FROM system_settings
+		WHERE ` + "`key`" + ` IN ('flea.base_rate', 'flea.max_rate')
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	cfg := &config.FleaConfig{}
+	var updatedAt time.Time
+
+	for rows.Next() {
+		var key, val string
+		var ua time.Time
+		if err := rows.Scan(&key, &val, &ua); err != nil {
+			return nil, err
+		}
+
+		switch key {
+		case "flea.base_rate":
+			f, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid base_rate: %w", err)
+			}
+			cfg.BaseRate = f
+			updatedAt = ua
+
+		case "flea.max_rate":
+			f, err := strconv.ParseFloat(val, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid max_rate: %w", err)
+			}
+			cfg.MaxRate = f
+			updatedAt = ua
+		}
+	}
+
+	// 最低限の安全装置
+	if cfg.BaseRate <= 0 || cfg.MaxRate <= 0 {
+		return nil, errors.New("flea config is incomplete")
+	}
+	if cfg.BaseRate > cfg.MaxRate {
+		return nil, errors.New("base_rate > max_rate")
+	}
+
+	cfg.UpdatedAt = updatedAt
+	return cfg, nil
+}
+
+func (d *Database) SaveFleaConfig(ctx context.Context, cfg config.FleaConfig) error {
+	// 最低限の防波堤（UIでもやるが、最後の砦）
+	if cfg.BaseRate <= 0 {
+		return errors.New("base_rate must be > 0")
+	}
+	if cfg.MaxRate <= 0 {
+		return errors.New("max_rate must be > 0")
+	}
+	if cfg.BaseRate > cfg.MaxRate {
+		return errors.New("base_rate > max_rate")
+	}
+
+	tx, err := d.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	upsert := `
+		INSERT INTO system_settings (` + "`key`, `value`" + `)
+		VALUES (?, ?)
+		ON DUPLICATE KEY UPDATE
+			value = VALUES(value),
+			updated_at = CURRENT_TIMESTAMP
+	`
+
+	if _, err := tx.ExecContext(ctx, upsert,
+		"flea.base_rate",
+		strconv.FormatFloat(cfg.BaseRate, 'f', -1, 64),
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, upsert,
+		"flea.max_rate",
+		strconv.FormatFloat(cfg.MaxRate, 'f', -1, 64),
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
 func (d *Database) EmailCheck(email string) (bool, error) {
 	var count int
 	err := d.DB.Get(&count, "SELECT COUNT(*) FROM users WHERE Email = ?", email)
@@ -859,6 +954,7 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 		  f.ID,
 		  f.Name,
 		  f.Price,
+		  f.SellerRate,
 		  f.Type,
 		  f.MainImageURL,
 		  u.Name      AS seller_name,
@@ -890,6 +986,7 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 			&it.ID,
 			&it.Name,
 			&it.Price,
+			&it.SellerRate,
 			&it.Type,
 			&mainURL,
 			&sellerName,
@@ -980,7 +1077,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 	// まず items を作成（main_image_url は後で埋める可能性あり）
 	res, err := tx.Exec(`
 	  INSERT INTO flea_items
-	  (UserID, Name, Description, Price, Quantity,Type, IsMultiPurchasable,
+	  (UserID, Name, Description, Price, SellerRate, Quantity,Type, IsMultiPurchasable,
 	   MainImageURL, Status, ShipFrom, ShippingFeeType, ShipsWithinDays,
 	   CreatedAt, UpdatedAt)
 	  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
@@ -989,6 +1086,7 @@ func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketIte
 		in.Name,
 		in.Description,
 		in.Price,
+		in.SellerRate,
 		in.Quantity,
 		in.Type,
 		in.IsMultiPurchasable,

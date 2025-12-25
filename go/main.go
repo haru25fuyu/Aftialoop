@@ -24,6 +24,10 @@ func main() {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
+	if err := function.InitConfig(db); err != nil {
+		log.Fatalf("InitConfig failed: %v", err)
+	}
+
 	// ===== ルーター作成 =====
 	r := mux.NewRouter()
 

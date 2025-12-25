@@ -75,6 +75,7 @@ export interface FleaListContent {
   userId: string;
   name: string;
   price: number;
+  seller_rate: number;
   main_image_url: string | null;
 
   seller_name: string;

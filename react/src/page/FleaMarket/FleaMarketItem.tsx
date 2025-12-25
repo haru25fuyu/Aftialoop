@@ -1,20 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useParams, useNavigate } from "react-router-dom";
 
-import { Header } from "../component/Header";
+import { Header } from "../../component/Header";
 //import { Footer } from '../component/Footer';        // ← .tsx は不要
-import BottomBarPortal from "../component/BottomBarPortal"
-import CommentList from "../component/CommentList";
-import { PriceWithPerks } from "../component/PriceWithPerks";
+import BottomBarPortal from "../../component/BottomBarPortal"
+import CommentList from "../../component/CommentList";
+import { PriceWithPerks } from "../../component/PriceWithPerks";
 
-import QuestionModal from "../modal/QuestionModal";
+import QuestionModal from "../../modal/QuestionModal";
 
-import { fleaContent, FleaComment, itemImage, Content } from "../types/Content";
+import { fleaContent, FleaComment, itemImage, Content } from "../../types/Content";
 
-import api, { getAccessToken } from "../conf/api";
-import { CONFIG } from "../conf/config";
-import { getPrefName } from "../conf/function"; // getItemStatusLabels をインポート
-import { ITEM__STATUS } from "../conf/config"; // ITEM__STATUS をインポート
+import api, { getAccessToken } from "../../conf/api";
+import { CONFIG } from "../../conf/config";
+import { getPrefName } from "../../conf/function"; // getItemStatusLabels をインポート
+import { ITEM__STATUS } from "../../conf/config"; // ITEM__STATUS をインポート
 
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
@@ -33,12 +33,7 @@ const Item: React.FC = () => {
     const [showQModal, setShowQModal] = useState(false);
     const [user, setUser] = useState<Content | null>(null);
 
-    const [comments, setComments] = useState<FleaComment[]>([
-        { id: 0, itemId: 0, userId: "8eb71378-0d92-463e-abb0-8a0a546e83c0", userName: "あみや", userIcon: "", body: "お値下げおナシャス", createdAt: "" },
-        { id: 1, itemId: 0, userId: "8eb71378-0d92-463e-abb0-8a0a546e83c0", userName: "おかゆ", userIcon: "", body: "高いんで値下げおナシャス", createdAt: "" },
-        { id: 2, itemId: 0, userId: "", userName: "せんきゅう", userIcon: "", body: "お金ください", createdAt: "" },
-        { id: 3, itemId: 0, userId: "", userName: "大胆", userIcon: "", body: "お値下げできますか", createdAt: "" },
-    ]);
+    const [comments, setComments] = useState<FleaComment[]>([]);
 
     const handleSendQuestion = async (text: string) => {
         if (!item) return;
@@ -84,7 +79,7 @@ const Item: React.FC = () => {
             });
     }, [location.search]);
 
-    useEffect (() => {
+    useEffect(() => {
         api.get(`/flea-market/item/${item?.id}/messages`)
             .then((res) => {
                 const list = res.data?.messages ?? [];
@@ -131,8 +126,8 @@ const Item: React.FC = () => {
 
         // 在庫/取り寄せチェックはお好みで流用
         // ここでは簡略化して遷移
-        navigate("/checkout", {
-            state: { item, quantity: selectQuantity } // 受け側で location.state を参照
+        navigate(`/flea-market/checkout/${item.id}`, {
+            state: { quantity: selectQuantity }
         });
     };
 

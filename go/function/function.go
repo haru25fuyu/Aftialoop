@@ -466,6 +466,38 @@ func SendFleaMarketMessageNotificationEmail(db *Database, userID string, subject
 	return err
 }
 
+func InitConfig(db *Database) error {
+	cfg, err := db.LoadFleaConfig()
+	if err != nil {
+		return err
+	}
+	config.FleaCfg.Store(cfg)
+	return nil
+}
+
+func UpdateFleaConfig(ctx context.Context, db *Database, cfg config.FleaConfig) error {
+	if err := db.SaveFleaConfig(ctx, cfg); err != nil {
+		return err
+	}
+
+	// 再ロードしてキャッシュ更新
+	newCfg, err := db.LoadFleaConfig()
+	if err != nil {
+		return err
+	}
+	config.FleaCfg.Store(newCfg)
+
+	return nil
+}
+
+func GetFleaConfig() config.FleaConfig {
+	v := config.FleaCfg.Load()
+	if v == nil {
+		return config.FleaConfig{BaseRate: 1.02, MaxRate: 1.10} // 最低限のフォールバック
+	}
+	return v.(config.FleaConfig)
+}
+
 // 便利関数 -----------------------------
 
 func ParseInt(s string, def int) int {

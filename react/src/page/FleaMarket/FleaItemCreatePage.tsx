@@ -1,27 +1,29 @@
 import React, { useEffect, useRef, useState } from "react";
 import axios from "axios";
 
-import InlineSortableImages from "../component/InlineSortableImages";
-import ToastProvider from "../component/ToastProvider";
-import { Stepper } from "../component/Stepper";
-import TinySavedPopup from "../component/TinySavedPopup";
-import { Labeled } from "../component/Labeled";
-import ShipFromSelect from "../component/ShipFromSelect";
+import InlineSortableImages from "../../component/InlineSortableImages";
+import ToastProvider from "../../component/ToastProvider";
+import { Stepper } from "../../component/Stepper";
+import TinySavedPopup from "../../component/TinySavedPopup";
+import { Labeled } from "../../component/Labeled";
+import ShipFromSelect from "../../component/ShipFromSelect";
 
-import AddImagesModal from "../modal/AddImagesModal";
-import { ConfirmDialog } from "../modal/ConfirmDialog";
-import { PublishCompleteDialog } from "../modal/PublishCompleteDialog";
+import AddImagesModal from "../../modal/AddImagesModal";
+import { ConfirmDialog } from "../../modal/ConfirmDialog";
+import { PublishCompleteDialog } from "../../modal/PublishCompleteDialog";
 
-import { CONFIG } from "../conf/config";
-import { useToast } from "../conf/function";
+import { CONFIG } from "../../conf/config";
+import { useToast } from "../../conf/function";
 import {
     upsertAnimalDetails,
     upsertSupplyDetails,
-    hasAnimalDetails,
-    hasSupplyDetails,
-} from "../conf/fleaDetails"
+} from "../../conf/fleaDetails";
 
-import {FleaItemType} from "../types/Content"
+import { FleaItemType } from "../../types/Content";
+
+const FEE_BASE = 0.10;           // 標準手数料率 10%
+const FEE_PER_PLUS_PCT = 0.01;   // 追加割引 +1%ごとに +1%
+const FEE_MAX = 0.25;            // 上限（任意）
 
 // ---------- ラッパ ----------
 export default function FleaItemCreatePageWrapper() {
@@ -43,9 +45,16 @@ type StepKey = "main" | "details";
 function FleaItemCreatePage() {
     const toast = useToast();
 
+    // ===== seller_rate（ポイント倍率）設定 =====
+    // 「ベースを使う場合もベースの数値を入れる」前提なので、常に最終倍率を持つ
+    const BASE_RATE = 1.02;
+    const MAX_RATE = 1.10;
+    const STEP_RATE = 0.01;
+
     // --------- フォーム状態 ---------
     const [name, setName] = useState("");
     const [price, setPrice] = useState("");
+    const [sellerRate, setSellerRate] = useState<number>(BASE_RATE); // ★ 追加：最終倍率（例: 1.02〜1.10）
     const [quantity, setQuantity] = useState(1);
     const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
     const [type, setType] = useState<FleaItemType>("ANIMAL");
@@ -68,6 +77,28 @@ function FleaItemCreatePage() {
     const [completeOpen, setCompleteOpen] = useState(false);
     const [lastItemId, setLastItemId] = useState<number | null>(null);
 
+    const priceNum = Number(price) || 0;
+
+    // 追加割引（%）: 0,1,2...
+    const plusPct = Math.max(0, Math.round((sellerRate - BASE_RATE) * 100));
+
+    // 手数料率
+    const feeRate = Math.min(FEE_MAX, FEE_BASE + plusPct * FEE_PER_PLUS_PCT);
+
+    // 手数料（円）と入金見込み（円）
+    // 端数は「切り捨て」が無難（サーバーと合わせる）
+    const feeYen = Math.floor(priceNum * feeRate);
+    const payoutYen = Math.max(0, Math.floor(priceNum - feeYen));
+
+    // 購入者の「追加で」最大お得（ベース分は除いた上乗せ分の目安）
+    const maxExtraOffYen = Math.max(
+        0,
+        Math.floor(priceNum * Math.max(0, sellerRate - BASE_RATE))
+    );
+
+    const [feeOpen, setFeeOpen] = useState(false);
+
+
     // 詳細ステップ用状態（任意）
     const [liveDetails, setLiveDetails] = useState({
         locality: "",
@@ -85,9 +116,14 @@ function FleaItemCreatePage() {
 
     // フォーム初期化関数（続けて出品）
     const [draftId, setDraftId] = useState<number | null>(null);
+
+    // --------- ステップ管理（2ページ） ---------
+    const [current, setCurrent] = useState<StepKey>("main");
+
     const resetForm = () => {
         setName("");
         setPrice("");
+        setSellerRate(BASE_RATE); // ★ 修正：numberで統一
         setQuantity(1);
         setIsMultiPurchasable(false);
         setType("ANIMAL");
@@ -113,9 +149,6 @@ function FleaItemCreatePage() {
         });
         localStorage.removeItem("flea_item_draft");
     };
-
-    // --------- ステップ管理（2ページ） ---------
-    const [current, setCurrent] = useState<StepKey>("main");
 
     // 必須系の充足判定
     const stepBasicDone =
@@ -170,28 +203,25 @@ function FleaItemCreatePage() {
         const e: Record<string, string> = {};
         if (!name.trim()) e.name = "商品名を入力してください";
         const p = Number(price);
-        if (!price || isNaN(p) || p <= 0)
-            e.price = "価格は 1 以上の数値で入力してください";
-        if (!isMultiPurchasable && quantity !== 1)
-            e.quantity = "単品出品では数量は 1 固定です";
+        if (!price || isNaN(p) || p <= 0) e.price = "価格は 1 以上の数値で入力してください";
+        if (!isMultiPurchasable && quantity !== 1) e.quantity = "単品出品では数量は 1 固定です";
         if (quantity < 1) e.quantity = "数量は 1 以上";
-        if (images.length === 0)
-            e.images = "商品画像を 1 枚以上追加してください";
-        if (shipFromId === null)
-            e.shipFrom = "発送元を選択してください";
-        if (shipsWithinDays === "")
-            e.shipsWithinDays = "発送目安を選択してください";
+        if (images.length === 0) e.images = "商品画像を 1 枚以上追加してください";
+        if (shipFromId === null) e.shipFrom = "発送元を選択してください";
+        if (shipsWithinDays === "") e.shipsWithinDays = "発送目安を選択してください";
+
+        // sellerRateはUI側で範囲制限してる前提だけど念のため
+        if (!(sellerRate >= BASE_RATE && sellerRate <= MAX_RATE)) {
+            e.sellerRate = `ポイント倍率は ${BASE_RATE.toFixed(2)}〜${MAX_RATE.toFixed(2)} の範囲で選択してください`;
+        }
+
         setErrors(e);
         return Object.keys(e).length === 0;
     };
 
     // ステップ単位バリデーション
     const validateStep = (key: StepKey): boolean => {
-        // main は公開に必要なものを全部チェック
-        if (key === "main") {
-            return validate();
-        }
-        // details は任意なので常にOK
+        if (key === "main") return validate();
         return true;
     };
 
@@ -204,6 +234,16 @@ function FleaItemCreatePage() {
                 const d = JSON.parse(saved);
                 setName(d.name ?? "");
                 setPrice(d.price ?? "");
+
+                // ★ 追加：sellerRate復元（無ければベース）
+                const sr =
+                    typeof d.sellerRate === "number"
+                        ? d.sellerRate
+                        : typeof d.seller_rate === "number"
+                            ? d.seller_rate
+                            : BASE_RATE;
+                setSellerRate(Number.isFinite(sr) ? sr : BASE_RATE);
+
                 setQuantity(d.quantity ?? 1);
                 setIsMultiPurchasable(!!d.isMultiPurchasable);
                 setType(d.type === "SUPPLY" ? "SUPPLY" : "ANIMAL");
@@ -214,18 +254,12 @@ function FleaItemCreatePage() {
                 setMainIndex(d.mainIndex ?? 0);
                 if (d._draftId) setDraftId(d._draftId);
 
-                // ★ ここから追加：詳細も復元
+                // 詳細復元
                 if (d.liveDetails) {
-                    setLiveDetails(prev => ({
-                        ...prev,
-                        ...d.liveDetails,
-                    }));
+                    setLiveDetails((prev) => ({ ...prev, ...d.liveDetails }));
                 }
                 if (d.supplyDetails) {
-                    setSupplyDetails(prev => ({
-                        ...prev,
-                        ...d.supplyDetails,
-                    }));
+                    setSupplyDetails((prev) => ({ ...prev, ...d.supplyDetails }));
                 }
             } catch (e) {
                 console.log(e);
@@ -238,6 +272,7 @@ function FleaItemCreatePage() {
         const payload = {
             name,
             price,
+            sellerRate, // ★ 追加
             quantity,
             isMultiPurchasable,
             type,
@@ -248,7 +283,6 @@ function FleaItemCreatePage() {
             mainIndex,
             _draftId: draftId,
 
-            // ★ 追加：詳細もローカルに保存
             liveDetails,
             supplyDetails,
         };
@@ -256,6 +290,7 @@ function FleaItemCreatePage() {
     }, [
         name,
         price,
+        sellerRate, // ★ 追加
         quantity,
         isMultiPurchasable,
         type,
@@ -265,8 +300,6 @@ function FleaItemCreatePage() {
         shipsWithinDays,
         mainIndex,
         draftId,
-
-        // ★ 依存にも追加
         liveDetails,
         supplyDetails,
     ]);
@@ -286,12 +319,9 @@ function FleaItemCreatePage() {
 
     // --------- autosave payload ---------
     const buildDraftPayload = React.useCallback(() => {
-        const priceStr =
-            price && Number(price) > 0 ? String(Number(price)) : "";
+        const priceStr = price && Number(price) > 0 ? String(Number(price)) : "";
 
-        const normalizedQuantity = isMultiPurchasable
-            ? Math.max(1, quantity)
-            : 1;
+        const normalizedQuantity = isMultiPurchasable ? Math.max(1, quantity) : 1;
 
         const details =
             type === "ANIMAL"
@@ -318,20 +348,23 @@ function FleaItemCreatePage() {
             name: name.trim() || null,
             description: description.trim() || null,
             price: priceStr,
+            // ★ 追加：seller_rate（DECIMAL想定なので文字列で）
+            seller_rate: Number.isFinite(sellerRate) ? sellerRate.toFixed(3) : BASE_RATE.toFixed(3),
+
             quantity: normalizedQuantity,
             type: type === "SUPPLY" ? "SUPPLY" : "ANIMAL",
             is_multi_purchasable: isMultiPurchasable ? 1 : 0,
             shipping_fee_type: shippingFeeType,
             ship_from_id: shipFromId === null ? null : shipFromId,
-            ships_within_days:
-                shipsWithinDays === "" ? null : Number(shipsWithinDays),
+            ships_within_days: shipsWithinDays === "" ? null : Number(shipsWithinDays),
             main_image_url: null,
-            details, // ← ここだけ渡す
+            details,
         };
     }, [
         name,
         description,
         price,
+        sellerRate, // ★ 追加
         isMultiPurchasable,
         quantity,
         type,
@@ -378,9 +411,11 @@ function FleaItemCreatePage() {
                 setSaving("saved");
                 setSavedOpen(true);
             } catch (e: any) {
-                // ★ ここ追加：AbortController によるキャンセルは正常系として無視
-                if (axios.isCancel?.(e) || e?.code === "ERR_CANCELED" || e?.name === "CanceledError") {
-                    // console.log("autosave canceled"); // 必要ならゆるログだけ
+                if (
+                    axios.isCancel?.(e) ||
+                    e?.code === "ERR_CANCELED" ||
+                    e?.name === "CanceledError"
+                ) {
                     return;
                 }
 
@@ -391,18 +426,15 @@ function FleaItemCreatePage() {
         [draftId, buildDraftPayload]
     );
 
-
     useEffect(() => {
         const controller = new AbortController();
-        if (autosaveTimerRef.current)
-            window.clearTimeout(autosaveTimerRef.current);
+        if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
         autosaveTimerRef.current = window.setTimeout(() => {
             autosaveNow(controller.signal);
         }, AUTOSAVE_MS);
         return () => {
             controller.abort();
-            if (autosaveTimerRef.current)
-                window.clearTimeout(autosaveTimerRef.current);
+            if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
         };
     }, [autosaveNow, AUTOSAVE_MS]);
 
@@ -417,9 +449,7 @@ function FleaItemCreatePage() {
                 };
                 const body = JSON.stringify(payload);
                 if (navigator.sendBeacon) {
-                    const blob = new Blob([body], {
-                        type: "application/json",
-                    });
+                    const blob = new Blob([body], { type: "application/json" });
                     navigator.sendBeacon(endpoint, blob);
                     return;
                 }
@@ -440,18 +470,12 @@ function FleaItemCreatePage() {
         const onUnload = () => saveOnLeave();
 
         window.addEventListener("pagehide", onPageHide);
-        document.addEventListener(
-            "visibilitychange",
-            onVisibilityChange
-        );
+        document.addEventListener("visibilitychange", onVisibilityChange);
         window.addEventListener("beforeunload", onBeforeUnload);
         window.addEventListener("unload", onUnload);
         return () => {
             window.removeEventListener("pagehide", onPageHide);
-            document.removeEventListener(
-                "visibilitychange",
-                onVisibilityChange
-            );
+            document.removeEventListener("visibilitychange", onVisibilityChange);
             window.removeEventListener("beforeunload", onBeforeUnload);
             window.removeEventListener("unload", onUnload);
         };
@@ -469,43 +493,28 @@ function FleaItemCreatePage() {
             const fd = new FormData();
             fd.append("name", name.trim());
             fd.append("price", String(Number(price)));
-            fd.append(
-                "quantity",
-                String(isMultiPurchasable ? quantity : 1)
-            );
-            fd.append(
-                "is_multi_purchasable",
-                String(isMultiPurchasable ? 1 : 0)
-            );
+
+            // ★ 追加：seller_rate
+            fd.append("seller_rate", Number.isFinite(sellerRate) ? sellerRate.toFixed(3) : BASE_RATE.toFixed(3));
+
+            fd.append("quantity", String(isMultiPurchasable ? quantity : 1));
+            fd.append("is_multi_purchasable", String(isMultiPurchasable ? 1 : 0));
             fd.append("type", normalizeType(type));
             fd.append("description", description.trim());
-            fd.append(
-                "shipping_fee_type",
-                String(shippingFeeType)
-            );
-            if (shipFromId !== null && shipFromId !== 0)
-                fd.append("ship_from_id", String(shipFromId));
-            if (shipsWithinDays !== "")
-                fd.append(
-                    "ships_within_days",
-                    String(shipsWithinDays)
-                );
+            fd.append("shipping_fee_type", String(shippingFeeType));
+            if (shipFromId !== null && shipFromId !== 0) fd.append("ship_from_id", String(shipFromId));
+            if (shipsWithinDays !== "") fd.append("ships_within_days", String(shipsWithinDays));
             fd.append("main_index", String(mainIndex));
-            if (draftId != null)
-                fd.append("draft_id", String(draftId));
+            if (draftId != null) fd.append("draft_id", String(draftId));
 
-            images.forEach((f, i) =>
-                fd.append("images", f, f.name || `image_${i}.jpg`)
-            );
+            images.forEach((f, i) => fd.append("images", f, f.name || `image_${i}.jpg`));
 
             const res = await axios.post<PublishResponse>(
                 CONFIG.BASE_URL + "/flea-market/add/item",
                 fd,
                 {
                     headers: {
-                        Authorization: `Bearer ${localStorage.getItem(
-                            "token"
-                        )}`,
+                        Authorization: `Bearer ${localStorage.getItem("token")}`,
                     },
                     withCredentials: true,
                     timeout: 20000,
@@ -517,9 +526,8 @@ function FleaItemCreatePage() {
             setLastItemId(newId);
             setCompleteOpen(true);
 
-            // ★ 詳細の保存
+            // 詳細の保存
             if (newId) {
-                console.log(newId)
                 try {
                     if (type === "ANIMAL") {
                         await upsertAnimalDetails(newId, liveDetails);
@@ -539,52 +547,36 @@ function FleaItemCreatePage() {
             localStorage.removeItem("flea_item_draft");
 
             try {
-                await axios.delete(
-                    CONFIG.BASE_URL + "/flea-market/draft/" + draftId,
-                    {
-                        headers: {
-                            Authorization: `Bearer ${localStorage.getItem(
-                                "token"
-                            )}`,
-                            "Content-Type": "application/json",
-                        },
-                    }
-                );
+                await axios.delete(CONFIG.BASE_URL + "/flea-market/draft/" + draftId, {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem("token")}`,
+                        "Content-Type": "application/json",
+                    },
+                });
             } catch (e) {
                 console.warn("draft delete failed", e);
             }
 
-            toast({
-                text: "出品が完了しました！",
-                kind: "success",
-            });
+            toast({ text: "出品が完了しました！", kind: "success" });
         } catch (err) {
             if (axios.isAxiosError<ApiErrorBag>(err)) {
                 const status = err.response?.status;
                 const data = err.response?.data;
                 if (status === 400 && (data as any)?.errors) {
                     const map: Record<string, string> = {};
-                    for (const e of (data as ApiErrorBag).errors)
-                        map[e.field] = e.msg;
+                    for (const e of (data as ApiErrorBag).errors) map[e.field] = e.msg;
                     setErrors(map);
-                    window.scrollTo({
-                        top: 0,
-                        behavior: "smooth",
-                    });
+                    window.scrollTo({ top: 0, behavior: "smooth" });
                     return;
                 }
                 const msg =
-                    (data as { message?: string } | undefined)
-                        ?.message ??
+                    (data as { message?: string } | undefined)?.message ??
                     err.message ??
                     "通信に失敗しました。";
                 toast({ text: msg, kind: "error" });
             } else {
                 console.error(err);
-                toast({
-                    text: "不明なエラーが発生しました。",
-                    kind: "error",
-                });
+                toast({ text: "不明なエラーが発生しました。", kind: "error" });
             }
         } finally {
             setSubmitting(false);
@@ -600,6 +592,14 @@ function FleaItemCreatePage() {
         setConfirmOpen(true);
     };
 
+    // sellerRate options
+    const sellerRateOptions = React.useMemo(() => {
+        const count = Math.round((MAX_RATE - BASE_RATE) / STEP_RATE) + 1;
+        return Array.from({ length: count }, (_, i) =>
+            Number((BASE_RATE + STEP_RATE * i).toFixed(2))
+        );
+    }, []);
+
     // --------- UI ---------
     return (
         <div className="min-h-[100svh] bg-gray-50">
@@ -608,14 +608,9 @@ function FleaItemCreatePage() {
                 {/* 1段目：タイトル＆出品 */}
                 <div className="border-b">
                     <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-                        <h1 className="text-lg font-semibold">
-                            出品する
-                        </h1>
+                        <h1 className="text-lg font-semibold">出品する</h1>
                         <div className="hidden md:flex items-center gap-3">
-                            <SaveIndicator
-                                saving={saving}
-                                lastSavedAt={lastSavedAt}
-                            />
+                            <SaveIndicator saving={saving} lastSavedAt={lastSavedAt} />
                             <button
                                 onClick={onClickOpenConfirm}
                                 className="px-4 h-10 rounded-xl bg-black text-white disabled:opacity-60"
@@ -626,9 +621,7 @@ function FleaItemCreatePage() {
                                         : undefined
                                 }
                             >
-                                {submitting
-                                    ? "送信中…"
-                                    : "出品する"}
+                                {submitting ? "送信中…" : "出品する"}
                             </button>
                         </div>
                     </div>
@@ -641,40 +634,17 @@ function FleaItemCreatePage() {
                             <div className="flex-1 overflow-x-auto no-scrollbar">
                                 <Stepper
                                     steps={[
-                                        {
-                                            label: "基本情報",
-                                            complete: stepMainDone,
-                                        },
-                                        {
-                                            label: "詳細設定（任意）",
-                                            complete: !!stepDetailsDone,
-                                        },
+                                        { label: "基本情報", complete: stepMainDone },
+                                        { label: "詳細設定（任意）", complete: !!stepDetailsDone },
                                     ]}
-                                    current={
-                                        current === "main" ? 0 : 1
-                                    }
-                                    onSelect={(i) => {
-                                        setCurrent(
-                                            i === 0
-                                                ? "main"
-                                                : "details"
-                                        );
-                                    }}
+                                    current={current === "main" ? 0 : 1}
+                                    onSelect={(i) => setCurrent(i === 0 ? "main" : "details")}
                                 />
                             </div>
                             <div className="md:hidden text-xs text-gray-600 shrink-0">
                                 {canPublish
                                     ? "出品可能"
-                                    : `不足: ${!stepBasicDone
-                                        ? "基本情報 "
-                                        : ""
-                                    }${!stepImagesDone
-                                        ? "画像 "
-                                        : ""
-                                    }${!stepShippingDone
-                                        ? "配送"
-                                        : ""
-                                    }`}
+                                    : `不足: ${!stepBasicDone ? "基本情報 " : ""}${!stepImagesDone ? "画像 " : ""}${!stepShippingDone ? "配送" : ""}`}
                             </div>
                         </div>
                     </div>
@@ -688,75 +658,117 @@ function FleaItemCreatePage() {
                     <>
                         {/* 基本情報 */}
                         <section className="bg-white rounded-2xl shadow-sm border p-4">
-                            <h2 className="font-semibold mb-3">
-                                基本情報
-                            </h2>
+                            <h2 className="font-semibold mb-3">基本情報</h2>
                             <div className="space-y-3">
-                                <Labeled
-                                    label="商品名"
-                                    error={errors.name}
-                                >
+                                <Labeled label="商品名" error={errors.name}>
                                     <input
                                         className="input"
                                         value={name}
-                                        onChange={(e) =>
-                                            setName(e.target.value)
-                                        }
+                                        onChange={(e) => setName(e.target.value)}
                                         placeholder="例：犬用リード Mサイズ"
                                     />
                                 </Labeled>
-                                <Labeled
-                                    label="価格(円)"
-                                    error={errors.price}
-                                >
+
+                                <Labeled label="価格(円)" error={errors.price}>
                                     <input
                                         className="input"
                                         inputMode="decimal"
                                         value={price}
-                                        onChange={(e) =>
-                                            setPrice(e.target.value)
-                                        }
+                                        onChange={(e) => setPrice(e.target.value)}
                                         placeholder="例：2980"
                                     />
                                 </Labeled>
+
+                                {/* ★ 追加：ポイント倍率（seller_rate） */}
+                                <Labeled label="購入者への追加割引" error={errors.sellerRate}>
+                                    <div className="space-y-2">
+                                        {/* UIでは倍率を見せない：追加割引%っぽく見せる */}
+                                        <select
+                                            className="input"
+                                            value={Number(((sellerRate - BASE_RATE) * 100).toFixed(0))} // 例: 0,1,2..(= +0.01, +0.02..)
+                                            onChange={(e) => {
+                                                const plusPct = Number(e.target.value); // 0..8 みたいな
+                                                const next = Number((BASE_RATE + plusPct / 100).toFixed(2));
+                                                setSellerRate(next);
+                                            }}
+                                        >
+                                            {sellerRateOptions.map((v) => {
+                                                const plus = Number(((v - BASE_RATE) * 100).toFixed(0)); // 0..8
+                                                return (
+                                                    <option key={v} value={plus}>
+                                                        追加割引：{plus === 0 ? "なし" : `+${plus}%`}
+                                                    </option>
+                                                );
+                                            })}
+                                        </select>
+
+                                        {/* 追加割引の目安：ベースは出さない */}
+                                        <p className="text-xs text-gray-600">
+                                            目安：この設定で最大{" "}
+                                            <span className="font-semibold">
+                                                +¥{Math.max(0, Math.floor((Number(price) || 0) * Math.max(0, sellerRate - BASE_RATE))).toLocaleString()}
+                                            </span>{" "}
+                                            お得になります
+                                        </p>
+
+                                        <p className="text-[11px] text-gray-500 text-red-600">
+                                            ※ 追加割引を増やすと手数料が増える設計です。
+                                        </p>
+
+                                        <div className="rounded-xl border bg-gray-50 p-3">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="text-sm">
+                                                    <div className="font-semibold">
+                                                        入金見込み（目安） ¥{payoutYen.toLocaleString()}
+                                                    </div>
+                                                    <div className="text-[11px] text-gray-600">
+                                                        手数料 ¥{feeYen.toLocaleString()}（{Math.round(feeRate * 100)}%）
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    className="text-xs text-blue-600 hover:underline shrink-0"
+                                                    onClick={() => setFeeOpen(v => !v)}
+                                                >
+                                                    {feeOpen ? "詳細を閉じる" : "詳細"}
+                                                </button>
+                                            </div>
+
+                                            {feeOpen && (
+                                                <div className="mt-3 border-t pt-3 text-sm space-y-1">
+                                                    <div className="flex justify-between"><span className="text-gray-600">追加割引</span><span className="font-semibold">+{plusPct}%</span></div>
+                                                    <div className="flex justify-between"><span className="text-gray-600">手数料率</span><span className="font-semibold">{Math.round(feeRate * 100)}%</span></div>
+                                                    <div className="flex justify-between"><span className="text-gray-600">手数料（目安）</span><span className="font-semibold">¥{feeYen.toLocaleString()}</span></div>
+                                                    <div className="flex justify-between"><span className="text-gray-600">入金見込み（目安）</span><span className="font-semibold">¥{payoutYen.toLocaleString()}</span></div>
+                                                    <div className="pt-1 text-[11px] text-gray-500">
+                                                        購入者は最大 +¥{maxExtraOffYen.toLocaleString()} 追加でお得（目安）
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </Labeled>
+
+
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <Labeled
-                                        label="数量"
-                                        error={errors.quantity}
-                                    >
+                                    <Labeled label="数量" error={errors.quantity}>
                                         <div className="flex items-center gap-2">
                                             <button
                                                 className="btn"
-                                                onClick={() =>
-                                                    setQuantity((q) =>
-                                                        Math.max(
-                                                            1,
-                                                            q - 1
-                                                        )
-                                                    )
-                                                }
+                                                onClick={() => setQuantity((q) => Math.max(1, q - 1))}
                                             >
                                                 －
                                             </button>
                                             <input
                                                 className="input text-center w-24"
                                                 readOnly
-                                                value={
-                                                    isMultiPurchasable
-                                                        ? quantity
-                                                        : 1
-                                                }
+                                                value={isMultiPurchasable ? quantity : 1}
                                             />
                                             <button
                                                 className="btn"
-                                                onClick={() =>
-                                                    setQuantity(
-                                                        (q) => q + 1
-                                                    )
-                                                }
-                                                disabled={
-                                                    !isMultiPurchasable
-                                                }
+                                                onClick={() => setQuantity((q) => q + 1)}
+                                                disabled={!isMultiPurchasable}
                                             >
                                                 ＋
                                             </button>
@@ -764,40 +776,23 @@ function FleaItemCreatePage() {
                                         <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
                                             <input
                                                 type="checkbox"
-                                                checked={
-                                                    isMultiPurchasable
-                                                }
-                                                onChange={(e) =>
-                                                    setIsMultiPurchasable(
-                                                        e.target
-                                                            .checked
-                                                    )
-                                                }
+                                                checked={isMultiPurchasable}
+                                                onChange={(e) => setIsMultiPurchasable(e.target.checked)}
                                             />{" "}
                                             複数購入を許可する
                                         </label>
                                     </Labeled>
                                 </div>
 
-                                <Labeled
-                                    label="出品タイプ"
-                                    error={errors.type}
-                                >
+                                <Labeled label="出品タイプ" error={errors.type}>
                                     <div className="flex gap-4">
                                         <label className="flex items-center gap-2">
                                             <input
                                                 type="radio"
                                                 name="type"
                                                 value="ANIMAL"
-                                                checked={
-                                                    type === "ANIMAL"
-                                                }
-                                                onChange={(e) =>
-                                                    setType(
-                                                        e.target
-                                                            .value as "ANIMAL"
-                                                    )
-                                                }
+                                                checked={type === "ANIMAL"}
+                                                onChange={(e) => setType(e.target.value as "ANIMAL")}
                                             />
                                             生体
                                         </label>
@@ -806,33 +801,19 @@ function FleaItemCreatePage() {
                                                 type="radio"
                                                 name="type"
                                                 value="SUPPLY"
-                                                checked={
-                                                    type === "SUPPLY"
-                                                }
-                                                onChange={(e) =>
-                                                    setType(
-                                                        e.target
-                                                            .value as "SUPPLY"
-                                                    )
-                                                }
+                                                checked={type === "SUPPLY"}
+                                                onChange={(e) => setType(e.target.value as "SUPPLY")}
                                             />
                                             用品
                                         </label>
                                     </div>
                                 </Labeled>
 
-                                <Labeled
-                                    label="商品説明"
-                                    error={errors.description}
-                                >
+                                <Labeled label="商品説明" error={errors.description}>
                                     <textarea
                                         className="input min-h-[120px]"
                                         value={description}
-                                        onChange={(e) =>
-                                            setDescription(
-                                                e.target.value
-                                            )
-                                        }
+                                        onChange={(e) => setDescription(e.target.value)}
                                         placeholder="サイズ / 使用感 / 注意点など"
                                     />
                                 </Labeled>
@@ -841,13 +822,9 @@ function FleaItemCreatePage() {
 
                         {/* 商品画像 */}
                         <section className="bg-white rounded-2xl shadow-sm border p-4">
-                            <h2 className="font-semibold mb-3">
-                                商品画像
-                            </h2>
+                            <h2 className="font-semibold mb-3">商品画像</h2>
                             {errors.images && (
-                                <p className="text-sm text-red-600 mb-2">
-                                    {errors.images}
-                                </p>
+                                <p className="text-sm text-red-600 mb-2">{errors.images}</p>
                             )}
                             <InlineSortableImages
                                 files={images}
@@ -863,9 +840,7 @@ function FleaItemCreatePage() {
 
                         {/* 配送設定 */}
                         <section className="bg-white rounded-2xl shadow-sm border p-4">
-                            <h2 className="font-semibold mb-3">
-                                配送設定
-                            </h2>
+                            <h2 className="font-semibold mb-3">配送設定</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <Labeled label="送料負担">
                                     <div className="flex gap-4 text-sm">
@@ -873,15 +848,8 @@ function FleaItemCreatePage() {
                                             <input
                                                 type="radio"
                                                 name="shipfee"
-                                                checked={
-                                                    shippingFeeType ===
-                                                    0
-                                                }
-                                                onChange={() =>
-                                                    setShippingFeeType(
-                                                        0
-                                                    )
-                                                }
+                                                checked={shippingFeeType === 0}
+                                                onChange={() => setShippingFeeType(0)}
                                             />{" "}
                                             送料込み（出品者負担）
                                         </label>
@@ -889,15 +857,8 @@ function FleaItemCreatePage() {
                                             <input
                                                 type="radio"
                                                 name="shipfee"
-                                                checked={
-                                                    shippingFeeType ===
-                                                    1
-                                                }
-                                                onChange={() =>
-                                                    setShippingFeeType(
-                                                        1
-                                                    )
-                                                }
+                                                checked={shippingFeeType === 1}
+                                                onChange={() => setShippingFeeType(1)}
                                             />{" "}
                                             着払い（購入者負担）
                                         </label>
@@ -906,45 +867,25 @@ function FleaItemCreatePage() {
 
                                 <ShipFromSelect
                                     value={shipFromId}
-                                    onChange={(val) =>
-                                        setShipFromId(val)
-                                    }
+                                    onChange={(val) => setShipFromId(val)}
                                     error={errors.shipFrom}
                                 />
 
-                                <Labeled
-                                    label="発送までの目安"
-                                    error={errors.shipsWithinDays}
-                                >
+                                <Labeled label="発送までの目安" error={errors.shipsWithinDays}>
                                     <select
                                         className="input"
                                         value={String(shipsWithinDays)}
                                         onChange={(e) =>
                                             setShipsWithinDays(
-                                                e.target.value === ""
-                                                    ? ""
-                                                    : Number(
-                                                        e.target
-                                                            .value
-                                                    )
+                                                e.target.value === "" ? "" : Number(e.target.value)
                                             )
                                         }
                                     >
-                                        <option value="">
-                                            選択してください
-                                        </option>
-                                        <option value="1">
-                                            1日以内
-                                        </option>
-                                        <option value="2">
-                                            2日以内
-                                        </option>
-                                        <option value="4">
-                                            4日以内
-                                        </option>
-                                        <option value="7">
-                                            1週間以内
-                                        </option>
+                                        <option value="">選択してください</option>
+                                        <option value="1">1日以内</option>
+                                        <option value="2">2日以内</option>
+                                        <option value="4">4日以内</option>
+                                        <option value="7">1週間以内</option>
                                     </select>
                                 </Labeled>
                             </div>
@@ -956,9 +897,7 @@ function FleaItemCreatePage() {
                 {current === "details" && (
                     <section className="bg-white rounded-2xl shadow-sm border p-4">
                         <h2 className="font-semibold mb-3">
-                            詳細（
-                            {type === "ANIMAL" ? "生体" : "用品"}
-                            ・任意）
+                            詳細（{type === "ANIMAL" ? "生体" : "用品"}・任意）
                         </h2>
 
                         {type === "ANIMAL" ? (
@@ -968,44 +907,29 @@ function FleaItemCreatePage() {
                                         className="input"
                                         value={liveDetails.locality}
                                         onChange={(e) =>
-                                            setLiveDetails({
-                                                ...liveDetails,
-                                                locality:
-                                                    e.target.value,
-                                            })
+                                            setLiveDetails({ ...liveDetails, locality: e.target.value })
                                         }
                                         placeholder="例：兵庫"
                                     />
                                 </Labeled>
+
                                 <div className="grid grid-cols-3 gap-3">
                                     <Labeled label="羽化/孵化日">
                                         <input
                                             type="date"
                                             className="input"
-                                            value={
-                                                liveDetails.hatch_date
-                                            }
+                                            value={liveDetails.hatch_date}
                                             onChange={(e) =>
-                                                setLiveDetails({
-                                                    ...liveDetails,
-                                                    hatch_date:
-                                                        e.target.value,
-                                                })
+                                                setLiveDetails({ ...liveDetails, hatch_date: e.target.value })
                                             }
                                         />
                                     </Labeled>
                                     <Labeled label="累代">
                                         <input
                                             className="input"
-                                            value={
-                                                liveDetails.generation
-                                            }
+                                            value={liveDetails.generation}
                                             onChange={(e) =>
-                                                setLiveDetails({
-                                                    ...liveDetails,
-                                                    generation:
-                                                        e.target.value,
-                                                })
+                                                setLiveDetails({ ...liveDetails, generation: e.target.value })
                                             }
                                             placeholder="F1 / CB など"
                                         />
@@ -1015,15 +939,13 @@ function FleaItemCreatePage() {
                                             className="input"
                                             value={liveDetails.size}
                                             onChange={(e) =>
-                                                setLiveDetails({
-                                                    ...liveDetails,
-                                                    size: e.target.value,
-                                                })
+                                                setLiveDetails({ ...liveDetails, size: e.target.value })
                                             }
                                             placeholder="S / M / L"
                                         />
                                     </Labeled>
                                 </div>
+
                                 <Labeled label="性別">
                                     <select
                                         className="input"
@@ -1031,29 +953,17 @@ function FleaItemCreatePage() {
                                         onChange={(e) =>
                                             setLiveDetails({
                                                 ...liveDetails,
-                                                sex: e.target
-                                                    .value as
-                                                    | "male"
-                                                    | "female"
-                                                    | "unknown"
-                                                    | "pair",
+                                                sex: e.target.value as "male" | "female" | "unknown" | "pair",
                                             })
                                         }
                                     >
-                                        <option value="unknown">
-                                            不明
-                                        </option>
-                                        <option value="male">
-                                            オス
-                                        </option>
-                                        <option value="female">
-                                            メス
-                                        </option>
+                                        <option value="unknown">不明</option>
+                                        <option value="male">オス</option>
+                                        <option value="female">メス</option>
                                     </select>
                                 </Labeled>
-                                <p className="text-xs text-gray-500">
-                                    ※ 任意項目です。公開後も編集できます。
-                                </p>
+
+                                <p className="text-xs text-gray-500">※ 任意項目です。公開後も編集できます。</p>
                             </div>
                         ) : (
                             <div className="grid gap-3">
@@ -1063,10 +973,7 @@ function FleaItemCreatePage() {
                                             className="input"
                                             value={supplyDetails.brand}
                                             onChange={(e) =>
-                                                setSupplyDetails({
-                                                    ...supplyDetails,
-                                                    brand: e.target.value,
-                                                })
+                                                setSupplyDetails({ ...supplyDetails, brand: e.target.value })
                                             }
                                         />
                                     </Labeled>
@@ -1075,33 +982,27 @@ function FleaItemCreatePage() {
                                             className="input"
                                             value={supplyDetails.sku}
                                             onChange={(e) =>
-                                                setSupplyDetails({
-                                                    ...supplyDetails,
-                                                    sku: e.target.value,
-                                                })
+                                                setSupplyDetails({ ...supplyDetails, sku: e.target.value })
                                             }
                                         />
                                     </Labeled>
                                 </div>
+
                                 <Labeled label="内容量(g)">
                                     <input
                                         type="number"
                                         className="input"
-                                        value={
-                                            supplyDetails.net_weight_g
-                                        }
+                                        value={supplyDetails.net_weight_g}
                                         onChange={(e) =>
                                             setSupplyDetails({
                                                 ...supplyDetails,
-                                                net_weight_g:
-                                                    e.target.value,
+                                                net_weight_g: e.target.value,
                                             })
                                         }
                                     />
                                 </Labeled>
-                                <p className="text-xs text-gray-500">
-                                    ※ 任意項目です。公開後も編集できます。
-                                </p>
+
+                                <p className="text-xs text-gray-500">※ 任意項目です。公開後も編集できます。</p>
                             </div>
                         )}
                     </section>
@@ -1127,6 +1028,7 @@ function FleaItemCreatePage() {
                         >
                             戻る
                         </button>
+
                         {current === "main" && (
                             <button
                                 onClick={goNext}
@@ -1161,19 +1063,15 @@ function FleaItemCreatePage() {
                 summary={{
                     name,
                     price: Number(price) || 0,
+                    sellerRate, // ★ 追加（ConfirmDialog側が未使用でも保持しとく）
                     quantity: isMultiPurchasable ? quantity : 1,
-                    total:
-                        (Number(price) || 0) *
-                        (isMultiPurchasable ? quantity : 1),
+                    total: (Number(price) || 0) * (isMultiPurchasable ? quantity : 1),
                     isMultiPurchasable,
                     type,
                     description,
                     shippingFeeType,
                     shipFromId,
-                    shipsWithinDays:
-                        shipsWithinDays === ""
-                            ? undefined
-                            : Number(shipsWithinDays),
+                    shipsWithinDays: shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
                     mainIndex,
                     files: images,
                 }}
@@ -1192,12 +1090,8 @@ function FleaItemCreatePage() {
                 }}
             />
 
-            <TinySavedPopup
-                open={savedOpen}
-                onClose={() => setSavedOpen(false)}
-                x={50}
-                y={20}
-            />
+            <TinySavedPopup open={savedOpen} onClose={() => setSavedOpen(false)} x={50} y={20} />
+
             <PublishCompleteDialog
                 open={completeOpen}
                 itemId={lastItemId}
@@ -1219,23 +1113,13 @@ function SaveIndicator({
     saving: "idle" | "saving" | "saved" | "error";
     lastSavedAt: string | null;
 }) {
-    if (saving === "saving")
-        return <span className="text-xs text-gray-500">保存中…</span>;
-    if (saving === "error")
-        return (
-            <span className="text-xs text-red-600">
-                保存エラー
-            </span>
-        );
+    if (saving === "saving") return <span className="text-xs text-gray-500">保存中…</span>;
+    if (saving === "error") return <span className="text-xs text-red-600">保存エラー</span>;
     if (saving === "saved")
         return (
             <span className="text-[11px] text-gray-500">
                 保存済み
-                {lastSavedAt
-                    ? `（${new Date(
-                        lastSavedAt
-                    ).toLocaleTimeString()}）`
-                    : ""}
+                {lastSavedAt ? `（${new Date(lastSavedAt).toLocaleTimeString()}）` : ""}
             </span>
         );
     return null;
