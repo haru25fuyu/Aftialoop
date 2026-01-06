@@ -8,6 +8,7 @@ import CommentList from "../../component/CommentList";
 import { PriceWithPerks } from "../../component/PriceWithPerks";
 
 import QuestionModal from "../../modal/QuestionModal";
+import PurchaseRequestModal from "../../modal/PurchaseRequestModal";
 
 import { fleaContent, FleaComment, itemImage, Content } from "../../types/Content";
 
@@ -22,13 +23,12 @@ import "swiper/swiper-bundle.css";
 
 
 const Item: React.FC = () => {
-    const [showModal, setShowModal] = useState(false);
+    const [openPurchaseModal, setOpenPurchaseModal] = useState(false);
     const [item, setItem] = useState<fleaContent | null>(null);
     const [images, setImages] = useState<itemImage[]>([]);
     const [selectQuantity, setSelectQuantity] = useState(1);
     const location = useLocation();
     const { id } = useParams<{ id: string }>();
-    const [orderFlag, setOrderFlag] = useState(false);
     const navigate = useNavigate();
     const [showQModal, setShowQModal] = useState(false);
     const [user, setUser] = useState<Content | null>(null);
@@ -80,7 +80,7 @@ const Item: React.FC = () => {
     }, [location.search]);
 
     useEffect(() => {
-        api.get(`/flea-market/item/${item?.id}/messages`)
+        api.get(`/flea-market/item/${id}/messages`)
             .then((res) => {
                 const list = res.data?.messages ?? [];
 
@@ -267,7 +267,7 @@ const Item: React.FC = () => {
 
                     {/* ⑦ 下部固定バー：質問 / 購入 */}
                     <BottomBarPortal>
-                        <div className="fixed bottom-0 left-0 right-0 z-50 bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.08)] p-3 flex gap-2">
+                        <div className="fixed bottom-0 left-0 right-0 z-[50] bg-white shadow-[0_-2px_8px_rgba(0,0,0,0.08)] p-3 flex gap-2">
                             <button
                                 className="flex-1 rounded-xl bg-yellow-400 text-black hover:bg-yellow-300 p-3 text-sm font-medium"
                                 onClick={() => setShowQModal(true)}
@@ -276,7 +276,7 @@ const Item: React.FC = () => {
                             </button>
                             <button
                                 className="flex-1 rounded-xl bg-orange-400 text-black hover:bg-orange-300 p-3 text-sm font-medium"
-                                onClick={goCheckout}
+                                onClick={() => setOpenPurchaseModal(true)}
                                 disabled={item.quantity <= 0}
                             >
                                 {item.quantity > 0 ? "購入手続きへ" : "売り切れ"}
@@ -284,7 +284,17 @@ const Item: React.FC = () => {
                         </div>
                     </BottomBarPortal>
 
-                    {/* 直接購入モーダルはそのまま */}
+                    {/* 購入申請モーダル */}
+                    <PurchaseRequestModal
+                        open={openPurchaseModal}
+                        itemId={item.id}
+                        onClose={() => setOpenPurchaseModal(false)}
+                        onSubmit={async (payload) => {
+                            await api.post("/flea-market/purchase-request", payload);
+                            // 成功したら取引ページへ遷移など
+                        }}
+                    />
+
                 </main >
             )}
 
