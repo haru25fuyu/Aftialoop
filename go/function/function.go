@@ -5,6 +5,7 @@ import (
 	"animaloop/utils"
 	"context"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -502,6 +503,27 @@ func GetFleaConfig() config.FleaConfig {
 		return config.FleaConfig{BaseRate: 1.02, MaxRate: 1.10} // 最低限のフォールバック
 	}
 	return v.(config.FleaConfig)
+}
+
+func ToUserProfileResponse(u utils.SqlResponsUserProfile) utils.RequestUserProfile {
+	ptr := func(ns sql.NullString) *string {
+		if ns.Valid {
+			return &ns.String
+		}
+		return nil
+	}
+
+	return utils.RequestUserProfile{
+		ID:          u.ID,
+		Name:        u.Name,
+		Email:       u.Email,
+		DateOfBirth: ptr(u.DateOfBirth),
+		Gender:      ptr(u.Gender),
+		DefaultCard: ptr(u.DefaultCard),
+		PhoneNumber: ptr(u.PhoneNumber),
+		Bio:         ptr(u.Bio),
+		IconURL:     ptr(u.IconURL),
+	}
 }
 
 // 便利関数 -----------------------------

@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -87,15 +88,27 @@ type Profile struct {
 }
 
 type RequestUserProfile struct {
-	ID          string `db:"id" json:"id"`
-	Name        string `db:"name" json:"name"`
-	Email       string `db:"email" json:"email"`
-	DateOfBirth string `db:"date_of_birth" json:"birth"`
-	Gender      string `db:"gender" json:"gender"`
-	DefaultCard string `db:"default_card" json:"defaultCard"`
-	PhoneNumber string `db:"phone_number" json:"phone"`
-	Bio         string `db:"bio" json:"bio"`
-	IconURL     string `db:"icon_url" json:"image"`
+	ID          string  `db:"id" json:"id"`
+	Name        string  `db:"name" json:"name"`
+	Email       string  `db:"email" json:"email"`
+	DateOfBirth *string `db:"date_of_birth" json:"birth"`
+	Gender      *string `db:"gender" json:"gender"`
+	DefaultCard *string `db:"default_card" json:"defaultCard"`
+	PhoneNumber *string `db:"phone_number" json:"phone"`
+	Bio         *string `db:"bio" json:"bio"`
+	IconURL     *string `db:"icon_url" json:"image"`
+}
+
+type SqlResponsUserProfile struct {
+	ID          string         `db:"id" json:"id"`
+	Name        string         `db:"name" json:"name"`
+	Email       string         `db:"email" json:"email"`
+	DateOfBirth sql.NullString `db:"date_of_birth" json:"birth"`
+	Gender      sql.NullString `db:"gender" json:"gender"`
+	DefaultCard sql.NullString `db:"default_card" json:"defaultCard"`
+	PhoneNumber sql.NullString `db:"phone_number" json:"phone"`
+	Bio         sql.NullString `db:"bio" json:"bio"`
+	IconURL     sql.NullString `db:"icon_url" json:"image"`
 }
 
 type Address struct {

@@ -377,7 +377,7 @@ func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (
 		query += " WHERE " + join(where, " AND ")
 	}
 
-	var user utils.RequestUserProfile
+	var user utils.SqlResponsUserProfile
 	err := d.DB.Get(&user, query, values...)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -385,7 +385,7 @@ func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (
 		}
 		return utils.RequestUserProfile{}, err
 	}
-	return user, nil
+	return ToUserProfileResponse(user), nil
 }
 
 // ============================================================

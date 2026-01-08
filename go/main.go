@@ -126,9 +126,10 @@ func main() {
 		}
 
 		// DBから最新プロフィール（表示用だけ）
-		profile, err := db.GetUserDataAndProfile([]string{"u.ID=?"}, []interface{}{u.ID}) // displayName/iconUrlを返す関数を作る
+		profile, err := db.GetUserDataAndProfile([]string{"u.id=?"}, []interface{}{u.ID}) // displayName/iconUrlを返す関数を作る
 		if err != nil {
-			http.Error(w, "server error", http.StatusInternalServerError)
+			log.Println("DB error:", err)
+			http.Error(w, "server error"+err.Error(), http.StatusInternalServerError)
 			return
 		}
 

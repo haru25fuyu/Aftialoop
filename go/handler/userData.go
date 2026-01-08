@@ -260,10 +260,10 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	existingProfile, _ := h.db.GetProfile(user_id)
 
 	profile := utils.Profile{
-		DateOfBirth: function.Ptr(request.DateOfBirth),
-		Gender:      function.Ptr(request.Gender),
-		PhoneNumber: function.Ptr(request.PhoneNumber),
-		Bio:         function.Ptr(request.Bio),
+		DateOfBirth: request.DateOfBirth,
+		Gender:      request.Gender,
+		PhoneNumber: request.PhoneNumber,
+		Bio:         request.Bio,
 		IconURL:     existingProfile.IconURL, // デフォは今のやつ
 	}
 
