@@ -32,7 +32,7 @@ import CheckoutComplete from "./page/CheckoutComplete";
 import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
 import FleaMarketList from './page/flea_market/FleaMarketList';
 import FleaMarketCheckout from './page/flea_market/FleaMarketCheckout';
-import FleaMarketPurchaseRequestsBuyer from './page/flea_market/FleaMarketPurchaseRequestsBuyer';
+import FleaMarketTransactions from './page/flea_market/FleaMarketTransactions';
 
 
 const App: React.FC = () => {
@@ -71,7 +71,7 @@ const App: React.FC = () => {
         <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
         <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
         <Route path="/flea-market/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
-        <Route path="/flea-market/purchase-requests/buyer/:id" element={<RequireAuth><FleaMarketPurchaseRequestsBuyer /></RequireAuth>} />
+        <Route path="/flea-market/transactions/:id" element={<RequireAuth><FleaMarketTransactions /></RequireAuth>} />
 
         {/* list/item を公開にするかは方針次第 */}
         <Route path="/list" element={<List />} />

@@ -294,7 +294,7 @@ const Item: React.FC = () => {
                             // 成功したら取引ページへ遷移など
                             if (res.data && res.data.id) {
 
-                                navigate("/flea-market/purchase-requests/buyer/" + res.data.id);
+                                navigate("/flea-market/transactions" + res.data.id);
                             }
                         }}
                     />
