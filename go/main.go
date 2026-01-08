@@ -3,7 +3,8 @@ package main
 import (
 	"animaloop/config"
 	"animaloop/function"
-	"animaloop/page"
+	"animaloop/handler"
+	flea "animaloop/handler/flea_market"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -41,15 +42,17 @@ func main() {
 	})
 
 	// APIルート
-	page.NewUserDataHandler(db).RegisterRoutes(r)
-	page.NewAddressHandler(db).RegisterRoutes(r)
-	page.NewLoginHandler(db).RegisterRoutes(r)
-	page.NewSignupHandler(db).RegisterRoutes(r)
-	page.NewCartHandler(db).RegisterRoutes(r)
-	page.NewCardHandler(db).RegisterRoutes(r)
-	page.NewPointHandler(db).RegisterRoutes(r)
-	page.NewItemHandler(db).RegisterRoutes(r)
-	page.NewFleaMarketHandler(db).RegisterRoutes(r)
+	handler.NewUserDataHandler(db).RegisterRoutes(r)
+	handler.NewAddressHandler(db).RegisterRoutes(r)
+	handler.NewLoginHandler(db).RegisterRoutes(r)
+	handler.NewSignupHandler(db).RegisterRoutes(r)
+	handler.NewCartHandler(db).RegisterRoutes(r)
+	handler.NewCardHandler(db).RegisterRoutes(r)
+	handler.NewPointHandler(db).RegisterRoutes(r)
+	handler.NewItemHandler(db).RegisterRoutes(r)
+	handler.NewPaymentHandler(db).RegisterRoutes(r)
+
+	flea.NewFleaMarketHandler(db).RegisterRoutes(r)
 
 	// トークン更新ルート
 	r.HandleFunc("/auth/refresh", func(w http.ResponseWriter, r *http.Request) {

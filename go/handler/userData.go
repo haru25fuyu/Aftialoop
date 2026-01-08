@@ -1,4 +1,4 @@
-package page
+package handler
 
 import (
 	"animaloop/function"
@@ -328,8 +328,13 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := map[string]interface{}{
-		"user":    customerData,
-		"address": defoltAddress.ID,
+		"user": customerData,
+		"address": func() string {
+			if defoltAddress == nil {
+				return ""
+			}
+			return *defoltAddress.ID
+		}(),
 	}
 
 	w.WriteHeader(http.StatusOK)

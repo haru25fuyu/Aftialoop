@@ -184,8 +184,14 @@ func LoadUserAndCards(db *Database, user_id string) ([]*utils.CardSummary, error
 		return nil, fmt.Errorf("ユーザー取得失敗: %w", err)
 	}
 
+	customerID, err := db.GetCustomerID(userData.ID)
+	if err != nil {
+		return nil, fmt.Errorf("顧客IDの取得に失敗しました: %w", err)
+	}
+	userData.CustomerID = customerID
+
 	// カード一覧取得
-	cardData, err := GetCardList(userData.ID)
+	cardData, err := GetCardList(userData.CustomerID)
 	if err != nil {
 		return nil, fmt.Errorf("カード取得失敗: %w", err)
 	}
@@ -456,7 +462,7 @@ func SetRefreshCookie(w http.ResponseWriter, token string, expiresAt time.Time) 
 }
 
 // ユーザーIDにメールを送信する関数
-func SendFleaMarketMessageNotificationEmail(db *Database, userID string, subject string, htmlContent string) error {
+func SendEmailToUserID(db *Database, userID string, subject string, htmlContent string) error {
 	user, err := db.GetUserDataByID(userID)
 	if err != nil {
 		return fmt.Errorf("ユーザー取得失敗: %w", err)
@@ -546,5 +552,58 @@ func ParseBool(s string) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+func normalizeEnum(s string) string {
+	return strings.ToUpper(strings.TrimSpace(s))
+}
+
+func isOneOf(v string, allowed ...string) bool {
+	v = normalizeEnum(v)
+	for _, a := range allowed {
+		if v == a {
+			return true
+		}
+	}
+	return false
+}
+
+func isDuplicateErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := err.Error()
+	return strings.Contains(msg, "Duplicate entry") || strings.Contains(msg, "Error 1062")
+}
+
+// string/float64/int/json.Number なんでも受けて int64 にする
+func ToInt64(v any) (int64, error) {
+	switch t := v.(type) {
+	case nil:
+		return 0, errors.New("nil")
+	case float64:
+		return int64(t), nil
+	case float32:
+		return int64(t), nil
+	case int:
+		return int64(t), nil
+	case int64:
+		return t, nil
+	case json.Number:
+		return t.Int64()
+	case string:
+		s := strings.TrimSpace(t)
+		if s == "" {
+			return 0, errors.New("empty")
+		}
+		// 数字文字列のみ想定
+		n, err := strconv.ParseInt(s, 10, 64) // utils に無ければ strconv.ParseInt(s,10,64) に変えて
+		if err != nil {
+			return 0, err
+		}
+		return n, nil
+	default:
+		return 0, errors.New("unsupported type")
 	}
 }

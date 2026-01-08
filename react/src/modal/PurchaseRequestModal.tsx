@@ -92,18 +92,17 @@ export default function PurchaseRequestModal({
 
         setLoadingCustomer(true);
         setIsAddressOpen(false);
-        api
-            .post("customer")
+        
+        api.post("customer")
             .then(async (res) => {
                 if (!res.data?.user) {
                     setLoginModalOpen(true);
                     setAddress(null);
                     return;
                 }
-
-                const addr = await fetchAddress(res.data.user.id || "");
+                const addr = await fetchAddress(res.data.address || "");
                 setAddress(addr ?? null);
-
+                
                 setShippingMethodPref("SELLER_CHOICE");
                 setShippingFeePref("OK_EITHER");
                 setNote("");
@@ -125,7 +124,7 @@ export default function PurchaseRequestModal({
 
         const payload: PurchaseRequestPayload = {
             item_id: itemId,
-            address_id: (address?.ID as string | number) ?? "",
+            address_id: (address?.id as string | number) ?? "",
             shipping_method_pref: shippingMethodPref,
             shipping_fee_pref: shippingFeePref,
             note: note.trim() ? note.trim() : undefined,
@@ -149,6 +148,12 @@ export default function PurchaseRequestModal({
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [open, busy, onClose]);
+
+    const closeModal = () => {
+        setLoginModalOpen(false);
+        onClose();
+        setIsAddressOpen(false);
+    };
 
     if (!open) return null;
 
@@ -206,10 +211,10 @@ export default function PurchaseRequestModal({
                                 <div className="text-sm text-gray-500">読み込み中…</div>
                             ) : address ? (
                                 <>
-                                    <p className="text-sm font-medium">{address?.Name}</p>
-                                    <p className="text-sm text-gray-600">{address?.PostCode}</p>
+                                    <p className="text-sm font-medium">{address?.name}</p>
+                                    <p className="text-sm text-gray-600">{address?.post_code}</p>
                                     <p className="text-sm text-gray-600">
-                                        {address?.Address1} {address?.Address2} {address?.Address3}
+                                        {address?.address1} {address?.address2} {address?.address3}
                                     </p>
 
                                     <button
@@ -377,7 +382,7 @@ export default function PurchaseRequestModal({
             {/* login modal */}
             <LoginModal
                 isOpen={loginModalOpen}
-                onClose={() => setLoginModalOpen(false)}
+                onClose={() => {setLoginModalOpen(false);}}
                 onLoginSuccess={handleLoginSuccess}
                 showCloseButton={true}
             />

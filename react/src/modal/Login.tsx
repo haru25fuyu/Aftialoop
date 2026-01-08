@@ -56,7 +56,7 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
     if (!isOpen) return null;
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black bg-opacity-50">
             {/* ログイン必須時に画面外右上に表示する全体閉じるボタン */}
             {showCloseButton && (
                 <button

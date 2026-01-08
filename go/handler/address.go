@@ -1,4 +1,4 @@
-package page
+package handler
 
 import (
 	"animaloop/function"
@@ -44,37 +44,30 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 
 	//リクエストボディから更新情報を取得
 	var address utils.Address
-	erro := json.NewDecoder(r.Body).Decode(&address)
-	if erro != nil {
+	err = json.NewDecoder(r.Body).Decode(&address)
+	if err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	address_map, erro := function.StructToMap(address)
-	if erro != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました"})
-		return
-	}
+	address.UserID = user_id
 
-	if address.ID == "" {
-		// アドレスの新規保存
-		address_map["UserID"] = user_id
-		erro = h.db.SaveAddress(address_map)
-
+	if address.ID == nil || *address.ID == "" {
+		// 新規アドレスの追加
+		err = h.db.AddAddress(&address)
 	} else {
 		// アドレスの更新
-		erro = h.db.UpdateAddress(address.ID, address_map)
+		err = h.db.UpdateAddress(user_id, *address.ID, &address)
 	}
 
-	if address.Status == 1 {
+	if address.Status != nil && *address.Status == 1 {
 		// デフォルトアドレスの更新
-		erro = h.db.SetStatusAddress(user_id, address.ID)
+		err = h.db.SetStatusAddress(user_id, *address.ID)
 	}
 
-	if erro != nil {
+	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました" + erro.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました" + err.Error()})
 		return
 	}
 
@@ -100,7 +93,7 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// アドレスの取得
-	addressData, erro := h.db.GetAddress(address.ID, user_id)
+	addressData, erro := h.db.GetAddress(*address.ID, user_id)
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})
@@ -129,7 +122,7 @@ func (h *addressHandler) DeleteAddress(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// アドレスの削除
-	err = h.db.DeleteAddress(address.ID)
+	err = h.db.DeleteAddress(*address.ID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました"})

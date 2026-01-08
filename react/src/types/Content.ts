@@ -11,15 +11,15 @@ export interface Content {
 }
 
 export interface Address {
-  ID: string;
-  Name: string;
-  Phone: string;
-  PostCode: string;
-  Pref: string;
-  Address1: string;
-  Address2: string;
-  Address3: string;
-  Status: number;
+  id: string;
+  name: string;
+  phone: string;
+  post_code: string;
+  pref: string;
+  address1: string;
+  address2: string;
+  address3: string;
+  status: number;
 }
 
 export interface Payment {
@@ -75,7 +75,7 @@ export interface FleaListContent {
   userId: string;
   name: string;
   price: number;
-  seller_rate: number;
+  seller_rateBP: number;
   main_image_url: string | null;
 
   seller_name: string;

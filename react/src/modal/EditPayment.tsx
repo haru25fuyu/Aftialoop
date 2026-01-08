@@ -28,8 +28,7 @@ const MODE = {
 
 const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPayments, openMode }) => {
     const [address, setAddress] = React.useState<Address[]>([])
-    const [customerId, setCustomerId] = useState<string | null>(null);
-    const navigate = useNavigate();
+    const [userId, setUserId] = useState<string | null>(null);
     const [mode, setMode] = useState(MODE.Customer);
     const [cardId, setCardId] = useState<string | null>(null);
     const [defaultCard, setDefaultCard] = useState<string | null>(null);
@@ -81,7 +80,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
         api.post("/customer/data",)
             .then((res) => {
                 console.log(res.data);
-                setCustomerId(res.data.user.id);
+                setUserId(res.data.user.id);
                 setDefaultCard(res.data.user.defaultCard);
                 setMakeDefault(res.data.user.defaultCard === id);
             })
@@ -105,7 +104,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             return;
         }
         try {
-            const response = await api.post("/card/save", { token: token, customerId: customerId, verificationToken: verificationToken });
+            const response = await api.post("/card/save", { token: token, userId: userId, verificationToken: verificationToken });
 
             setMode(MODE.Customer);
             setCardId(response.data.card);

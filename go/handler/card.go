@@ -1,4 +1,4 @@
-package page
+package handler
 
 import (
 	"animaloop/function"
@@ -55,6 +55,17 @@ func (h *cardHandler) SaveCard(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+
+	log.Println("userID:", card.UserID)
+	customerID, err := h.db.GetCustomerID(card.UserID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "顧客IDの取得に失敗しました"})
+		return
+	}
+	log.Println("顧客ID:", customerID)
+	log.Println("カード情報:", card)
+	card.CustomerID = customerID
 
 	// カード情報を保存
 	card_map, err := function.CreateCard(card)

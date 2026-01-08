@@ -9,6 +9,7 @@ type Summary = {
     quantity: number;
     total: number;
     isMultiPurchasable: boolean;
+    seller_plus_pct?: number;
     // itemState?: number;
     type: string;
     description: string;
@@ -44,6 +45,7 @@ export function ConfirmDialog({
         total,
         isMultiPurchasable,
         // itemState,
+        seller_plus_pct,
         type,
         description,
         shippingFeeType,
@@ -96,6 +98,7 @@ export function ConfirmDialog({
                         <Row label="商品名" value={name || "（未入力）"} />
                         <Row label="出品タイプ" value={typeLabel} />
                         <Row label="価格" value={`${fmt(price)} 円`} />
+                        <Row label="追加割引" value={`${seller_plus_pct ?? 0} %`} />
                         <Row label="数量" value={`${quantity} 個${isMultiPurchasable ? "（複数購入可）" : ""}`} />
                         <Row label="送料負担" value={shipFeeLabel} />
                         <Row

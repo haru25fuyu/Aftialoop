@@ -51,7 +51,7 @@ export default function BottomBarPortal({
     <div
       ref={ref}
       className={[
-        "fixed inset-x-0 bottom-0 z-50",
+        "fixed inset-x-0 bottom-0 z-[50]",
         "will-change-transform [backface-visibility:hidden]",
         mobileOnly ? "md:hidden" : "",
         className,

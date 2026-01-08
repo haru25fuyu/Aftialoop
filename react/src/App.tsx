@@ -21,7 +21,7 @@ import EditProfile from './page/EditProfile';
 import Profile from './page/Profile';
 import AddressList from './page/AddressList';
 import Item from './page/Item';
-import FleaMarketItem from './page/FleaMarket/FleaMarketItem';
+import FleaMarketItem from './page/flea_market/FleaMarketItem';
 import Cart from './page/Cart';
 import NotFound from './page/NotFound';
 import Contact from './page/Contact';
@@ -29,9 +29,10 @@ import Checkout from './page/Checkout';
 import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
 import CheckoutComplete from "./page/CheckoutComplete";
-import FleaItemCreatePage from './page/FleaMarket/FleaItemCreatePage';
-import FleaMarketList from './page/FleaMarket/FleaMarketList';
-import FleaMarketCheckout from './page/FleaMarket/FleaMarketCheckout';
+import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
+import FleaMarketList from './page/flea_market/FleaMarketList';
+import FleaMarketCheckout from './page/flea_market/FleaMarketCheckout';
+import FleaMarketPurchaseRequestsBuyer from './page/flea_market/FleaMarketPurchaseRequestsBuyer';
 
 
 const App: React.FC = () => {
@@ -70,6 +71,7 @@ const App: React.FC = () => {
         <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
         <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
         <Route path="/flea-market/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
+        <Route path="/flea-market/purchase-requests/buyer/:id" element={<RequireAuth><FleaMarketPurchaseRequestsBuyer /></RequireAuth>} />
 
         {/* list/item を公開にするかは方針次第 */}
         <Route path="/list" element={<List />} />

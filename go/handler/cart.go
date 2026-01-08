@@ -1,4 +1,4 @@
-package page
+package handler
 
 import (
 	"animaloop/function"
@@ -107,7 +107,7 @@ func (h *cartHandler) GetCart(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	CartResponse := struct {
 		Cart  []utils.Item `json:"cart"`
-		Point float64      `json:"point"`
+		Point int64        `json:"point"`
 	}{
 		Cart:  cartItems,
 		Point: userData.Point,

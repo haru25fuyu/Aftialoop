@@ -1,4 +1,4 @@
-package page
+package handler
 
 import (
 	"animaloop/config"
@@ -203,7 +203,7 @@ func (h *signupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 				w.WriteHeader(http.StatusConflict)
 				json.NewEncoder(w).Encode(map[string]string{"err_message": "この外部IDは既に紐づいています"})
 				return
-			}else if strings.Contains(me.Message, "AppleID") {
+			} else if strings.Contains(me.Message, "AppleID") {
 				w.WriteHeader(http.StatusConflict)
 				json.NewEncoder(w).Encode(map[string]string{"err_message": "この外部IDは既に紐づいています"})
 				return

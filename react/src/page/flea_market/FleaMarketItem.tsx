@@ -290,8 +290,12 @@ const Item: React.FC = () => {
                         itemId={item.id}
                         onClose={() => setOpenPurchaseModal(false)}
                         onSubmit={async (payload) => {
-                            await api.post("/flea-market/purchase-request", payload);
+                            const res = await api.post("/flea-market/purchase-requests/create", payload);
                             // 成功したら取引ページへ遷移など
+                            if (res.data && res.data.id) {
+
+                                navigate("/flea-market/purchase-requests/buyer/" + res.data.id);
+                            }
                         }}
                     />
 

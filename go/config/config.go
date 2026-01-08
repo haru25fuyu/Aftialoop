@@ -60,6 +60,14 @@ const (
 	OrderStatusRefunded                         // 8: 返金済み
 )
 
+// フリマのアイテムステータス
+const (
+	FleaItemStatusActive    = 0 // 出品中
+	FleaItemStatusSold      = 1 // 売却済み
+	FleaItemStatusTrading   = 2 // 取引中
+	FleaItemStatusCancelled = 3 // 出品取消
+)
+
 type FleaConfig struct {
 	BaseRate  float64
 	MaxRate   float64
