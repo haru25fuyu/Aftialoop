@@ -1,43 +1,142 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 
-import { fetchFleaTransactionDetail,calcTxPhase, TxPhase } from "../../conf/FleaMarket";
+// ↓ 追加: API関数と型定義
+import { fetchFleaTransactionDetail, calcTxPhase, TxPhase } from "../../conf/FleaMarket";
+import { ShippingMethod, ShippingFeePref } from "../../conf/FleaMarket"; // 型定義の場所に合わせてください
+import api from '../../conf/api'; // user check api
 
-import { FleaTransactionDetailResponse } from "../../types/FleaMarket";
+import { FleaThreadResponse } from "../../types/FleaMarket";
+
+import { acceptPurchaseRequest } from "../../function/FleaMarket";
 
 import TxHeader from "../../component/TxHeader";
 import TxTimeline from "../../component/TxTimeline";
 import PhasePanel from "../../component/FleaMarketPhases/PhasePanel";
+import SellerSetTerms from "../../component/FleaMarketPhases/SellerSetTerms";
+
+import Header from "../../component/Header";
+import LoginModal from '../../modal/Login'; // Import LoginModal
 
 export default function FleaTransactionPage() {
-    const { txId } = useParams();
-    const [data, setData] = useState<FleaTransactionDetailResponse | null>(null);
+    const { id } = useParams();
+    const [data, setData] = useState<FleaThreadResponse | null>(null);
     const [loading, setLoading] = useState(false);
     const [err, setErr] = useState<string | null>(null);
+    const [isLoginModalOpen, setLoginModalOpen] = useState(false); // State for Login Modal
+    const [isLoggedIn, setIsLoggedIn] = useState(false); // State to track login status
+
+    // Function to check user login status
+    const checkLoginStatus = async () => {
+        try {
+            const res = await api.post("customer"); // Using your existing customer check endpoint
+            console.log("User check response:", res.data);
+            if (!res.data.user || !res.data.user.id) {
+                setLoginModalOpen(true);
+                setIsLoggedIn(false);
+            } else {
+                setIsLoggedIn(true);
+                // If logged in, proceed to load data
+                load();
+            }
+        } catch (err) {
+            console.error("Login check failed:", err);
+            // Depending on your API behavior, an error might also mean not logged in
+            setLoginModalOpen(true);
+            setIsLoggedIn(false);
+        }
+    };
+
+    const handleLoginSuccess = () => {
+        setLoginModalOpen(false);
+        setIsLoggedIn(true);
+        load(); // Load data after successful login
+    };
+
 
     async function load() {
-        if (!txId) return;
+        if (!id) return;
         setLoading(true);
         setErr(null);
         try {
-            const d = await fetchFleaTransactionDetail(txId);
+            const d = await fetchFleaTransactionDetail(id);
             setData(d);
-        } catch (e: any) {
-            setErr(e?.message ?? "failed");
+        } catch (e: unknown) {
+            setErr(e instanceof Error ? e.message : "failed");
         } finally {
             setLoading(false);
         }
     }
 
     useEffect(() => {
-        load();
+        checkLoginStatus(); // Check login on mount
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [txId]);
+    }, [id]);
+
+    // ---------------------------------------------------------
+    // ■ 追加: 条件提示の送信ハンドラ
+    // ---------------------------------------------------------
+    const handleSubmitTerms = async (terms: {
+        shipping_method: ShippingMethod;
+        shipping_fee_type: ShippingFeePref;
+        shipping_fee_amount?: number;
+        note_to_buyer?: string;
+    }) => {
+        // データチェック
+        if (!data?.purchase_request) return;
+
+        try {
+            // ローディング表示などを出しても良い
+
+            // 1. API呼び出し
+            await acceptPurchaseRequest(data.purchase_request.id, {
+                shipping_method: terms.shipping_method,
+                shipping_fee_type: terms.shipping_fee_type,
+                shipping_fee_amount: terms.shipping_fee_amount ?? 0,
+                note_to_buyer: terms.note_to_buyer,
+            });
+
+            // 2. 成功したらアラートを出してリロード
+            alert("取引条件を確定しました。取引を開始します。");
+
+            // 3. データを再取得
+            // これにより data.kind が "transaction" に変わり、
+            // 画面が自動的に切り替わります
+            await load();
+
+        } catch (e) {
+            console.error(e);
+            alert("エラーが発生しました: " + (e instanceof Error ? e.message : "不明なエラー"));
+        }
+    };
+    // ---------------------------------------------------------
 
     const phase: TxPhase | null = useMemo(() => {
         if (!data) return null;
-        return calcTxPhase(data.tx, data.viewer_role);
+        if (data.kind === "purchase_request") {
+            return "SELLER_SET_TERMS";
+        }
+        if (!data.transaction) return null;
+        return calcTxPhase(data.transaction, data.role);
     }, [data]);
+
+
+    // Display Login Modal if open
+    if (isLoginModalOpen) {
+        return (
+            <LoginModal
+                isOpen={isLoginModalOpen}
+                onClose={() => { /* Optionally handle close action, maybe redirect or just close modal */ setLoginModalOpen(false); }}
+                onLoginSuccess={handleLoginSuccess}
+                showCloseButton={false} // Force login to view page
+            />
+        );
+    }
+
+    // Only render main content if logged in
+    if (!isLoggedIn) {
+        return null; // Or a loading spinner while checking auth
+    }
 
     if (loading) {
         return <div className="p-6 text-sm text-gray-600">読み込み中…</div>;
@@ -56,6 +155,28 @@ export default function FleaTransactionPage() {
         return <div className="p-6 text-sm text-gray-600">データなし</div>;
     }
 
+    // 申請（条件提示）フェーズの場合
+    if (data.kind === "purchase_request") {
+        return (
+            <>
+                <Header />
+                <div className="mx-auto w-full max-w-[600px] p-4">
+
+                    <SellerSetTerms
+                        pr={data.purchase_request}
+                        role={data.role}
+                        item={data.item}
+                        buyer_address={data.address}
+                        // ↓ ここに関数を渡す
+                        onSubmitTerms={handleSubmitTerms}
+                    />
+                </div>
+
+            </>
+        );
+    }
+
+    // 取引開始後の表示
     return (
         <div className="mx-auto w-full max-w-[900px] p-4 sm:p-6 space-y-4">
             <TxHeader data={data} phase={phase} />

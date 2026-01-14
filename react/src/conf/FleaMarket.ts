@@ -1,15 +1,13 @@
 import api from "./api";
 import {
-  FleaTransactionDetailResponse,
+  FleaThreadResponse,
   FleaTransactionRow,
   TxRole,
 } from "../types/FleaMarket";
 
-export async function fetchFleaTransactionDetail(txId: string | number) {
-  const res = await api.get<FleaTransactionDetailResponse>(
-    `/flea/transactions/${txId}`
-  );
-  return res.data;
+export async function fetchFleaTransactionDetail(id: string | number) {
+  const res = await api.get(`/flea-market/transactions/${id}`);
+  return res.data as FleaThreadResponse;
 }
 
 export type TxPhase =
@@ -21,6 +19,32 @@ export type TxPhase =
   | "COMPLETE"
   | "CANCELLED"
   | "UNKNOWN";
+
+export enum ShippingMethod {
+  SELLER_CHOICE = "SELLER_CHOICE",
+  ANONYMIZED = "ANONYMIZED",
+  MEETUP = "MEETUP",
+  DELIVERY = "DELIVERY",
+}
+
+export enum ShippingFeePref {
+  OK_EITHER = "OK_EITHER",
+  INCLUDED = "INCLUDED",
+  COD = "COD",
+}
+
+export const SHIPPING_METHODS = [
+  {id: ShippingMethod.SELLER_CHOICE, label: "出品者におまかせ"},
+  {id: ShippingMethod.ANONYMIZED, label: "匿名配送"},
+  {id: ShippingMethod.MEETUP, label: "手渡し"},
+  {id: ShippingMethod.DELIVERY, label: "配送"},
+];
+
+export const SHIPPING_FEE_TYPES = [
+  {id: ShippingFeePref.OK_EITHER, label: "どちらでもよい"},
+  {id: ShippingFeePref.INCLUDED, label: "送料込み（購入者負担）"},
+  {id: ShippingFeePref.COD, label: "着払い（購入者負担）"},
+];
 
 export function calcTxPhase(tx: FleaTransactionRow, role: TxRole): TxPhase {
   // cancelled 優先

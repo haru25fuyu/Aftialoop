@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { Address } from "../types/Content";
+import { Address } from "../types/Address";
 
 import SelectAddressModal from "./SelectAddressModal";
 import { fetchAddress } from "../conf/function";
 import api from "../conf/api";
+import { ShippingMethod,ShippingFeePref } from "../conf/FleaMarket";
 import LoginModal from "./Login";
 
-type ShippingMethodPref = "SELLER_CHOICE" | "ANONYMIZED" | "MEETUP";
-type ShippingFeePref = "OK_EITHER" | "WANT_INCLUDED" | "WANT_COD";
 
 export type PurchaseRequestPayload = {
     item_id: string | number;
     address_id: string | number;
-    shipping_method_pref: ShippingMethodPref;
+    shipping_method_pref: ShippingMethod;
     shipping_fee_pref: ShippingFeePref;
     note?: string;
 };
@@ -38,9 +37,9 @@ export default function PurchaseRequestModal({
     submitting,
 }: Props) {
     const [shippingMethodPref, setShippingMethodPref] =
-        useState<ShippingMethodPref>("SELLER_CHOICE");
+        useState<ShippingMethod>(ShippingMethod.SELLER_CHOICE);
     const [shippingFeePref, setShippingFeePref] =
-        useState<ShippingFeePref>("OK_EITHER");
+        useState<ShippingFeePref>(ShippingFeePref.OK_EITHER);
     const [note, setNote] = useState("");
 
     const [localSubmitting, setLocalSubmitting] = useState(false);
@@ -92,7 +91,7 @@ export default function PurchaseRequestModal({
 
         setLoadingCustomer(true);
         setIsAddressOpen(false);
-        
+
         api.post("customer")
             .then(async (res) => {
                 if (!res.data?.user) {
@@ -102,9 +101,9 @@ export default function PurchaseRequestModal({
                 }
                 const addr = await fetchAddress(res.data.address || "");
                 setAddress(addr ?? null);
-                
-                setShippingMethodPref("SELLER_CHOICE");
-                setShippingFeePref("OK_EITHER");
+
+                setShippingMethodPref(ShippingMethod.SELLER_CHOICE);
+                setShippingFeePref(ShippingFeePref.OK_EITHER);
                 setNote("");
             })
             .catch((err) => {
@@ -263,10 +262,17 @@ export default function PurchaseRequestModal({
                             <div className="grid gap-2 sm:grid-cols-3">
                                 <RadioCard
                                     disabled={busy}
-                                    checked={shippingMethodPref === "SELLER_CHOICE"}
+                                    checked={shippingMethodPref === ShippingMethod.SELLER_CHOICE}
                                     title="おまかせ"
                                     desc="出品者の都合に合わせます"
-                                    onClick={() => setShippingMethodPref("SELLER_CHOICE")}
+                                    onClick={() => setShippingMethodPref(ShippingMethod.SELLER_CHOICE)}
+                                />
+                                <RadioCard
+                                    disabled={busy}
+                                    checked={shippingMethodPref === ShippingMethod.DELIVERY}
+                                    title="配送希望"
+                                    desc="対応できる場合のみ"
+                                    onClick={() => setShippingMethodPref(ShippingMethod.DELIVERY)}
                                 />
                                 {/* 匿名配送は後で戻すならこれを復活
                                 <RadioCard
@@ -279,10 +285,10 @@ export default function PurchaseRequestModal({
                                 */}
                                 <RadioCard
                                     disabled={busy}
-                                    checked={shippingMethodPref === "MEETUP"}
+                                    checked={shippingMethodPref === ShippingMethod.MEETUP}
                                     title="手渡し希望"
                                     desc="同エリア時のみ"
-                                    onClick={() => setShippingMethodPref("MEETUP")}
+                                    onClick={() => setShippingMethodPref(ShippingMethod.MEETUP)}
                                 />
                             </div>
                             <div className="mt-2 text-xs text-gray-500">
@@ -296,24 +302,24 @@ export default function PurchaseRequestModal({
                             <div className="grid gap-2 sm:grid-cols-3">
                                 <RadioCard
                                     disabled={busy}
-                                    checked={shippingFeePref === "OK_EITHER"}
+                                    checked={shippingFeePref === ShippingFeePref.OK_EITHER}
                                     title="どちらでもOK"
                                     desc="条件提示に従います"
-                                    onClick={() => setShippingFeePref("OK_EITHER")}
+                                    onClick={() => setShippingFeePref(ShippingFeePref.OK_EITHER)}
                                 />
                                 <RadioCard
                                     disabled={busy}
-                                    checked={shippingFeePref === "WANT_INCLUDED"}
+                                    checked={shippingFeePref === ShippingFeePref.INCLUDED}
                                     title="送料込み希望"
                                     desc="送料を上乗せ提示してほしい"
-                                    onClick={() => setShippingFeePref("WANT_INCLUDED")}
+                                    onClick={() => setShippingFeePref(ShippingFeePref.INCLUDED)}
                                 />
                                 <RadioCard
                                     disabled={busy}
-                                    checked={shippingFeePref === "WANT_COD"}
+                                    checked={shippingFeePref === ShippingFeePref.COD}
                                     title="着払い希望"
                                     desc="受取時に送料を支払う"
-                                    onClick={() => setShippingFeePref("WANT_COD")}
+                                    onClick={() => setShippingFeePref(ShippingFeePref.COD)}
                                 />
                             </div>
                             <div className="mt-2 text-xs text-gray-500">
@@ -382,7 +388,7 @@ export default function PurchaseRequestModal({
             {/* login modal */}
             <LoginModal
                 isOpen={loginModalOpen}
-                onClose={() => {setLoginModalOpen(false);}}
+                onClose={() => { setLoginModalOpen(false); }}
                 onLoginSuccess={handleLoginSuccess}
                 showCloseButton={true}
             />

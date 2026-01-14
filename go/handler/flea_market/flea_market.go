@@ -37,4 +37,8 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	//r.HandleFunc("/flea-market/purchase-requests/{id}/cancel", h.CancelFleaPurchaseRequest).Methods("POST")
 	//r.HandleFunc("/flea-market/purchase-requests/buyer", h.ListFleaPurchaseRequestsByBuyer).Methods("GET")
 	r.HandleFunc("/flea-market/purchase-requests/seller", h.ListFleaPurchaseRequestsBySeller).Methods("GET")
+	//取引関係
+	r.HandleFunc("/flea-market/transactions/{id}", h.GetFleaTransaction).Methods("GET")
+
+	r.HandleFunc("/flea-market/transactions/{id}/accept", h.AcceptPurchaseRequest).Methods("POST")
 }

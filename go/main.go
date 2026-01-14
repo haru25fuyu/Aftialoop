@@ -51,6 +51,7 @@ func main() {
 	handler.NewPointHandler(db).RegisterRoutes(r)
 	handler.NewItemHandler(db).RegisterRoutes(r)
 	handler.NewPaymentHandler(db).RegisterRoutes(r)
+	handler.NewShippingHandler(db).RegisterRoutes(r)
 
 	flea.NewFleaMarketHandler(db).RegisterRoutes(r)
 

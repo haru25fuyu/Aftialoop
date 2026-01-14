@@ -68,6 +68,12 @@ const (
 	FleaItemStatusCancelled = 3 // 出品取消
 )
 
+const (
+	CarrierJP        = "JP"
+	CarrierYamato    = "YAMATO"
+	AreaNameSamePref = "県内" // DBのshipping_areas.nameと一致させる
+)
+
 type FleaConfig struct {
 	BaseRate  float64
 	MaxRate   float64

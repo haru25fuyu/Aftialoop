@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 )
@@ -34,6 +35,7 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 	// JSON
 	var req CreateFleaPurchaseRequestReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Println("Error decoding CreateFleaPurchaseRequestReq:", err)
 		http.Error(w, "invalid json", http.StatusBadRequest)
 		return
 	}
@@ -41,12 +43,14 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 	// item_id / address_id は string|number 両対応にする（フロントの型に合わせる）
 	itemID, err := function.ToInt64(req.ItemID)
 	if err != nil || itemID <= 0 {
+		log.Println("Invalid item_id:", req.ItemID, err)
 		http.Error(w, "invalid item_id", http.StatusBadRequest)
 		return
 	}
 
 	addressID64, err := function.ToInt64(req.AddressID)
 	if err != nil || addressID64 <= 0 || addressID64 > 2147483647 {
+		log.Println("Invalid address_id:", req.AddressID, err)
 		http.Error(w, "invalid address_id", http.StatusBadRequest)
 		return
 	}
@@ -78,15 +82,19 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 		// ここは運用しながら増やしていい
 		switch {
 		case errors.Is(err, context.Canceled):
+			log.Println("Request canceled in CreateFleaPurchaseRequest:", err)
 			http.Error(w, "canceled", http.StatusRequestTimeout)
 			return
 		case err.Error() == "forbidden":
+			log.Println("Forbidden in CreateFleaPurchaseRequest:", err)
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return
 		case strings.Contains(err.Error(), "invalid"):
+			log.Println("Bad request in CreateFleaPurchaseRequest:", err)
 			http.Error(w, "bad request", http.StatusBadRequest)
 			return
 		default:
+			log.Println("Error creating flea purchase request:", err)
 			http.Error(w, "failed", http.StatusInternalServerError)
 			return
 		}
@@ -95,6 +103,7 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 	// 出品者取得
 	sellerIDPtr, err := h.db.GetFleaMarketSellerID(itemID)
 	if err != nil {
+		log.Println("Error getting seller ID in CreateFleaPurchaseRequest:", err)
 		http.Error(w, "failed to get seller ID", http.StatusInternalServerError)
 		return
 	}

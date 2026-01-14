@@ -4,7 +4,9 @@ import (
 	"animaloop/function"
 	"animaloop/utils"
 	"encoding/json"
+	"log"
 	"net/http"
+	"strconv"
 
 	"github.com/gorilla/mux"
 )
@@ -46,6 +48,7 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 	var address utils.Address
 	err = json.NewDecoder(r.Body).Decode(&address)
 	if err != nil {
+		log.Println("Error decoding request body:", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -60,12 +63,13 @@ func (h *addressHandler) EditAddress(w http.ResponseWriter, r *http.Request) {
 		err = h.db.UpdateAddress(user_id, *address.ID, &address)
 	}
 
-	if address.Status != nil && *address.Status == 1 {
+	if address.Status != nil && *address.Status == true {
 		// デフォルトアドレスの更新
 		err = h.db.SetStatusAddress(user_id, *address.ID)
 	}
 
 	if err != nil {
+		log.Println("Error updating address:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの更新に失敗しました" + err.Error()})
 		return
@@ -91,9 +95,14 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
+	address_id, err := strconv.ParseUint(*address.ID, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid address ID", http.StatusBadRequest)
+		return
+	}
 
 	// アドレスの取得
-	addressData, erro := h.db.GetAddress(*address.ID, user_id)
+	addressData, erro := h.db.GetAddress(address_id, user_id)
 	if erro != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})

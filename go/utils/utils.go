@@ -118,10 +118,11 @@ type Address struct {
 	Phone    *string `db:"phone" json:"phone"`
 	PostCode *string `db:"post_code" json:"post_code"`
 	Pref     *string `db:"pref" json:"pref"`
+	PrefCode *int    `db:"pref_code" json:"pref_code"`
 	Address1 *string `db:"address1" json:"address1"`
 	Address2 *string `db:"address2" json:"address2"`
 	Address3 *string `db:"address3" json:"address3"`
-	Status   *int    `db:"status" json:"status"`
+	Status   *bool   `db:"status" json:"status"`
 }
 
 /* =========================
@@ -333,39 +334,40 @@ type AddMessageRequest struct {
 	Body            string  `json:"body"`
 }
 
+// 取引関連
 type FleaPurchaseRequestRow struct {
-	ID                 uint64
-	ItemID             int64
-	BuyerID            string
-	SellerID           string
-	AddressID          int
-	ShippingMethodPref string
-	ShippingFeePref    string
-	Note               *string
-	Status             string
-	CreatedAt          string
-	UpdatedAt          string
+	ID                 uint64  `json:"id"`
+	ItemID             uint64  `json:"item_id"`
+	BuyerID            string  `json:"buyer_id"`
+	SellerID           string  `json:"seller_id"`
+	AddressID          uint64  `json:"address_id"`
+	ShippingMethodPref string  `json:"shipping_method_pref"`
+	ShippingFeePref    string  `json:"shipping_fee_pref"`
+	Note               *string `json:"note,omitempty"`
+	Status             string  `json:"status"`
+	CreatedAt          string  `json:"created_at"`
+	UpdatedAt          string  `json:"updated_at"`
 }
 
 type FleaTransactionRow struct {
-	ID                uint64
-	PurchaseRequestID uint64
-	ItemID            int64
-	BuyerID           string
-	SellerID          string
-	AddressID         int
-	ShippingMethod    string
-	ShippingFeeType   string
-	PriceItem         uint32
-	PriceShipping     uint32
-	PaymentProvider   *string
-	PaymentID         *string
-	PaymentStatus     string
-	Status            string
-	ShippedAt         *string
-	CompletedAt       *string
-	CreatedAt         string
-	UpdatedAt         string
+	ID                uint64  `json:"id"`
+	PurchaseRequestID uint64  `json:"purchase_request_id"`
+	ItemID            uint64  `json:"item_id"`
+	BuyerID           string  `json:"buyer_id"`
+	SellerID          string  `json:"seller_id"`
+	AddressID         uint64  `json:"address_id"`
+	ShippingMethod    string  `json:"shipping_method"`
+	ShippingFeeType   string  `json:"shipping_fee_type"`
+	PriceItem         uint32  `json:"price_item"`
+	PriceShipping     uint32  `json:"price_shipping"`
+	PaymentProvider   *string `json:"payment_provider"`
+	PaymentID         *string `json:"payment_id"`
+	PaymentStatus     string  `json:"payment_status"`
+	Status            string  `json:"status"`
+	ShippedAt         *string `json:"shipped_at"`
+	CompletedAt       *string `json:"completed_at"`
+	CreatedAt         string  `json:"created_at"`
+	UpdatedAt         string  `json:"updated_at"`
 }
 
 type FleaPurchaseRequestListItem struct {
@@ -382,6 +384,13 @@ type FleaPurchaseRequestListItem struct {
 	Status             string  `json:"status"`
 	CreatedAt          string  `json:"created_at"`
 	UpdatedAt          string  `json:"updated_at"`
+}
+
+type AcceptPurchaseRequestInput struct {
+	ShippingMethod    string `json:"shipping_method"`     // "SELLER_CHOICE", "MEETUP" etc
+	ShippingFeeType   string `json:"shipping_fee_type"`   // "INCLUDED", "COD"
+	ShippingFeeAmount uint32 `json:"shipping_fee_amount"` // 送料
+	NoteToBuyer       string `json:"note_to_buyer"`       // 購入者へのメッセージ
 }
 
 /* =========================
@@ -440,4 +449,25 @@ type SaveDraftRequest struct {
 type SaveDraftResponse struct {
 	DraftID uint64 `json:"draft_id"`
 	SavedAt string `json:"saved_at"`
+}
+
+// =========================
+//
+//	配送関連
+//
+// =========================
+type ShippingRateRow struct {
+	Carrier        string
+	Temp           string
+	SenderPrefCode int
+	ReceiverAreaID int64 // DB変更に合わせて変更 (pref_code -> area_id)
+
+	Price60  sql.NullInt64
+	Price80  sql.NullInt64
+	Price100 sql.NullInt64
+	Price120 sql.NullInt64
+	Price140 sql.NullInt64
+
+	SourceVersion string
+	UpdatedAt     time.Time
 }

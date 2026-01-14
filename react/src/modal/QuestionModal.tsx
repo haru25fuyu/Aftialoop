@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 // import { jwtDecode } from "jwt-decode"; // 未使用なら消してOK
 
-import { fleaContent } from "../types/Content";
+import { FleaContent } from "../types/Content";
 import { FleaComment } from "../types/Content";
 
 import { CONFIG } from "../conf/config";
@@ -16,7 +16,7 @@ type Props = {
     onClose: () => void;
     onSend: (text: string) => Promise<void> | void;
 
-    item: fleaContent | null;
+    item: FleaContent | null;
 
     roomTitle?: string;
     roomSubtitle?: string;

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useLocation } from "react-router-dom";
 
-import { Address, fleaContent, Payment } from "../../types/Content";
+import { Address, FleaContent, Payment } from "../../types/Content";
 import { Customer } from "../../types/Content";
 
 import api from "../../conf/api";
@@ -32,7 +32,7 @@ const FleaMarketCheckout: React.FC = () => {
   const [quantity] = useState<number>(Number(quantityFromState) || 1);
 
   const [error, setError] = useState("");
-  const [item, setItem] = useState<fleaContent | null>(null);
+  const [item, setItem] = useState<FleaContent | null>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [address, setAddress] = useState<Address | null>(null);
 
@@ -63,7 +63,7 @@ const FleaMarketCheckout: React.FC = () => {
   const fetchItem = async (id: string) => {
     try {
       const res = await api.get(`/flea-market/item/${id}`);
-      const fetched: fleaContent = res.data.item ?? res.data;
+      const fetched: FleaContent = res.data.item ?? res.data;
       if (!fetched) throw new Error("Item not found");
       setItem(res.data.item ?? fetched);
     } catch (e) {

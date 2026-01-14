@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 
 import EditAddress from "../modal/EditAddress";
 import api from "../conf/api";
-import { Address } from "../types/Content";
+import { Address } from "../types/Address";
 
 type Props = {
     isOpen: boolean;

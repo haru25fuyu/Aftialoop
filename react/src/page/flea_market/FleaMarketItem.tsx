@@ -10,7 +10,7 @@ import { PriceWithPerks } from "../../component/PriceWithPerks";
 import QuestionModal from "../../modal/QuestionModal";
 import PurchaseRequestModal from "../../modal/PurchaseRequestModal";
 
-import { fleaContent, FleaComment, itemImage, Content } from "../../types/Content";
+import { FleaContent, FleaComment, itemImage, Content } from "../../types/Content";
 
 import api, { getAccessToken } from "../../conf/api";
 import { CONFIG } from "../../conf/config";
@@ -24,7 +24,7 @@ import "swiper/swiper-bundle.css";
 
 const Item: React.FC = () => {
     const [openPurchaseModal, setOpenPurchaseModal] = useState(false);
-    const [item, setItem] = useState<fleaContent | null>(null);
+    const [item, setItem] = useState<FleaContent | null>(null);
     const [images, setImages] = useState<itemImage[]>([]);
     const [selectQuantity, setSelectQuantity] = useState(1);
     const location = useLocation();
@@ -294,7 +294,7 @@ const Item: React.FC = () => {
                             // 成功したら取引ページへ遷移など
                             if (res.data && res.data.id) {
 
-                                navigate("/flea-market/transactions" + res.data.id);
+                                navigate("/flea-market/transactions/" + res.data.id);
                             }
                         }}
                     />

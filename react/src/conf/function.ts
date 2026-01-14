@@ -4,7 +4,8 @@ import api from "../conf/api";
 import { ITEM_STATUS_LABELS } from "../conf/config";
 import { PREFS } from "../conf/config";
 
-import { Content, UserProfile, fleaContent } from "../types/Content";
+import { Content, UserProfile } from "../types/Content";
+import { FleaContent } from "../types/FleaMarket";
 
 import { ToastCtx } from "./toast-context";
 
@@ -33,7 +34,7 @@ type EcPaymentData = PaymentData & {
 };
 
 type FleaPaymentData = PaymentData & {
-  items: fleaContent[];
+  items: FleaContent[];
 };
 
 // クレジットカードの支払いを行う関数
