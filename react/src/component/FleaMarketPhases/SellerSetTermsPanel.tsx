@@ -1,7 +1,7 @@
 // SellerSetTermsPanel.tsx
 import React, { useState } from "react";
 import api from "../../conf/api";
-import { FleaTransactionDetailResponse } from "../../types/FleaMarket";
+import { FleaThreadResponse } from "../../types/FleaMarket";
 
 const cn = (...xs: Array<string | false | undefined | null>) => xs.filter(Boolean).join(" ");
 
@@ -9,21 +9,21 @@ export default function SellerSetTermsPanel({
     data,
     onChanged,
 }: {
-    data: FleaTransactionDetailResponse;
+    data: FleaThreadResponse;
     onChanged: () => void;
 }) {
-    const { tx } = data;
+    const { transaction } = data;
 
-    const [shippingMethod, setShippingMethod] = useState(tx.shipping_method);
-    const [shippingFeeType, setShippingFeeType] = useState(tx.shipping_fee_type);
-    const [priceShipping, setPriceShipping] = useState<number>(tx.price_shipping ?? 0);
+    const [shippingMethod, setShippingMethod] = useState(transaction?.shipping_method);
+    const [shippingFeeType, setShippingFeeType] = useState(transaction?.shipping_fee_type);
+    const [priceShipping, setPriceShipping] = useState<number>(transaction?.price_shipping ?? 0);
     const [busy, setBusy] = useState(false);
 
     async function submit() {
         setBusy(true);
         try {
             // 仮API：出品者が条件確定して buyer_confirm に進める
-            await api.post(`/flea/transactions/${tx.id}/seller/confirm-terms`, {
+            await api.post(`/flea/transactions/${transaction?.id}/seller/confirm-terms`, {
                 shipping_method: shippingMethod,
                 shipping_fee_type: shippingFeeType,
                 price_shipping: priceShipping,

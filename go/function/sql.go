@@ -55,7 +55,7 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 	rows, err := d.DB.Query(`
 		SELECT ` + "`key`, `value`, `updated_at`" + `
 		FROM system_settings
-		WHERE ` + "`key`" + ` IN ('flea.base_rate', 'flea.max_rate')
+		WHERE ` + "`key`" + ` IN ('flea.base_rate', 'flea.max_rate','flea.rate_den')
 	`)
 	if err != nil {
 		return nil, err
@@ -64,6 +64,7 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 
 	cfg := &config.FleaConfig{}
 	var updatedAt time.Time
+	var rateDenominator int64 = 10000 // デフォルト値を設定
 
 	for rows.Next() {
 		var k, v string
@@ -74,7 +75,7 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 
 		switch k {
 		case "flea.base_rate":
-			f, err := strconv.ParseFloat(v, 64)
+			f, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid base_rate: %w", err)
 			}
@@ -82,12 +83,17 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 			updatedAt = ua
 
 		case "flea.max_rate":
-			f, err := strconv.ParseFloat(v, 64)
+			f, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
 				return nil, fmt.Errorf("invalid max_rate: %w", err)
 			}
 			cfg.MaxRate = f
 			updatedAt = ua
+		case "flea.rate_den":
+			rateDenominator, err = strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid rate_den: %w", err)
+			}
 		}
 	}
 
@@ -96,6 +102,9 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 	}
 	if cfg.BaseRate > cfg.MaxRate {
 		return nil, errors.New("base_rate > max_rate")
+	}
+	if rateDenominator <= 0 {
+		return nil, errors.New("rate_den must be > 0")
 	}
 
 	cfg.UpdatedAt = updatedAt
@@ -129,14 +138,14 @@ func (d *Database) SaveFleaConfig(ctx context.Context, cfg config.FleaConfig) er
 
 	if _, err := tx.ExecContext(ctx, upsert,
 		"flea.base_rate",
-		strconv.FormatFloat(cfg.BaseRate, 'f', -1, 64),
+		strconv.FormatInt(cfg.BaseRate, 10),
 	); err != nil {
 		return err
 	}
 
 	if _, err := tx.ExecContext(ctx, upsert,
 		"flea.max_rate",
-		strconv.FormatFloat(cfg.MaxRate, 'f', -1, 64),
+		strconv.FormatInt(cfg.MaxRate, 10),
 	); err != nil {
 		return err
 	}
@@ -244,15 +253,49 @@ func (d *Database) SaveUser(user map[string]interface{}) error {
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, password, default_card, point FROM users"
+	query := "SELECT id, email, name, default_card, point FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
 
 	var user utils.SqlUser
 	err := d.DB.Get(&user, query, values...)
-	if err == sql.ErrNoRows {
-		return user, fmt.Errorf("user not found")
+
+	if err != nil {
+		// データが無い場合
+		if err == sql.ErrNoRows {
+			return user, fmt.Errorf("user not found")
+		}
+		// ★それ以外のエラー（型変換エラーなど）もここでキャッチして返す！
+		log.Println("データベース取得エラー:", err) // ここに本当の原因が出ます
+		return user, err
+	}
+
+	log.Println("GetUserDataクエリ成功:", user.Point)
+	return user, nil
+}
+
+// 　ユーザーIDでカスタマーIDも含めたユーザーデータ取得
+func (d *Database) GetUserDataWithCustomerIDByID(userID string) (utils.SqlUser, error) {
+	return d.GetUserDataWithCustomerID([]string{"id = ?"}, []interface{}{userID})
+}
+
+// 　カスタマーIDも含めたユーザーデータ取得
+func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.SqlUser, error) {
+	query := "SELECT id, email, name, default_card, point, customer_id FROM users"
+	if len(where) > 0 {
+		query += " WHERE " + strings.Join(where, " AND ")
+	}
+	var user utils.SqlUser
+	err := d.DB.Get(&user, query, values...)
+	if err != nil {
+		// データが無い場合
+		if err == sql.ErrNoRows {
+			return user, fmt.Errorf("user not found")
+		}
+		// ★それ以外のエラー（型変換エラーなど）もここでキャッチして返す！
+		log.Println("データベース取得エラー:", err) // ここに本当の原因が出ます
+		return user, err
 	}
 	return user, nil
 }
@@ -876,6 +919,29 @@ func (d *Database) ChargePoint(userID string, amount int64) error {
 	return nil
 }
 
+func (d *Database) ChargePointTx(ctx context.Context, tx *sql.Tx, userID string, amount int64) error {
+	// 1. 残高チェック (FOR UPDATE でロックを掛けるのがベスト)
+	var currentPoint int64
+	// ※ sqlx ではなく標準の sql.Tx を使う想定なので QueryRowContext を使用
+	err := tx.QueryRowContext(ctx, "SELECT point FROM users WHERE id = ? FOR UPDATE", userID).Scan(&currentPoint)
+	if err != nil {
+		return fmt.Errorf("ユーザー取得失敗: %w", err)
+	}
+
+	// 2. 足りているか
+	if currentPoint < amount {
+		return fmt.Errorf("ポイント不足 (残高:%d, 必要:%d)", currentPoint, amount)
+	}
+
+	// 3. 減算
+	_, err = tx.ExecContext(ctx, "UPDATE users SET point = point - ? WHERE id = ?", amount, userID)
+	if err != nil {
+		return fmt.Errorf("ポイント更新失敗: %w", err)
+	}
+
+	return nil
+}
+
 func (d *Database) AddPoint(userID string, amount int64) error {
 	var user utils.SqlUser
 	err := d.DB.Get(&user, "SELECT id, point FROM users WHERE id = ?", userID)
@@ -1028,26 +1094,43 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 	return items, rows.Err()
 }
 
-func (d *Database) GetFleaMarketItemByID(id uint64) (*utils.FleaMarketItemDetail, error) {
-	var item utils.FleaMarketItemDetail
+func (d *Database) GetFleaMarketItemByID(id uint64) (*utils.FleaMarketItemDetailResponse, error) {
+	var item utils.FleaMarketItemDetailResponse
 	log.Println("GetFleaMarketItemByID called with id:", id)
 
 	const q = `
-		SELECT
-			f.*,
-			u.name AS user_name,
-			p.icon_url AS user_icon
-		FROM flea_items AS f
-		JOIN users AS u ON u.id = f.user_id
-		LEFT JOIN profile AS p ON p.user_id = u.id
-		WHERE f.id = ?
-		  AND f.deleted_at IS NULL
-		LIMIT 1;
-	`
+        SELECT 
+            f.*, 
+            u.name AS user_name, 
+            p.icon_url AS user_icon
+        FROM flea_items AS f
+        JOIN users AS u ON u.id = f.user_id
+        LEFT JOIN profile AS p ON p.user_id = u.id
+        WHERE f.id = ? 
+          AND f.deleted_at IS NULL
+        LIMIT 1;
+    `
 
 	if err := d.DB.Get(&item, q, id); err != nil {
 		return nil, err
 	}
+
+	// -----------------------------------------------------
+	// ★ 追加: レート計算ロジック
+	// -----------------------------------------------------
+	cfg := GetFleaConfig()
+	denominator := cfg.RateDen
+	if denominator == 0 {
+		denominator = 10000 // 安全策
+	}
+
+	// 計算
+	if item.RawSellerRate > 0 {
+		item.SellerRate = float64(item.RawSellerRate) / float64(denominator)
+	} else {
+		item.SellerRate = 1.0
+	}
+
 	return &item, nil
 }
 
@@ -1846,6 +1929,7 @@ func (db *Database) ListFleaPurchaseRequestsBySeller(
 	return list, total, rows.Err()
 }
 
+// GetFleaTransactionByPurchaseRequestID: 取引詳細（購入者 or 出品者のみ閲覧可）
 func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	ctx context.Context,
 	userID string,
@@ -1860,8 +1944,8 @@ func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	err := db.DB.QueryRowContext(ctx, `
 		SELECT id, purchase_request_id, item_id, buyer_id, seller_id, address_id,
 		       shipping_method, shipping_fee_type, price_item, price_shipping,
-		       payment_provider, payment_id, payment_status, status,
-		       shipped_at, completed_at, created_at, updated_at
+		       payment_provider, payment_id, payment_status, status, shipping_carrier, tracking_number,
+		       paid_at, shipped_at, completed_at, created_at, updated_at
 		  FROM flea_transactions
 		 WHERE purchase_request_id = ?
 		   AND (buyer_id = ? OR seller_id = ?)
@@ -1869,8 +1953,8 @@ func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	`, reqID, userID, userID).Scan(
 		&out.ID, &out.PurchaseRequestID, &out.ItemID, &out.BuyerID, &out.SellerID, &out.AddressID,
 		&out.ShippingMethod, &out.ShippingFeeType, &out.PriceItem, &out.PriceShipping,
-		&payProv, &payID, &out.PaymentStatus, &out.Status,
-		&shipped, &completed, &created, &updated,
+		&payProv, &payID, &out.PaymentStatus, &out.Status, &out.ShippingCarrier, &out.TrackingNumber,
+		&out.PaidAt, &shipped, &completed, &created, &updated,
 	)
 	if err != nil {
 		return out, err
@@ -1896,6 +1980,140 @@ func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	out.CreatedAt = created.UTC().Format(time.RFC3339)
 	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
 	return out, nil
+}
+
+// UpdateFleaTransactionPaidTx: 決済完了に伴いステータスをPAIDに更新する
+func (d *Database) UpdateFleaTransactionPaidTx(
+	ctx context.Context,
+	tx *sql.Tx,
+	txID uint64,
+	provider string,
+	paymentID string,
+) error {
+	const q = `
+        UPDATE flea_transactions 
+        SET 
+            payment_status = 'PAID',
+            status = 'PAID', 
+            payment_provider = ?,
+            payment_id = ?,
+			paid_at = UTC_TIMESTAMP(),
+            updated_at = UTC_TIMESTAMP()
+        WHERE id = ?
+    `
+
+	// sql.Tx経由で実行することでトランザクションに含める
+	res, err := tx.ExecContext(ctx, q, provider, paymentID, txID)
+	if err != nil {
+		return fmt.Errorf("transaction update failed: %w", err)
+	}
+
+	// 念のため、本当に対象行があったか確認（ID間違いなどで0行更新になっていないか）
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("target transaction not found or already updated (id=%d)", txID)
+	}
+
+	return nil
+}
+
+// 発送完了
+func (d *Database) MarkFleaTransactionShipped(tx *sql.Tx, txID uint64, shippingCarrier string, trackingNumber string) error {
+	const q = `
+		UPDATE flea_transactions
+		SET
+			status = 'SHIPPED',
+			shipping_carrier = ?,
+			tracking_number = ?,
+			shipped_at = UTC_TIMESTAMP(),
+			updated_at = UTC_TIMESTAMP()
+		WHERE id = ? AND status = 'PAID'
+	`
+
+	res, err := tx.Exec(q, shippingCarrier, trackingNumber, txID)
+	if err != nil {
+		return fmt.Errorf("transaction update failed: %w", err)
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("target transaction not found or invalid state (id=%d)", txID)
+	}
+
+	return nil
+}
+
+// MarkFleaTransactionRatedByBuyer (購入者が評価した状態にする)
+func (d *Database) MarkFleaTransactionRatedByBuyer(tx *sql.Tx, txID uint64) error {
+	const q = `
+        UPDATE flea_transactions
+        SET
+            status = 'RATED_BY_BUYER', -- ステータス変更
+            updated_at = UTC_TIMESTAMP()
+        WHERE id = ? AND status = 'SHIPPED' -- SHIPPEDからのみ遷移可能
+    `
+
+	res, err := tx.Exec(q, txID)
+	if err != nil {
+		return fmt.Errorf("transaction update failed: %w", err)
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("target transaction not found or invalid state (id=%d)", txID)
+	}
+
+	return nil
+}
+
+// MarkFleaTransactionCompleted: 出品者が評価を行い、取引を完全に終了する
+func (d *Database) MarkFleaTransactionCompleted(tx *sql.Tx, txID uint64) error {
+	const q = `
+        UPDATE flea_transactions
+        SET
+            status = 'COMPLETED',
+            completed_at = UTC_TIMESTAMP(),
+            updated_at = UTC_TIMESTAMP()
+        WHERE 
+            id = ? 
+            AND status = 'RATED_BY_BUYER' -- ★ここ重要: 購入者が評価済みの時だけ実行可能
+    `
+
+	res, err := tx.Exec(q, txID)
+	if err != nil {
+		return fmt.Errorf("transaction update failed: %w", err)
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		// 対象がない、またはステータスが RATED_BY_BUYER ではない（まだ購入者が評価していない等）
+		return fmt.Errorf("target transaction not found or invalid state (id=%d)", txID)
+	}
+
+	return nil
+}
+
+// SaveFleaTransactionReview: 取引レビューを保存する
+func (d *Database) SaveFleaTransactionReview(
+	txDB *sql.Tx,
+	txID uint64,
+	itemID uint64,
+	buyerID string,
+	SellerID string,
+	Rating int,
+	Comment string) (err error) {
+	const qReview = `
+        INSERT INTO flea_reviews (transaction_id, reviewer_id, reviewee_id, item_id, rating, comment, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())
+    `
+	// reviewee_id (評価される人) は出品者 (txData.SellerID)
+	_, err = txDB.Exec(qReview, txID, buyerID, SellerID, itemID, Rating, Comment)
+	if err != nil {
+		log.Println("Error saving review:", err)
+		return err
+	}
+
+	return nil
 }
 
 // -----------------------------------------------------------

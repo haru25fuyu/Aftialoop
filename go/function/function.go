@@ -500,9 +500,9 @@ func UpdateFleaConfig(ctx context.Context, db *Database, cfg config.FleaConfig) 
 func GetFleaConfig() config.FleaConfig {
 	v := config.FleaCfg.Load()
 	if v == nil {
-		return config.FleaConfig{BaseRate: 1.02, MaxRate: 1.10} // 最低限のフォールバック
+		return config.FleaConfig{BaseRate: 10200, MaxRate: 11000, RateDen: 10000} // 最低限のフォールバック
 	}
-	return v.(config.FleaConfig)
+	return *v.(*config.FleaConfig)
 }
 
 func ToUserProfileResponse(u utils.SqlResponsUserProfile) utils.RequestUserProfile {
@@ -523,6 +523,14 @@ func ToUserProfileResponse(u utils.SqlResponsUserProfile) utils.RequestUserProfi
 		PhoneNumber: ptr(u.PhoneNumber),
 		Bio:         ptr(u.Bio),
 		IconURL:     ptr(u.IconURL),
+	}
+}
+
+func GetFrontendURL() string {
+	if config.IsProduction() {
+		return "https://aftialoop.com"
+	} else {
+		return "http://dev.aftialoop.com"
 	}
 }
 

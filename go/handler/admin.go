@@ -30,8 +30,8 @@ func (h *adminHandler) RegisterRoutes(r *mux.Router) {
 
 func (h *adminHandler) UpdateFleaConfig(w http.ResponseWriter, r *http.Request) {
 	var req struct {
-		BaseRate float64 `json:"base_rate"`
-		MaxRate  float64 `json:"max_rate"`
+		BaseRate int64 `json:"base_rate"`
+		MaxRate  int64 `json:"max_rate"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

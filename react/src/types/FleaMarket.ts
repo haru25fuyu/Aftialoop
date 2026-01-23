@@ -1,4 +1,4 @@
-import { ShippingFeePref, ShippingMethod } from "../conf/FleaMarket";
+import { SHIPPING_CARRIERS, ShippingFeePref, ShippingMethod } from "../conf/FleaMarket";
 import { Address } from "./Address";
 
 export type TxRole = "BUYER" | "SELLER";
@@ -75,6 +75,9 @@ export type FleaTransactionRow = {
   price_item: number;
   price_shipping: number;
 
+  shipping_carrier?: SHIPPING_CARRIERS | null; // 配送業者
+  tracking_number?: string | null; // 追跡番号
+
   payment_provider?: string | null;
   payment_id?: string | null;
   payment_status: "NONE" | "PENDING" | "PAID" | "FAILED" | "CANCELLED";
@@ -85,11 +88,14 @@ export type FleaTransactionRow = {
     | "BUYER_CONFIRMED"
     | "PAID"
     | "SHIPPED"
+    | "RATED_BY_BUYER"
     | "COMPLETED"
     | "CANCELLED";
 
   shipped_at?: string | null;
   completed_at?: string | null;
+
+  paid_at?: string | null;
 
   created_at: string;
   updated_at: string;

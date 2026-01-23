@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 
 	"github.com/google/uuid"
 	square "github.com/square/square-go-sdk"
@@ -114,29 +115,40 @@ func CreateCard(card utils.RequestCard) (string, error) {
 	return *response.Card.ID, nil
 }
 
-func ChargeCard(customerID, cardID string, amount int64) (string, error) {
-	fmt.Println("SourceID:", customerID)
+func ChargeCard(customerID, cardID string, amount float64) (string, error) {
+	// 1. 四捨五入 (例: 100.5 -> 101, 100.4 -> 100)
+	roundedAmount := int64(math.Round(amount))
+
+	log.Printf("Charging card: Cust=%s, Card=%s, Amount=%.2f -> %d", customerID, cardID, amount, roundedAmount)
+
+	// 2. Square APIコール
 	resp, err := config.SquareClient.Payments.Create(
 		context.TODO(),
 		&square.CreatePaymentRequest{
 			AmountMoney: &square.Money{
-				Amount: square.Int64(
-					amount,
-				),
+				Amount:   square.Int64(roundedAmount), // 四捨五入した値を使う
 				Currency: square.CurrencyJpy.Ptr(),
 			},
 			IdempotencyKey: uuid.New().String(),
 			SourceID:       cardID,
-			Autocomplete: square.Bool(
-				true,
-			),
-			CustomerID: square.String(
-				customerID,
-			),
+			Autocomplete:   square.Bool(true),
+			CustomerID:     square.String(customerID),
 		},
 	)
 
-	return *resp.Payment.ReceiptURL, err
+	// 1. まずエラーチェック！
+	if err != nil {
+		return "", err // エラーなら即リターン
+	}
+
+	// 2. 中身が空じゃないかチェック！
+	if resp.Payment == nil || resp.Payment.ReceiptURL == nil {
+		// 成功したけどURLがない場合など
+		return "", nil
+	}
+
+	// 3. ここまできて初めて * をつける
+	return *resp.Payment.ReceiptURL, nil
 }
 
 func GetCardList(customerID string) ([]utils.CardSummary, error) {

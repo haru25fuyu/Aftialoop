@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -108,12 +107,11 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	cfg := function.GetFleaConfig()
 
 	// 1.02 -> 10200 のような bp（basis points *100 のノリ）
-	baseBP := int64(math.Round(cfg.BaseRate * 10000))
-	maxBP := int64(math.Round(cfg.MaxRate * 10000))
+	baseBP := cfg.BaseRate
+	maxBP := cfg.MaxRate
 
 	// maxPlusPct は設定から逆算（base/max を変えても安全）
-	maxPlusPct := int((maxBP - baseBP) / 100) // 100 = 0.01 * 10000
-
+	maxPlusPct := int((maxBP - baseBP) / cfg.RateDen)
 	// 範囲ガード（丸めるより弾くのが誠実）
 	if sellerPlusPct < 0 || sellerPlusPct > maxPlusPct {
 		http.Error(w, "invalid seller_plus_pct", http.StatusBadRequest)
@@ -121,7 +119,7 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 保存値（bp）
-	sellerRateBP := baseBP + int64(sellerPlusPct)*100
+	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(cfg.RateDen)
 
 	quantity := function.ParseInt(r.FormValue("quantity"), 1)
 	isMulti := function.ParseBool(r.FormValue("is_multi_purchasable"))

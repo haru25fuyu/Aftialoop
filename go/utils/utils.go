@@ -148,11 +148,11 @@ type RequestCard struct {
 }
 
 type RequestCharge struct {
-	CustomerID string `db:"customer_id" json:"customerID"`
-	CardID     string `db:"card_id" json:"cardID"`
-	Amount     int64  `db:"amount" json:"amount"`
-	Items      []Item `json:"items"`
-	AddressID  string `db:"address_id" json:"addressID"`
+	CustomerID string  `db:"customer_id" json:"customerID"`
+	CardID     string  `db:"card_id" json:"cardID"`
+	Amount     float64 `db:"amount" json:"amount"`
+	Items      []Item  `json:"items"`
+	AddressID  string  `db:"address_id" json:"addressID"`
 }
 
 type RequestCardWithAddress struct {
@@ -263,8 +263,37 @@ type FleaMarketItem struct {
 	DeletedAt          *time.Time `db:"deleted_at" json:"deletedAt,omitempty"`
 }
 
+type FleaMarketItemResponse struct {
+	ID                 int64      `db:"id" json:"id"`
+	UserID             string     `db:"user_id" json:"userId"`
+	Name               string     `db:"name" json:"name"`
+	Description        *string    `db:"description" json:"description,omitempty"`
+	Price              int64      `db:"price" json:"price"`
+	RawSellerRate      int        `db:"seller_rate" json:"-"`           // DBの値 (例: 10200)
+	SellerRate         float64    `db:"-"           json:"seller_rate"` // 計算後の値 (例: 1.02)
+	Quantity           int        `db:"quantity" json:"quantity"`
+	IsMultiPurchasable bool       `db:"is_multi_purchasable" json:"isMultiPurchasable"`
+	BuyUserID          *string    `db:"buy_user_id" json:"buyUserId,omitempty"`
+	Type               string     `db:"type" json:"type"`
+	MainImageURL       string     `db:"main_image_url" json:"main_image_url"`
+	Status             int        `db:"status" json:"status"`
+	ShipFrom           *int       `db:"ship_from" json:"shipFrom,omitempty"`
+	ShippingFeeType    int        `db:"shipping_fee_type" json:"shippingFeeType"`
+	ShipsWithinDays    *int       `db:"ships_within_days" json:"shipsWithinDays,omitempty"`
+	CreatedAt          time.Time  `db:"created_at" json:"createdAt"`
+	UpdatedAt          time.Time  `db:"updated_at" json:"updatedAt"`
+	DeletedAt          *time.Time `db:"deleted_at" json:"deletedAt,omitempty"`
+}
+
 type FleaMarketItemDetail struct {
 	FleaMarketItem
+
+	UserName string `db:"user_name" json:"seller_name"`
+	UserIcon string `db:"user_icon" json:"seller_icon_url"`
+}
+
+type FleaMarketItemDetailResponse struct {
+	FleaMarketItemResponse
 
 	UserName string `db:"user_name" json:"seller_name"`
 	UserIcon string `db:"user_icon" json:"seller_icon_url"`
@@ -363,7 +392,10 @@ type FleaTransactionRow struct {
 	PaymentProvider   *string `json:"payment_provider"`
 	PaymentID         *string `json:"payment_id"`
 	PaymentStatus     string  `json:"payment_status"`
+	ShippingCarrier   *string `json:"shipping_carrier"`
+	TrackingNumber    *string `json:"tracking_number"`
 	Status            string  `json:"status"`
+	PaidAt            *string `json:"paid_at"`
 	ShippedAt         *string `json:"shipped_at"`
 	CompletedAt       *string `json:"completed_at"`
 	CreatedAt         string  `json:"created_at"`

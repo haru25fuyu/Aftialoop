@@ -75,9 +75,14 @@ const (
 )
 
 type FleaConfig struct {
-	BaseRate  float64
-	MaxRate   float64
+	BaseRate  int64
+	MaxRate   int64
+	RateDen   int64
 	UpdatedAt time.Time
+}
+
+func IsProduction() bool {
+	return os.Getenv("ENV") == "production"
 }
 
 var FleaCfg atomic.Value // FleaConfig を入れる
@@ -101,7 +106,11 @@ func Init() {
 	SECRET_KEY = []byte(os.Getenv("SECRET_KEY"))
 	SECRET_REFRESH_KEY = []byte(os.Getenv("SECRET_REFRESH_KEY"))
 
-	SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_SANDBOX_TOKEN")
+	if IsProduction() {
+		SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_PRODUCTION_TOKEN")
+	} else {
+		SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_SANDBOX_TOKEN")
+	}
 
 	googleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 

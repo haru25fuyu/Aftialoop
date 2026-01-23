@@ -51,7 +51,7 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	log.Println(charge)
 
 	// 購入履歴を保存
-	Purchase_ID, err := h.db.SavePurchaseHistory(user_id, "point", charge.Amount, charge.Items, charge.AddressID, "")
+	Purchase_ID, err := h.db.SavePurchaseHistory(user_id, "point", int64(charge.Amount), charge.Items, charge.AddressID, "")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "購入履歴の保存に失敗しました" + err.Error()})
@@ -59,7 +59,7 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ポイント決済の処理を実行
-	err = h.db.ChargePoint(user_id, charge.Amount)
+	err = h.db.ChargePoint(user_id, int64(charge.Amount))
 	if err != nil {
 		log.Printf("ポイント決済に失敗: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

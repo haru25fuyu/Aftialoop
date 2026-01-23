@@ -1,10 +1,8 @@
 import React from "react";
-import { FleaTransactionDetailResponse } from "../../types/FleaMarket";
+import { FleaThreadResponse } from "../../types/FleaMarket";
 import { TxPhase } from "../../conf/FleaMarket";
 
-import SellerSetTermsPanel from "./SellerSetTermsPanel";
-import BuyerWaitTermsPanel from "./BuyerWaitTermsPanel";
-import BuyerConfirmPanel from "./BuyerConfirmPanel";
+import WaitPaymentPanel from "./WaitPaymentPanel";
 import PaymentPanel from "./PaymentPanel";
 import ShippingPanel from "./ShippingPanel";
 import CompletePanel from "./CompletePanel";
@@ -16,20 +14,18 @@ export default function PhasePanel({
     phase,
     onChanged,
 }: {
-    data: FleaTransactionDetailResponse;
+    data: FleaThreadResponse;
     phase: TxPhase;
     onChanged: () => void;
 }) {
     switch (phase) {
-        case "SELLER_SET_TERMS":
-            return <SellerSetTermsPanel data={data} onChanged={onChanged} />;
-        case "BUYER_WAIT_TERMS":
-            return <BuyerWaitTermsPanel data={data} onChanged={onChanged} />;
-        case "BUYER_CONFIRM":
-            return <BuyerConfirmPanel data={data} onChanged={onChanged} />;
+        case "WAIT_PAYMENT":
+            return <WaitPaymentPanel data={data} onChanged={onChanged} />;
         case "PAYMENT":
             return <PaymentPanel data={data} onChanged={onChanged} />;
         case "SHIPPING":
+            return <ShippingPanel data={data} onChanged={onChanged} />;
+        case "SHIPPED":
             return <ShippingPanel data={data} onChanged={onChanged} />;
         case "COMPLETE":
             return <CompletePanel data={data} onChanged={onChanged} />;

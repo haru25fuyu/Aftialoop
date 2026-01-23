@@ -41,4 +41,9 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/flea-market/transactions/{id}", h.GetFleaTransaction).Methods("GET")
 
 	r.HandleFunc("/flea-market/transactions/{id}/accept", h.AcceptPurchaseRequest).Methods("POST")
+	r.HandleFunc("/flea-market/transactions/{id}/pay", h.PayTransaction).Methods("POST")
+
+	r.HandleFunc("/flea-market/transactions/{id}/shipped", h.ShipTransaction).Methods("POST")
+	r.HandleFunc("/flea-market/transactions/{id}/rate/buyer", h.RateTransactionByBuyer).Methods("POST")
+	r.HandleFunc("/flea-market/transactions/{id}/complete/seller", h.CompleteTransactionBySeller).Methods("POST")
 }

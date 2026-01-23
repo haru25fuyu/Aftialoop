@@ -73,44 +73,6 @@ export default function FleaTransactionPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
 
-    // ---------------------------------------------------------
-    // ■ 追加: 条件提示の送信ハンドラ
-    // ---------------------------------------------------------
-    const handleSubmitTerms = async (terms: {
-        shipping_method: ShippingMethod;
-        shipping_fee_type: ShippingFeePref;
-        shipping_fee_amount?: number;
-        note_to_buyer?: string;
-    }) => {
-        // データチェック
-        if (!data?.purchase_request) return;
-
-        try {
-            // ローディング表示などを出しても良い
-
-            // 1. API呼び出し
-            await acceptPurchaseRequest(data.purchase_request.id, {
-                shipping_method: terms.shipping_method,
-                shipping_fee_type: terms.shipping_fee_type,
-                shipping_fee_amount: terms.shipping_fee_amount ?? 0,
-                note_to_buyer: terms.note_to_buyer,
-            });
-
-            // 2. 成功したらアラートを出してリロード
-            alert("取引条件を確定しました。取引を開始します。");
-
-            // 3. データを再取得
-            // これにより data.kind が "transaction" に変わり、
-            // 画面が自動的に切り替わります
-            await load();
-
-        } catch (e) {
-            console.error(e);
-            alert("エラーが発生しました: " + (e instanceof Error ? e.message : "不明なエラー"));
-        }
-    };
-    // ---------------------------------------------------------
-
     const phase: TxPhase | null = useMemo(() => {
         if (!data) return null;
         if (data.kind === "purchase_request") {
@@ -167,8 +129,7 @@ export default function FleaTransactionPage() {
                         role={data.role}
                         item={data.item}
                         buyer_address={data.address}
-                        // ↓ ここに関数を渡す
-                        onSubmitTerms={handleSubmitTerms}
+                        onChanged={load}
                     />
                 </div>
 
@@ -178,10 +139,13 @@ export default function FleaTransactionPage() {
 
     // 取引開始後の表示
     return (
-        <div className="mx-auto w-full max-w-[900px] p-4 sm:p-6 space-y-4">
-            <TxHeader data={data} phase={phase} />
-            <TxTimeline phase={phase} />
-            <PhasePanel data={data} phase={phase} onChanged={load} />
-        </div>
+        <>
+            <Header />
+            <div className="mx-auto w-full max-w-[900px] p-4 sm:p-6 space-y-4">
+                <TxHeader data={data} phase={phase} />
+                <TxTimeline phase={phase} />
+                <PhasePanel data={data} phase={phase} onChanged={load} />
+            </div>
+        </>
     );
 }

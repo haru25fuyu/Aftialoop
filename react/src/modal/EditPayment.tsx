@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from "react";
 import { PaymentForm, CreditCard } from "react-square-web-payments-sdk";
-import { useNavigate } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Mousewheel, Scrollbar, FreeMode } from "swiper/modules";
 import "swiper/swiper-bundle.css";
 
 import api from "../conf/api";
 
-import { Address } from '../types/Content';
-import { Payment } from '../types/Content';
-import { set } from "react-hook-form";
+import { Address } from '../types/Address';
+import { Payment } from '../types/Payment';
+//import { set } from "react-hook-form";
 
 
 type EditPaymentProps = {
@@ -141,7 +140,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
             return;
         }
         try {
-            const response = await api.post("/card/address", { address: selectAddressID, cardId: cardId });
+            const response = await api.post("/card/address", { addressID: selectAddressID, cardID: cardId });
 
             // レスポンスが正常であれば 成功メッセージを表示
             console.log("住所登録成功:", response.data);
@@ -210,8 +209,8 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
                         <>
                             <h2 className="text-2xl font-bold text-center text-gray-900">クレジットカード情報の登録</h2>
                             <PaymentForm
-                                applicationId="sandbox-sq0idb-7ZT3Ftv3F_58OmL_12N_yg"
-                                locationId="LJ05QCSPT544X"
+                                applicationId="sandbox-sq0idb-yy0CGDaAdgYJQzH0n8Uj4A"
+                                locationId="LN0P8AEE480X5"
                                 cardTokenizeResponseReceived={({ token, verificationToken }) => {
                                     saveCard(token, verificationToken);
                                 }}
@@ -243,7 +242,7 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
                                     {address.map((item, index) => (
                                         <SwiperSlide className="swiper-slide !w-full !h-auto" key={item.ID} >
                                             <label
-                                                key={item.ID}
+                                                key={item.id}
                                                 className="cursor-pointer flex items-center p-2 w-[300px] bg-white border rounded-lg shadow-sm hover:bg-gray-100 transition space-x-4"
                                             >
                                                 <input
@@ -251,19 +250,19 @@ const SquarePayment: React.FC<EditPaymentProps> = ({ id, isOpen, onClose, setPay
                                                     name="address"
                                                     value={index}
                                                     className="mt-1"
-                                                    checked={selectAddressID === item.ID}
+                                                    checked={selectAddressID === item.id}
                                                     onChange={() => {
-                                                        setSelectAddressID(item.ID);
+                                                        setSelectAddressID(item.id);
                                                     }}
                                                 />
                                                 <div className="w-full text-left space-y-1">
-                                                    <div className="font-semibold">{item.Name}</div>
-                                                    <div className="text-sm">{item.Phone}</div>
-                                                    <div className="text-sm">{item.PostCode}</div>
-                                                    <div className="text-sm">{item.Pref}</div>
-                                                    <div className="text-sm">{item.Address1}</div>
-                                                    {item.Address2 && <div className="text-sm">{item.Address2}</div>}
-                                                    {item.Address3 && <div className="text-sm">{item.Address3}</div>}
+                                                    <div className="font-semibold">{item.name}</div>
+                                                    <div className="text-sm">{item.phone}</div>
+                                                    <div className="text-sm">{item.post_code}</div>
+                                                    <div className="text-sm">{item.pref}</div>
+                                                    <div className="text-sm">{item.address1}</div>
+                                                    {item.address2 && <div className="text-sm">{item.address2}</div>}
+                                                    {item.address3 && <div className="text-sm">{item.address3}</div>}
                                                 </div>
                                             </label>
                                         </SwiperSlide>

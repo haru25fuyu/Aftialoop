@@ -64,7 +64,7 @@ func (h *cardHandler) SaveCard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Println("顧客ID:", customerID)
-	log.Println("カード情報:", card)
+	log.Println("カード情報:", card.Token)
 	card.CustomerID = customerID
 
 	// カード情報を保存
@@ -103,7 +103,7 @@ func (h *cardHandler) ChargeCard(w http.ResponseWriter, r *http.Request) {
 	log.Println(charge)
 
 	// 購入履歴を保存
-	Purchase_ID, err := h.db.SavePurchaseHistory(user_id, charge.CardID, charge.Amount, charge.Items, charge.AddressID, "")
+	Purchase_ID, err := h.db.SavePurchaseHistory(user_id, charge.CardID, int64(charge.Amount), charge.Items, charge.AddressID, "")
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "購入履歴の保存に失敗しました" + err.Error()})
@@ -194,6 +194,7 @@ func (h *cardHandler) SaveCardAddress(w http.ResponseWriter, r *http.Request) {
 
 	err = h.db.SaveOrUpdateCardAddress(user_id, user_data.CardID, user_data.AddressID)
 	if err != nil {
+		log.Println("住所とカードの保存失敗:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの保存に失敗しました: " + err.Error()})
 		return

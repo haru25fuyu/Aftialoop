@@ -313,12 +313,14 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	customerData, err := h.db.GetUserData([]string{"ID = ?"}, []interface{}{user_id})
+	customerData, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{user_id})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "カスタマーデータの取得に失敗しました: " + err.Error()})
 		return
 	}
+
+	log.Println("カスタマーデータ取得:", customerData.Point)
 
 	defoltAddress, err := h.db.GetDefaultAddress(user_id)
 	if err != nil {

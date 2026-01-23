@@ -1,5 +1,8 @@
 import React from "react";
-import { FleaTransactionDetailResponse } from "../types/FleaMarket";
+
+import { FleaThreadResponse } from "../types/FleaMarket";
+
+import { CONFIG } from "../conf/config";
 import { TxPhase } from "../conf/FleaMarket";
 
 const cn = (...xs: Array<string | false | undefined | null>) => xs.filter(Boolean).join(" ");
@@ -8,20 +11,20 @@ export default function TxHeader({
     data,
     phase,
 }: {
-    data: FleaTransactionDetailResponse;
+    data: FleaThreadResponse;
     phase: TxPhase;
 }) {
-    const { tx, item, counterparty, viewer_role } = data;
+    const { transaction, item, role } = data;
 
-    const title = item?.name ?? `取引 #${tx.id}`;
-    const sub = viewer_role === "BUYER" ? "出品者" : "購入者";
+    const title = item?.name ?? `取引 #${transaction?.id}`;
+    const sub = role === "BUYER" ? "出品者" : "購入者";
 
     return (
         <div className="rounded-2xl border bg-white p-4 sm:p-5 shadow-sm">
             <div className="flex items-start gap-3">
                 <div className="h-14 w-14 rounded-xl bg-gray-100 overflow-hidden shrink-0">
                     {item?.main_image_url ? (
-                        <img src={item.main_image_url} className="h-full w-full object-cover" />
+                        <img src={CONFIG.BASE_URL + item.main_image_url} className="h-full w-full object-cover" />
                     ) : null}
                 </div>
 
@@ -32,11 +35,11 @@ export default function TxHeader({
                     </div>
 
                     <div className="mt-1 text-xs text-gray-600">
-                        {sub}: {counterparty?.name ?? "(取得中)"}
+                        {sub}: {/*counterparty?.name ?? "(取得中)"*/}
                     </div>
 
                     <div className="mt-2 text-xs text-gray-500">
-                        小計: {tx.price_item} / 送料: {tx.price_shipping} / 決済: {tx.payment_status}
+                        小計: {transaction?.price_item} / 送料: {transaction?.price_shipping} / 決済: {transaction?.payment_status}
                     </div>
                 </div>
             </div>
