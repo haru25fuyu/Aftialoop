@@ -3,6 +3,7 @@ package handler
 import (
 	"animaloop/config"
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"encoding/json"
 	"errors"
 	"log"
@@ -14,10 +15,10 @@ import (
 
 // shippingHandler は /shipping 系
 type shippingHandler struct {
-	db *function.Database
+	db *SQL.Database
 }
 
-func NewShippingHandler(db *function.Database) *shippingHandler {
+func NewShippingHandler(db *SQL.Database) *shippingHandler {
 	return &shippingHandler{db: db}
 }
 

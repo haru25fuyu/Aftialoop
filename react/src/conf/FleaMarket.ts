@@ -95,9 +95,13 @@ export function calcTxPhase(tx: FleaTransactionRow, role: TxRole): TxPhase {
   if (tx.status === "BUYER_CONFIRMED") return "PAYMENT";
 
   // paid なら発送へ (seller view は shipping へ, buyer view は wait 発送待ち)
-  if (tx.status === "PAID" ||tx.status === "SHIPPED" || tx.status === "RATED_BY_BUYER") {
+  if (tx.status === "PAID") {
     return "SHIPPING";
   }
+
+  if(tx.status === "SHIPPED") return "SHIPPED";
+  
+  if (tx.status === "RATED_BY_BUYER") return "RATED_BY_BUYER";
 
   if (tx.status === "COMPLETED") return "COMPLETE";
 

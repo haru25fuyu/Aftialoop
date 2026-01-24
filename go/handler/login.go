@@ -2,6 +2,7 @@ package handler
 
 import (
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
 	"time"
 
@@ -21,12 +22,12 @@ type TokenResponse struct {
 
 // loginHandler は /login 系のエンドポイントをまとめたハンドラです
 type loginHandler struct {
-	db *function.Database
+	db *SQL.Database
 	// ここに DB やサービスを注入しても OK
 }
 
 // NewLoginHandler はハンドラのコンストラクタ
-func NewLoginHandler(db *function.Database) *loginHandler {
+func NewLoginHandler(db *SQL.Database) *loginHandler {
 	return &loginHandler{
 		db: db,
 	}

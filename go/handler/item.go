@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
 
 	"encoding/json"
@@ -14,11 +14,11 @@ import (
 // ItemHandler は /item 系のエンドポイントをまとめたハンドラです
 type ItemHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewItemHandler はハンドラのコンストラクタ
-func NewItemHandler(db *function.Database) *ItemHandler {
+func NewItemHandler(db *SQL.Database) *ItemHandler {
 	return &ItemHandler{
 		db: db,
 	}

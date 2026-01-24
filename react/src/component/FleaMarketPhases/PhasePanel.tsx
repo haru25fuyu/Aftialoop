@@ -27,6 +27,8 @@ export default function PhasePanel({
             return <ShippingPanel data={data} onChanged={onChanged} />;
         case "SHIPPED":
             return <ShippingPanel data={data} onChanged={onChanged} />;
+        case "RATED_BY_BUYER":
+            return <ShippingPanel data={data} onChanged={onChanged} />;
         case "COMPLETE":
             return <CompletePanel data={data} onChanged={onChanged} />;
         case "CANCELLED":

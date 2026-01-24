@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
 
 	"github.com/gorilla/mux"
@@ -16,11 +17,11 @@ import (
 // pointHandler は /point 系のエンドポイントをまとめたハンドラです
 type pointHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewPointHandler はハンドラのコンストラクタ
-func NewPointHandler(db *function.Database) *pointHandler {
+func NewPointHandler(db *SQL.Database) *pointHandler {
 	return &pointHandler{
 		db: db,
 	}

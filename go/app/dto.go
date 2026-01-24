@@ -37,10 +37,12 @@ func (r *ListItemsRequest) Resolve(cache *SlugCache) (utils.ListItemsRequest, er
 		p.SearchQuery = r.SearchQuery
 	}
 	if r.MinPrice != nil {
-		p.MinPrice = r.MinPrice
+		minPrice := int64(*r.MinPrice)
+		p.MinPrice = &minPrice
 	}
 	if r.MaxPrice != nil {
-		p.MaxPrice = r.MaxPrice
+		maxPrice := int64(*r.MaxPrice)
+		p.MaxPrice = &maxPrice
 	}
 	if r.SortBy != nil && (*r.SortBy == SortByPrice || *r.SortBy == SortByNewest) {
 		p.SortBy = *r.SortBy

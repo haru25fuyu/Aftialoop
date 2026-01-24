@@ -249,6 +249,7 @@ type FleaMarketItem struct {
 	Description        *string    `db:"description" json:"description,omitempty"`
 	Price              int64      `db:"price" json:"price"`
 	SellerRate         int64      `db:"seller_rate" json:"seller_rate"`
+	CommissionRate     int64      `db:"commission_rate" json:"commission_rate"`
 	Quantity           int        `db:"quantity" json:"quantity"`
 	IsMultiPurchasable bool       `db:"is_multi_purchasable" json:"isMultiPurchasable"`
 	BuyUserID          *string    `db:"buy_user_id" json:"buyUserId,omitempty"`
@@ -269,8 +270,10 @@ type FleaMarketItemResponse struct {
 	Name               string     `db:"name" json:"name"`
 	Description        *string    `db:"description" json:"description,omitempty"`
 	Price              int64      `db:"price" json:"price"`
-	RawSellerRate      int        `db:"seller_rate" json:"-"`           // DBの値 (例: 10200)
-	SellerRate         float64    `db:"-"           json:"seller_rate"` // 計算後の値 (例: 1.02)
+	RawSellerRate      int        `db:"seller_rate" json:"-"`               // DBの値 (例: 10200)
+	SellerRate         float64    `db:"-"           json:"seller_rate"`     // 計算後の値 (例: 1.02)
+	RawCommissionRate  int64      `db:"commission_rate" json:"-"`           // DBの値 (例: 500)
+	CommissionRate     float64    `db:"-"           json:"commission_rate"` // 計算後の値
 	Quantity           int        `db:"quantity" json:"quantity"`
 	IsMultiPurchasable bool       `db:"is_multi_purchasable" json:"isMultiPurchasable"`
 	BuyUserID          *string    `db:"buy_user_id" json:"buyUserId,omitempty"`
@@ -317,6 +320,7 @@ type CreateFleaMarketItemInput struct {
 	Name               string   `json:"name"`
 	Price              int64    `json:"price"`
 	SellerRateBP       int64    `json:"seller_rateBP"`
+	CommissionRateBP   int64    `json:"commission_rateBP"`
 	Quantity           int      `json:"quantity"`
 	IsMultiPurchasable bool     `json:"isMultiPurchasable"`
 	Type               string   `json:"type"`
@@ -391,9 +395,13 @@ type FleaTransactionRow struct {
 	PriceShipping     uint32  `json:"price_shipping"`
 	PaymentProvider   *string `json:"payment_provider"`
 	PaymentID         *string `json:"payment_id"`
+	UsePoint          int64   `json:"use_point"`
+	PointRate         int64   `json:"point_rate"`
 	PaymentStatus     string  `json:"payment_status"`
 	ShippingCarrier   *string `json:"shipping_carrier"`
 	TrackingNumber    *string `json:"tracking_number"`
+	FeeAmount         int     `json:"fee_amount"`
+	ProfitAmount      int     `json:"profit_amount"`
 	Status            string  `json:"status"`
 	PaidAt            *string `json:"paid_at"`
 	ShippedAt         *string `json:"shipped_at"`
@@ -502,4 +510,25 @@ type ShippingRateRow struct {
 
 	SourceVersion string
 	UpdatedAt     time.Time
+}
+
+func ToUserProfileResponse(u SqlResponsUserProfile) RequestUserProfile {
+	ptr := func(ns sql.NullString) *string {
+		if ns.Valid {
+			return &ns.String
+		}
+		return nil
+	}
+
+	return RequestUserProfile{
+		ID:          u.ID,
+		Name:        u.Name,
+		Email:       u.Email,
+		DateOfBirth: ptr(u.DateOfBirth),
+		Gender:      ptr(u.Gender),
+		DefaultCard: ptr(u.DefaultCard),
+		PhoneNumber: ptr(u.PhoneNumber),
+		Bio:         ptr(u.Bio),
+		IconURL:     ptr(u.IconURL),
+	}
 }

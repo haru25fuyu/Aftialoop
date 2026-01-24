@@ -1,6 +1,6 @@
 import React from "react";
 import { FleaThreadResponse } from "../../types/FleaMarket"; // 型定義は適宜合わせてください
-import { CheckCircle, FileText, HelpCircle, Home, Calendar, Hash } from "lucide-react";
+import { CheckCircle, FileText, HelpCircle, Home, Calendar, Hash, Printer } from "lucide-react";
 import { CONFIG } from "../../conf/config";
 
 // 日付フォーマット
@@ -17,21 +17,20 @@ function yen(n: number) {
     return n.toLocaleString();
 }
 
-export default function CompletePanel({ 
-    data, 
-    onChanged 
-}: { 
-    data: FleaThreadResponse; 
-    onChanged: () => void 
+export default function CompletePanel({
+    data,
+    onChanged
+}: {
+    data: FleaThreadResponse;
+    onChanged: () => void
 }) {
     const { transaction: tx, item, role } = data;
 
     if (!tx || tx.status !== "COMPLETED") return null;
 
-    // 領収書発行（モック）
-    const handleReceipt = () => {
-        alert("領収書表示機能はまだ未実装です。\n(PDF生成や印刷プレビューなどをここに繋ぎます)");
-    };
+
+    const isSeller = role === "SELLER";
+
 
     return (
         <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
@@ -53,14 +52,14 @@ export default function CompletePanel({
                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b pb-2">
                         Transaction Summary
                     </h3>
-                    
+
                     <div className="space-y-4">
                         <div className="flex items-center gap-3">
                             <div className="h-12 w-12 rounded bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">
                                 {item.main_image_url ? (
-                                    <img 
-                                        src={CONFIG.BASE_URL + item.main_image_url} 
-                                        alt={item.name} 
+                                    <img
+                                        src={CONFIG.BASE_URL + item.main_image_url}
+                                        alt={item.name}
                                         className="h-full w-full object-cover"
                                     />
                                 ) : (
@@ -90,14 +89,33 @@ export default function CompletePanel({
 
                 {/* アクションボタン群 */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    {/* 領収書 (購入者のみ表示など条件分岐してもOK) */}
-                    <button
-                        onClick={handleReceipt}
-                        className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors"
-                    >
-                        <FileText size={18} />
-                        取引明細 / 領収書
-                    </button>
+
+
+
+                    {isSeller && (
+                        <a
+                            href={`${CONFIG.BASE_URL}/flea-market/transactions/${tx.id}/statement/pdf`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full py-3 border border-gray-300 rounded-xl hover:bg-gray-50 text-sm font-bold"
+                        >
+                            <FileText size={18} />
+                            販売明細書をダウンロード
+                        </a>
+                    )}
+
+                    {/* 領収書PDFダウンロード（共通） */}
+                    {!isSeller && (
+                        <a
+                            href={`${CONFIG.BASE_URL}/flea-market/transactions/${tx.id}/receipt/pdf`} // APIを直接叩く
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full py-3 ..."
+                        >
+                            <Printer size={18} />
+                            領収書PDFをダウンロード
+                        </a>
+                    )}
 
                     {/* お問い合わせ */}
                     <a

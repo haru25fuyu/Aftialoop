@@ -2,18 +2,19 @@
 package app
 
 import (
-	"animaloop/function"
 	"context"
 	"net/http"
+
+	SQL "animaloop/sql"
 )
 
 type App struct {
 	Cache *SlugCache
 	Mux   *http.ServeMux
-	db    *function.Database
+	db    *SQL.Database
 }
 
-func New(ctx context.Context, db *function.Database) (*App, error) {
+func New(ctx context.Context, db *SQL.Database) (*App, error) {
 	cache := NewSlugCache()
 	if err := cache.Reload(ctx); err != nil {
 		return nil, err

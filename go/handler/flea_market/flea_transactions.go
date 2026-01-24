@@ -1,12 +1,15 @@
 package handler
 
 import (
+	"animaloop/config"
 	"animaloop/function"
 	"animaloop/utils"
 	"context"
 	"database/sql"
+	_ "embed"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"math"
 	"net/http"
@@ -16,6 +19,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/signintech/gopdf"
 )
 
 type FleaThreadResp struct {
@@ -302,7 +306,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	/* エラーハンドリング */
 
 	// レート取得
-	cfg := function.GetFleaConfig()
+	cfg := config.GetFleaConfig()
 	rateDen := float64(cfg.RateDen)
 	if rateDen == 0 {
 		rateDen = 10000.0
@@ -379,8 +383,9 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	log.Printf("ポイント使用: user_id=%s, use_points=%d", buyerID, input.UsePoints)
 	// 2. 取引ステータス更新
-	if err := h.db.UpdateFleaTransactionPaidTx(ctx, txDB, txID, provider, paymentID); err != nil {
+	if err := h.db.UpdateFleaTransactionPaidTx(ctx, txDB, txID, provider, paymentID, input.UsePoints, item.RawSellerRate); err != nil {
 		log.Println("Error updating transaction status to PAID:", err)
 		http.Error(w, "failed to update status", http.StatusInternalServerError)
 		return
@@ -663,7 +668,7 @@ func (h *FleaMarketHandler) RateTransactionByBuyer(w http.ResponseWriter, r *htt
 	}
 	defer txDB.Rollback()
 
-	err = h.db.SaveFleaTransactionReview(txDB, txID, txData.ItemID, txData.BuyerID, txData.SellerID, input.Rating, input.Comment)
+	err = h.db.SaveFleaTransactionReview(txID, txData.ItemID, txData.BuyerID, txData.SellerID, input.Rating, input.Comment)
 	if err != nil {
 		log.Println("Error saving transaction review:", err)
 		http.Error(w, "failed to save review", http.StatusInternalServerError)
@@ -774,25 +779,68 @@ func (h *FleaMarketHandler) CompleteTransactionBySeller(w http.ResponseWriter, r
 	defer txDB.Rollback()
 
 	// 3. 出品者のレビュー保存 (Reviewer: Seller -> Reviewee: Buyer)
-	err = h.db.SaveFleaTransactionReview(txDB, txID, txData.ItemID, sellerID, txData.BuyerID, input.Rating, input.Comment)
+	err = h.db.SaveFleaTransactionReview(txID, txData.ItemID, sellerID, txData.BuyerID, input.Rating, input.Comment)
 	if err != nil {
 		http.Error(w, "failed to save review", http.StatusInternalServerError)
 		return
 	}
 
+	// -----------------------------------------------------
+	// ★ 3. 売上金の計算と加算
+	// -----------------------------------------------------
+
+	var commissionRate float64
+	var commissionRateBP int64
+
+	cfg := config.GetFleaConfig()
+
+	// flea_items テーブルから commission_rate (販売手数料) を取得
+	// ※ 注意: seller_rate (ポイントレート) と間違えないように！
+	commissionRateBP, err = h.db.GetFleaMarketCommissionRate(txData.ItemID)
+
+	if err != nil {
+		// カラム追加前やエラー時は安全策としてデフォルト10%を適用
+		log.Printf("Warning: could not fetch commission_rate for item %d (using default 10%%): %v", txData.ItemID, err)
+		commissionRateBP = cfg.CommissionRate
+	}
+	commissionRate = float64(commissionRateBP) / float64(cfg.RateDen)
+
+	// 計算: 商品価格 - (商品価格 * 手数料率 / 100)
+	price := float64(txData.PriceItem)
+	fee := math.Floor(price * commissionRate) // 手数料 (切り捨て)
+	profit := int(price - fee)                // 出品者の手取り売上
+
 	// 4. ステータスを完全に「COMPLETED」にする
 	// ※ MarkFleaTransactionCompleted 関数は "SHIPPED" だけでなく "RATED_BY_BUYER" からも遷移できるようにSQL修正が必要
-	err = h.db.MarkFleaTransactionCompleted(txDB, txID)
+	err = h.db.MarkFleaTransactionCompleted(txDB, txID, int(fee), profit)
 	if err != nil {
 		http.Error(w, "failed to complete transaction", http.StatusInternalServerError)
 		return
 	}
 
-	// 5. ★ここで売上金を加算！
-	// 例: function.AddUserBalance(txDB, sellerID, txData.PriceItem)
+	// ------------------------------------------------------------------
+	// ★ TODO: 将来の実装メモ (経理用)
+	// ------------------------------------------------------------------
+	// ここで発生した `fee` (手数料収入) を `platform_earnings` などの
+	// 管理用テーブルに別途 INSERT しておくと、月次決算が一発で出せるようになります。
+	//
+	// 例: h.db.RecordPlatformRevenue(txDB, int(fee), txID, "販売手数料")
+	// ------------------------------------------------------------------
 
-	txDB.Commit()
-	// --- トランザクション終了 ---
+	// 履歴用メモ
+	note := fmt.Sprintf("売上反映: %d円 (商品ID:%d, 価格:%d, 手数料:%f%%)", profit, txData.ItemID, txData.PriceItem, commissionRate)
+	// 残高加算 (共通関数)
+	if err := h.db.AddUserSalesBalance(txDB, sellerID, profit, txID, note); err != nil {
+		log.Println("Error adding sales balance:", err)
+		http.Error(w, "failed to update balance", http.StatusInternalServerError)
+		return
+	}
+	if err := txDB.Commit(); err != nil {
+		log.Println("Error committing DB transaction:", err)
+		http.Error(w, "commit failed", http.StatusInternalServerError)
+		return
+	}
+	// -----------------------------------------------------
 
 	// 6. 完了メール送信 (双方へ)
 	// 購入者へ: 「出品者からも評価され、取引が完了しました」
@@ -816,4 +864,334 @@ func (h *FleaMarketHandler) CompleteTransactionBySeller(w http.ResponseWriter, r
 	// 7. レスポンス
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "COMPLETED"})
+}
+
+var fontData []byte
+
+// DownloadReceiptPDF: 領収書PDFを生成して返す (ポイント対応 & 色修正版)
+func (h *FleaMarketHandler) DownloadReceiptPDF(w http.ResponseWriter, r *http.Request) {
+	// 1. 認証 & データ取得
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+	txID, _ := strconv.ParseUint(vars["id"], 10, 64)
+	ctx := r.Context()
+
+	// 取引データ取得
+	txData, err := h.db.GetFleaTransactionByID(ctx, userID, txID)
+	if err != nil {
+		http.Error(w, "transaction not found", http.StatusNotFound)
+		return
+	}
+
+	buyer, _ := h.db.GetUserDataByID(txData.BuyerID)
+	item, _ := h.db.GetFleaMarketItemByID(txData.ItemID)
+
+	// ---------------------------------------------------------
+	// 2. PDF生成開始
+	// ---------------------------------------------------------
+	pdf := gopdf.GoPdf{}
+	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
+	pdf.AddPage()
+
+	// フォント読み込み
+	err = pdf.AddTTFFont("ipaexg", "./fonts/ipaexg.ttf") // ※embedならAddTTFFontData
+	if err != nil {
+		http.Error(w, "font load error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// ヘルパー
+	drawText := func(x, y float64, size float64, text string, style string) {
+		pdf.SetFont("ipaexg", style, size)
+		pdf.SetX(x)
+		pdf.SetY(y)
+		pdf.Cell(nil, text)
+	}
+
+	drawCircle := func(x, y, r float64) {
+		pdf.Oval(x, y, x+r, y+r)
+	}
+
+	// --- レイアウト ---
+
+	// タイトル
+	pdf.SetTextColor(0, 0, 0)
+	drawText(250, 50, 24, "領 収 書", "")
+
+	// 下線
+	pdf.SetLineWidth(1)
+	pdf.Line(20, 80, 575, 80)
+
+	// 宛名
+	drawText(30, 110, 16, fmt.Sprintf("%s  様", buyer.Name), "")
+
+	// 日付
+	dateStr := txData.CompletedAt
+	if dateStr == nil || *dateStr == "" {
+		now := time.Now().Format(time.RFC3339)
+		dateStr = &now
+	}
+	t, _ := time.Parse(time.RFC3339, *dateStr)
+	fmtDate := t.Format("2006年01月02日")
+	drawText(400, 110, 10, "発行日: "+fmtDate, "")
+	drawText(400, 125, 10, fmt.Sprintf("No. %d", txData.ID), "")
+
+	// --- 金額ボックス (一番上の大きな金額) ---
+	pdf.SetFillColor(245, 245, 245)
+	pdf.RectFromUpperLeftWithStyle(30, 150, 535, 60, "F")
+
+	// ★色修正: 黒に戻す
+	pdf.SetTextColor(0, 0, 0)
+
+	cfg := config.GetFleaConfig()
+
+	// 実際の請求金額を計算 (商品価格 - ポイント利用)
+	// ※ txData.UsePoint がある前提
+	payPoint := 0.0
+
+	payPoint = float64(txData.UsePoint) * (float64(txData.PointRate) / float64(cfg.RateDen))
+	finalAmount := txData.PriceItem - uint32(payPoint)
+	if finalAmount < 0 {
+		finalAmount = 0
+	} // 念の為
+
+	drawText(220, 175, 24, fmt.Sprintf("￥%d", finalAmount), "") // ここは支払い総額を表示
+	drawText(40, 190, 10, "但 商品代金として", "")
+
+	// --- 明細テーブルヘッダー ---
+	pdf.SetY(240)
+	pdf.SetX(30)
+	pdf.SetFillColor(230, 230, 230)
+	pdf.RectFromUpperLeftWithStyle(30, 240, 535, 20, "F") // 背景
+
+	// ★色修正: 黒に戻す
+	pdf.SetTextColor(0, 0, 0)
+	pdf.SetFont("ipaexg", "", 10)
+
+	// ヘッダー文字
+	pdf.CellWithOption(&gopdf.Rect{W: 300, H: 20}, "品名", gopdf.CellOption{Align: gopdf.Center, Border: 1})
+	pdf.CellWithOption(&gopdf.Rect{W: 80, H: 20}, "数量", gopdf.CellOption{Align: gopdf.Center, Border: 1})
+	pdf.CellWithOption(&gopdf.Rect{W: 155, H: 20}, "金額", gopdf.CellOption{Align: gopdf.Center, Border: 1})
+
+	// --- 明細行 (商品) ---
+	pdf.SetY(260)
+	pdf.SetX(30)
+	pdf.CellWithOption(&gopdf.Rect{W: 300, H: 20}, " "+item.Name, gopdf.CellOption{Align: gopdf.Left, Border: 1})
+	pdf.CellWithOption(&gopdf.Rect{W: 80, H: 20}, "1", gopdf.CellOption{Align: gopdf.Center, Border: 1})
+	pdf.CellWithOption(&gopdf.Rect{W: 155, H: 20}, fmt.Sprintf("￥%d ", txData.PriceItem), gopdf.CellOption{Align: gopdf.Right, Border: 1})
+
+	currentY := 280.0
+
+	// --- ★追加: ポイント利用行 (利用がある場合のみ) ---
+	if txData.UsePoint > 0 {
+		// 小計
+		drawText(40, currentY+5, 10, "小計", "")
+		drawText(450, currentY+5, 10, fmt.Sprintf("￥%d", txData.PriceItem), "")
+		currentY += 20
+
+		// ポイント利用
+		drawText(40, currentY+5, 10, "ポイント利用 ", "")
+
+		// マイナス表示
+		drawText(450, currentY+5, 10, fmt.Sprintf("- ￥%d", uint32(payPoint)), "")
+		currentY += 20
+
+		// 区切り線
+		pdf.SetLineWidth(0.5)
+		pdf.SetStrokeColor(200, 200, 200)
+		pdf.Line(350, currentY, 565, currentY)
+		pdf.SetTextColor(0, 0, 0)
+		currentY += 10
+	}
+
+	// --- 合計金額 (右寄せ) ---
+	pdf.SetFont("ipaexg", "", 12)
+	pdf.SetX(350)
+	pdf.SetY(currentY)
+	pdf.Cell(nil, "ご請求金額")
+
+	pdf.SetFont("ipaexg", "", 14)
+	payStr := fmt.Sprintf("￥%d", finalAmount)
+	pWidth, _ := pdf.MeasureTextWidth(payStr)
+	pdf.SetX(550 - pWidth)
+	pdf.SetY(currentY)
+	pdf.Cell(nil, payStr)
+
+	// --- フッター (右下) ---
+	footerY := 450.0
+	footerX := 380.0
+
+	drawText(footerX, footerY, 12, "Animaloop Inc.", "")
+	drawText(footerX, footerY+20, 10, "〒000-0000", "")
+	drawText(footerX, footerY+35, 10, "東京都渋谷区〇〇 1-2-3", "")
+
+	// 印鑑
+	pdf.SetStrokeColor(255, 0, 0)
+	pdf.SetLineWidth(2)
+	drawCircle(footerX+80, footerY-10, 50)
+
+	pdf.SetTextColor(255, 0, 0)
+	drawText(footerX+93, footerY+8, 10, "Animaloop", "")
+	drawText(footerX+100, footerY+20, 8, "印", "")
+
+	// 出力
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=receipt_%d.pdf", txID))
+	if _, err := pdf.WriteTo(w); err != nil {
+		http.Error(w, "pdf generation failed", http.StatusInternalServerError)
+	}
+}
+
+// DownloadSalesStatementPDF: 出品者用の販売明細書を発行
+func (h *FleaMarketHandler) DownloadSalesStatementPDF(w http.ResponseWriter, r *http.Request) {
+	// 1. 認証 (出品者本人かチェック)
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	vars := mux.Vars(r)
+	txID, _ := strconv.ParseUint(vars["id"], 10, 64)
+	ctx := r.Context()
+
+	// 2. 取引データ取得
+	// SellerID = userID で検索することで、出品者本人しかDLできないようにする
+	txData, err := h.db.GetFleaTransactionByID(ctx, userID, txID)
+	if err != nil {
+		http.Error(w, "transaction not found or you are not the seller", http.StatusNotFound)
+		return
+	}
+
+	// 出品者情報、アイテム情報を取得
+	seller, _ := h.db.GetUserDataByID(txData.SellerID)
+	item, _ := h.db.GetFleaMarketItemByID(txData.ItemID)
+
+	// ---------------------------------------------------------
+	// 3. 手数料・利益の再計算 (表示用)
+	// ---------------------------------------------------------
+
+	var commissionRate float64
+	var commissionRateBP int64
+
+	cfg := config.GetFleaConfig()
+	// flea_items テーブルから commission_rate (販売手数料) を取得
+	commissionRateBP, err = h.db.GetFleaMarketCommissionRate(txData.ItemID)
+	if err != nil {
+		// カラム追加前やエラー時は安全策としてデフォルト10%を適用
+		log.Printf("Warning: could not fetch commission_rate for item %d (using default 10%%): %v", txData.ItemID, err)
+		commissionRateBP = cfg.CommissionRate
+	}
+	commissionRate = float64(commissionRateBP) / float64(cfg.RateDen)
+
+	fee := txData.FeeAmount       // DBに保存された手数料
+	profit := txData.ProfitAmount // DBに保存された利益
+
+	// ---------------------------------------------------------
+	// 4. PDF描画開始
+	// ---------------------------------------------------------
+	pdf := gopdf.GoPdf{}
+	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4})
+	pdf.AddPage()
+
+	// フォント読み込み (embedの場合は AddTTFFontData)
+	_ = pdf.AddTTFFont("ipaexg", "./fonts/ipaexg.ttf")
+
+	// ヘルパー: テキスト描画 (色指定なし)
+	drawText := func(x, y float64, size float64, text string) {
+		pdf.SetFont("ipaexg", "", size)
+		pdf.SetX(x)
+		pdf.SetY(y)
+		pdf.Cell(nil, text)
+	}
+
+	// --- タイトル・宛名 ---
+	pdf.SetTextColor(0, 0, 0) // ★念のため最初に黒指定
+	pdf.SetFont("ipaexg", "", 20)
+	pdf.SetX(220)
+	pdf.SetY(50)
+	pdf.Cell(nil, "販売代金明細書")
+
+	drawText(30, 100, 14, fmt.Sprintf("%s  様", seller.Name))
+	drawText(400, 100, 10, fmt.Sprintf("発行日: %s", time.Now().Format("2006年01月02日")))
+	drawText(400, 115, 10, fmt.Sprintf("取引ID: %d", txData.ID))
+
+	// --- メイン金額ボックス ---
+	pdf.SetFillColor(240, 240, 240)                       // 薄いグレー
+	pdf.RectFromUpperLeftWithStyle(30, 140, 535, 50, "F") // 塗りつぶし
+
+	// ★★★ ここで黒に戻す！ ★★★
+	pdf.SetTextColor(0, 0, 0)
+
+	pdf.SetFont("ipaexg", "", 12)
+	pdf.SetX(40)
+	pdf.SetY(155)
+	pdf.Cell(nil, "お受取金額")
+
+	pdf.SetFont("ipaexg", "", 24)
+	profitStr := fmt.Sprintf("￥%d", profit)
+	pWidth, _ := pdf.MeasureTextWidth(profitStr)
+	pdf.SetX(550 - pWidth) // 右寄せ
+	pdf.SetY(150)
+	pdf.Cell(nil, profitStr)
+
+	// --- 明細テーブル ---
+	startY := 220.0
+
+	// ヘッダー背景
+	pdf.SetFillColor(230, 230, 230)
+	pdf.RectFromUpperLeftWithStyle(30, startY, 535, 25, "F")
+
+	// ★★★ ここでも黒に戻す！ ★★★
+	pdf.SetTextColor(0, 0, 0)
+
+	drawText(40, startY+8, 10, "項目")
+	drawText(450, startY+8, 10, "金額")
+
+	// 行1: 商品代金
+	lineY := startY + 35
+	drawText(40, lineY, 10, fmt.Sprintf("商品代金 (%s)", item.Name))
+	drawText(450, lineY, 10, fmt.Sprintf("￥%d", txData.PriceItem))
+
+	// 線を描く
+	pdf.SetLineWidth(0.5)
+	pdf.SetStrokeColor(200, 200, 200) // 線の色
+	pdf.Line(30, lineY+15, 565, lineY+15)
+	pdf.SetTextColor(0, 0, 0) // 文字用に黒へ戻す
+
+	// 行2: 販売手数料
+	lineY += 25
+	drawText(40, lineY, 10, fmt.Sprintf("販売手数料 (%.1f%%)", commissionRate*100))
+	drawText(450, lineY, 10, fmt.Sprintf("- ￥%d", int(fee)))
+
+	pdf.SetStrokeColor(200, 200, 200)
+	pdf.Line(30, lineY+15, 565, lineY+15)
+	pdf.SetTextColor(0, 0, 0)
+
+	// 行3: 合計
+	lineY += 25
+	pdf.SetFont("ipaexg", "", 12)
+	pdf.SetX(350)
+	pdf.SetY(lineY)
+	pdf.Cell(nil, "合計 (売上利益)")
+
+	pdf.SetFont("ipaexg", "", 14)
+	pdf.SetX(450)
+	pdf.SetY(lineY)
+	pdf.Cell(nil, fmt.Sprintf("￥%d", profit))
+
+	// フッター
+	drawText(400, 450, 10, "Animaloop Inc.")
+
+	// 出力
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=statement_%d.pdf", txID))
+	if _, err := pdf.WriteTo(w); err != nil {
+		http.Error(w, "pdf generation failed", http.StatusInternalServerError)
+	}
 }

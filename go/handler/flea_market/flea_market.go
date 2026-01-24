@@ -1,16 +1,16 @@
 package handler
 
 import (
-	"animaloop/function"
+	SQL "animaloop/sql"
 
 	"github.com/gorilla/mux"
 )
 
 // flea market Handler は /flea-market 系のエンドポイントをまとめたハンドラです
-type FleaMarketHandler struct{ db *function.Database }
+type FleaMarketHandler struct{ db *SQL.Database }
 
 // NewFleaMarketHandler はハンドラのコンストラクタ
-func NewFleaMarketHandler(db *function.Database) *FleaMarketHandler {
+func NewFleaMarketHandler(db *SQL.Database) *FleaMarketHandler {
 	return &FleaMarketHandler{db: db}
 }
 
@@ -46,4 +46,8 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/flea-market/transactions/{id}/shipped", h.ShipTransaction).Methods("POST")
 	r.HandleFunc("/flea-market/transactions/{id}/rate/buyer", h.RateTransactionByBuyer).Methods("POST")
 	r.HandleFunc("/flea-market/transactions/{id}/complete/seller", h.CompleteTransactionBySeller).Methods("POST")
+	r.HandleFunc("/flea-market/transactions/{id}/receipt/pdf", h.DownloadReceiptPDF).Methods("GET")
+	r.HandleFunc("/flea-market/transactions/{id}/statement/pdf", h.DownloadSalesStatementPDF).Methods("GET")
+
+	r.HandleFunc("/flea-market/my/sales", h.GetMySalesHistory).Methods("GET")
 }

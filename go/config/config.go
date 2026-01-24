@@ -75,14 +75,23 @@ const (
 )
 
 type FleaConfig struct {
-	BaseRate  int64
-	MaxRate   int64
-	RateDen   int64
-	UpdatedAt time.Time
+	BaseRate       int64
+	MaxRate        int64
+	RateDen        int64
+	CommissionRate int64
+	UpdatedAt      time.Time
 }
 
 func IsProduction() bool {
 	return os.Getenv("ENV") == "production"
+}
+
+func GetFleaConfig() FleaConfig {
+	v := FleaCfg.Load()
+	if v == nil {
+		return FleaConfig{BaseRate: 10200, MaxRate: 11000, RateDen: 10000, CommissionRate: 1000} // 最低限のフォールバック
+	}
+	return *v.(*FleaConfig)
 }
 
 var FleaCfg atomic.Value // FleaConfig を入れる

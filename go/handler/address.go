@@ -2,6 +2,7 @@ package handler
 
 import (
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
 	"encoding/json"
 	"log"
@@ -13,11 +14,11 @@ import (
 
 // addressHandler は /address 系のエンドポイントをまとめたハンドラです
 type addressHandler struct {
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewAddressHandler はハンドラのコンストラクタ
-func NewAddressHandler(db *function.Database) *addressHandler {
+func NewAddressHandler(db *SQL.Database) *addressHandler {
 	return &addressHandler{
 		db: db,
 	}

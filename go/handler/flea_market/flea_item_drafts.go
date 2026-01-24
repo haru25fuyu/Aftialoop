@@ -109,8 +109,8 @@ func (h *FleaMarketHandler) ListFleaDrafts(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	q := r.URL.Query()
-	limit := function.ParseInt(q.Get("limit"), 20)
-	offset := function.ParseInt(q.Get("offset"), 0)
+	limit := utils.ParseInt(q.Get("limit"), 20)
+	offset := utils.ParseInt(q.Get("offset"), 0)
 
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()

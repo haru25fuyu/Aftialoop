@@ -3,12 +3,14 @@ package handler
 import (
 	"animaloop/config"
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
 	"strings"
+	"time"
 
 	mysql "github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
@@ -18,11 +20,11 @@ import (
 // signupHandler は /signup 系のエンドポイントをまとめたハンドラです
 type signupHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewSignupHandler はハンドラのコンストラクタ
-func NewSignupHandler(db *function.Database) *signupHandler {
+func NewSignupHandler(db *SQL.Database) *signupHandler {
 	return &signupHandler{
 		db: db,
 	}
@@ -72,7 +74,23 @@ func (h *signupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// トークン生成
-	token, err := h.db.SetRegistrationToken(&user)
+	userData := utils.User{
+		ID:    user.ID,
+		Name:  user.Name,
+		Email: user.Email,
+		Exp:   time.Now().Add(24 * time.Hour).Unix(),
+		Limit: 24,
+	}
+
+	user.ID = uuid.New().String()
+	token, err := function.GenerateToken(&userData)
+	if err != nil {
+		log.Fatalf("Failed to generate token: %s", err)
+		http.Error(w, "Could not generate token", http.StatusInternalServerError)
+		return
+	}
+
+	err = h.db.SetRegistrationToken(user, token)
 	if err != nil {
 		log.Fatalf("Failed to set registration token: %s", err)
 		http.Error(w, "Could not set registration token", http.StatusInternalServerError)

@@ -7,6 +7,7 @@ const steps = [
     { key: "PAYMENT", label: "決済", icon: CreditCard },
     { key: "SHIPPING", label: "発送", icon: Package },
     { key: "SHIPPED", label: "受取", icon: Truck },
+    { key: "RATED_BY_BUYER", label: "評価", icon: Check },
     { key: "COMPLETE", label: "完了", icon: Check },
 ] as const;
 

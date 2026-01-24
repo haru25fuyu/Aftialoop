@@ -2,6 +2,7 @@ package handler
 
 import (
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
 	"encoding/json"
 	"fmt"
@@ -16,12 +17,12 @@ import (
 
 // userDataHandler は /user 系のエンドポイントをまとめたハンドラです
 type userDataHandler struct {
-	db *function.Database
+	db *SQL.Database
 	// ここに DB やサービスを注入しても OK
 }
 
 // NewUserDataHandler はハンドラのコンストラクタ
-func NewUserDataHandler(db *function.Database) *userDataHandler {
+func NewUserDataHandler(db *SQL.Database) *userDataHandler {
 	return &userDataHandler{
 		db: db,
 	}

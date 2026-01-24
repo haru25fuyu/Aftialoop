@@ -5,6 +5,8 @@ import (
 	"animaloop/function"
 	"animaloop/handler"
 	flea "animaloop/handler/flea_market"
+	SQL "animaloop/sql"
+
 	"encoding/json"
 	"log"
 	"net/http"
@@ -20,7 +22,7 @@ func main() {
 	config.Init()
 
 	// DB初期化
-	db, err := function.NewDatabase()
+	db, err := SQL.NewDatabase()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}

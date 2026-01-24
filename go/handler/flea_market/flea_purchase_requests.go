@@ -41,14 +41,14 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 	}
 
 	// item_id / address_id は string|number 両対応にする（フロントの型に合わせる）
-	itemID, err := function.ToInt64(req.ItemID)
+	itemID, err := utils.ToInt64(req.ItemID)
 	if err != nil || itemID <= 0 {
 		log.Println("Invalid item_id:", req.ItemID, err)
 		http.Error(w, "invalid item_id", http.StatusBadRequest)
 		return
 	}
 
-	addressID64, err := function.ToInt64(req.AddressID)
+	addressID64, err := utils.ToInt64(req.AddressID)
 	if err != nil || addressID64 <= 0 || addressID64 > 2147483647 {
 		log.Println("Invalid address_id:", req.AddressID, err)
 		http.Error(w, "invalid address_id", http.StatusBadRequest)
@@ -138,8 +138,8 @@ func (h *FleaMarketHandler) ListFleaPurchaseRequestsBySeller(w http.ResponseWrit
 	}
 
 	q := r.URL.Query()
-	limit := function.ParseInt(q.Get("limit"), 20)
-	offset := function.ParseInt(q.Get("offset"), 0)
+	limit := utils.ParseInt(q.Get("limit"), 20)
+	offset := utils.ParseInt(q.Get("offset"), 0)
 
 	var st *string
 	if s := strings.TrimSpace(q.Get("status")); s != "" {

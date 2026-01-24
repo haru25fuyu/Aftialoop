@@ -2,10 +2,11 @@ package function
 
 import (
 	"animaloop/config"
+	db "animaloop/sql"
 	"animaloop/utils"
+
 	"context"
 	"crypto/rand"
-	"database/sql"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -13,7 +14,6 @@ import (
 	"log"
 	"net/http"
 	"reflect"
-	"strconv"
 	"strings"
 	"time"
 
@@ -31,7 +31,7 @@ import (
 
 // CheckUser はリクエストからアクセストークンとリフレッシュトークンを確認し、ユーザーIDを返します。
 // return: userID, newAccessToken(if refreshed), errMsg
-func CheckUser(db *Database, w http.ResponseWriter, r *http.Request) (string, error) {
+func CheckUser(db *db.Database, w http.ResponseWriter, r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 
 	// ① Access token があればまず検証
@@ -51,7 +51,7 @@ func CheckUser(db *Database, w http.ResponseWriter, r *http.Request) (string, er
 	return userID, nil
 }
 
-func TryRefresh(db *Database, w http.ResponseWriter, r *http.Request) (string, string, error) {
+func TryRefresh(db *db.Database, w http.ResponseWriter, r *http.Request) (string, string, error) {
 	c, err := r.Cookie("refresh_token")
 	if err != nil || c.Value == "" {
 		return "", "", errors.New("refresh token not found")
@@ -92,7 +92,7 @@ func TryRefresh(db *Database, w http.ResponseWriter, r *http.Request) (string, s
 	return user.ID, newAccess, nil
 }
 
-func SetRefreshToken(db *Database, w http.ResponseWriter, userID string) error {
+func SetRefreshToken(db *db.Database, w http.ResponseWriter, userID string) error {
 	expiresAt := time.Now().UTC().Add(14 * 24 * time.Hour)
 	refreshToken := MustRandom(64)
 
@@ -178,7 +178,7 @@ func PrioritizeCard(cards []utils.CardSummary, defaultID string) []utils.CardSum
 	return cards
 }
 
-func LoadUserAndCards(db *Database, user_id string) ([]*utils.CardSummary, error) {
+func LoadUserAndCards(db *db.Database, user_id string) ([]*utils.CardSummary, error) {
 	// ユーザー情報取得
 	userData, err := db.GetUserDataByID(user_id)
 	if err != nil {
@@ -463,7 +463,7 @@ func SetRefreshCookie(w http.ResponseWriter, token string, expiresAt time.Time) 
 }
 
 // ユーザーIDにメールを送信する関数
-func SendEmailToUserID(db *Database, userID string, subject string, htmlContent string) error {
+func SendEmailToUserID(db *db.Database, userID string, subject string, htmlContent string) error {
 	user, err := db.GetUserDataByID(userID)
 	if err != nil {
 		return fmt.Errorf("ユーザー取得失敗: %w", err)
@@ -473,7 +473,7 @@ func SendEmailToUserID(db *Database, userID string, subject string, htmlContent 
 	return err
 }
 
-func InitConfig(db *Database) error {
+func InitConfig(db *db.Database) error {
 	cfg, err := db.LoadFleaConfig()
 	if err != nil {
 		return err
@@ -482,7 +482,7 @@ func InitConfig(db *Database) error {
 	return nil
 }
 
-func UpdateFleaConfig(ctx context.Context, db *Database, cfg config.FleaConfig) error {
+func UpdateFleaConfig(ctx context.Context, db *db.Database, cfg config.FleaConfig) error {
 	if err := db.SaveFleaConfig(ctx, cfg); err != nil {
 		return err
 	}
@@ -497,143 +497,10 @@ func UpdateFleaConfig(ctx context.Context, db *Database, cfg config.FleaConfig) 
 	return nil
 }
 
-func GetFleaConfig() config.FleaConfig {
-	v := config.FleaCfg.Load()
-	if v == nil {
-		return config.FleaConfig{BaseRate: 10200, MaxRate: 11000, RateDen: 10000} // 最低限のフォールバック
-	}
-	return *v.(*config.FleaConfig)
-}
-
-func ToUserProfileResponse(u utils.SqlResponsUserProfile) utils.RequestUserProfile {
-	ptr := func(ns sql.NullString) *string {
-		if ns.Valid {
-			return &ns.String
-		}
-		return nil
-	}
-
-	return utils.RequestUserProfile{
-		ID:          u.ID,
-		Name:        u.Name,
-		Email:       u.Email,
-		DateOfBirth: ptr(u.DateOfBirth),
-		Gender:      ptr(u.Gender),
-		DefaultCard: ptr(u.DefaultCard),
-		PhoneNumber: ptr(u.PhoneNumber),
-		Bio:         ptr(u.Bio),
-		IconURL:     ptr(u.IconURL),
-	}
-}
-
 func GetFrontendURL() string {
 	if config.IsProduction() {
 		return "https://aftialoop.com"
 	} else {
 		return "http://dev.aftialoop.com"
-	}
-}
-
-// 便利関数 -----------------------------
-
-func ParseInt(s string, def int) int {
-	if s == "" {
-		return def
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return def
-	}
-	return n
-}
-func ParseOptInt(s string) *int {
-	if s == "" {
-		return nil
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil {
-		return nil
-	}
-	return &n
-}
-func ParseOptInt64(s string) *int64 {
-	if s == "" {
-		return nil
-	}
-	n, err := strconv.ParseInt(s, 10, 64)
-	if err != nil {
-		return nil
-	}
-	return &n
-}
-func ParseFloat(s string, def float64) float64 {
-	if s == "" {
-		return def
-	}
-	n, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return def
-	}
-	return n
-}
-func ParseBool(s string) bool {
-	switch s {
-	case "1", "true", "TRUE", "True", "on", "yes":
-		return true
-	default:
-		return false
-	}
-}
-
-func normalizeEnum(s string) string {
-	return strings.ToUpper(strings.TrimSpace(s))
-}
-
-func isOneOf(v string, allowed ...string) bool {
-	v = normalizeEnum(v)
-	for _, a := range allowed {
-		if v == a {
-			return true
-		}
-	}
-	return false
-}
-
-func isDuplicateErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	msg := err.Error()
-	return strings.Contains(msg, "Duplicate entry") || strings.Contains(msg, "Error 1062")
-}
-
-// string/float64/int/json.Number なんでも受けて int64 にする
-func ToInt64(v any) (int64, error) {
-	switch t := v.(type) {
-	case nil:
-		return 0, errors.New("nil")
-	case float64:
-		return int64(t), nil
-	case float32:
-		return int64(t), nil
-	case int:
-		return int64(t), nil
-	case int64:
-		return t, nil
-	case json.Number:
-		return t.Int64()
-	case string:
-		s := strings.TrimSpace(t)
-		if s == "" {
-			return 0, errors.New("empty")
-		}
-		// 数字文字列のみ想定
-		n, err := strconv.ParseInt(s, 10, 64) // utils に無ければ strconv.ParseInt(s,10,64) に変えて
-		if err != nil {
-			return 0, err
-		}
-		return n, nil
-	default:
-		return 0, errors.New("unsupported type")
 	}
 }

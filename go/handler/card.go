@@ -2,7 +2,9 @@ package handler
 
 import (
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
+
 	"fmt"
 	"time"
 
@@ -17,11 +19,11 @@ import (
 // cardHandler は /card 系のエンドポイントをまとめたハンドラです
 type cardHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewCardHandler はハンドラのコンストラクタ
-func NewCardHandler(db *function.Database) *cardHandler {
+func NewCardHandler(db *SQL.Database) *cardHandler {
 	return &cardHandler{
 		db: db,
 	}

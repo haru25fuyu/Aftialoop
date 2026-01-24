@@ -2,7 +2,9 @@ package handler
 
 import (
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"animaloop/utils"
+
 	"encoding/json"
 	"log"
 	"net/http"
@@ -13,11 +15,11 @@ import (
 // cartHandler は /cart 系のエンドポイントをまとめたハンドラです
 type cartHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewCartHandler はハンドラのコンストラクタ
-func NewCartHandler(db *function.Database) *cartHandler {
+func NewCartHandler(db *SQL.Database) *cartHandler {
 	return &cartHandler{
 		db: db,
 	}

@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"animaloop/function"
+	SQL "animaloop/sql"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -16,11 +16,11 @@ type paymentRequest struct {
 // adminHandler は /admin 系のエンドポイントをまとめたハンドラです
 type paymentHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewAdminHandler はハンドラのコンストラクタ
-func NewPaymentHandler(db *function.Database) *paymentHandler {
+func NewPaymentHandler(db *SQL.Database) *paymentHandler {
 	return &paymentHandler{
 		db: db,
 	}

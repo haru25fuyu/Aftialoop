@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"animaloop/config"
 	"animaloop/function"
 	"animaloop/utils"
 	"encoding/json"
@@ -98,17 +99,18 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		description = &desc
 	}
 
-	price := function.ParseInt(r.FormValue("price"), 0)
+	price := utils.ParseInt(r.FormValue("price"), 0)
 
 	// ★ 変更：seller_plus_pct（0..N）
-	sellerPlusPct := function.ParseInt(r.FormValue("seller_plus_pct"), 0)
+	sellerPlusPct := utils.ParseInt(r.FormValue("seller_plus_pct"), 0)
 
 	// サーバー側設定（信用できるのはサーバー）
-	cfg := function.GetFleaConfig()
+	cfg := config.GetFleaConfig()
 
 	// 1.02 -> 10200 のような bp（basis points *100 のノリ）
 	baseBP := cfg.BaseRate
 	maxBP := cfg.MaxRate
+	baseCR := cfg.CommissionRate
 
 	// maxPlusPct は設定から逆算（base/max を変えても安全）
 	maxPlusPct := int((maxBP - baseBP) / cfg.RateDen)
@@ -120,14 +122,15 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 
 	// 保存値（bp）
 	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(cfg.RateDen)
+	commissionRateBP := baseCR + int64(sellerPlusPct)*int64(cfg.RateDen)
 
-	quantity := function.ParseInt(r.FormValue("quantity"), 1)
-	isMulti := function.ParseBool(r.FormValue("is_multi_purchasable"))
-	shipFeeType := function.ParseInt(r.FormValue("shipping_fee_type"), 0)
+	quantity := utils.ParseInt(r.FormValue("quantity"), 1)
+	isMulti := utils.ParseBool(r.FormValue("is_multi_purchasable"))
+	shipFeeType := utils.ParseInt(r.FormValue("shipping_fee_type"), 0)
 
-	shipFrom := function.ParseInt(r.FormValue("ship_from_id"), 0)
-	shipsWithin := function.ParseOptInt(r.FormValue("ships_within_days"))
-	mainIndex := function.ParseInt(r.FormValue("main_index"), 0)
+	shipFrom := utils.ParseInt(r.FormValue("ship_from_id"), 0)
+	shipsWithin := utils.ParseOptInt(r.FormValue("ships_within_days"))
+	mainIndex := utils.ParseInt(r.FormValue("main_index"), 0)
 	type_ := r.FormValue("type")
 
 	// ---- 画像を保存して URL 配列を作る ----
@@ -190,6 +193,7 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		ShipFrom:           &shipFrom,
 		ShipsWithinDays:    shipsWithin,
 		SellerRateBP:       int64(sellerRateBP),
+		CommissionRateBP:   int64(commissionRateBP),
 	}
 
 	itemID, err := h.db.CreateFleaMarketItem(userID, in)

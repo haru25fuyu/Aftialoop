@@ -3,6 +3,7 @@ package handler
 import (
 	"animaloop/config"
 	"animaloop/function"
+	SQL "animaloop/sql"
 	"encoding/json"
 
 	"net/http"
@@ -13,11 +14,11 @@ import (
 // adminHandler は /admin 系のエンドポイントをまとめたハンドラです
 type adminHandler struct {
 	// ここに DB やサービスを注入しても OK
-	db *function.Database
+	db *SQL.Database
 }
 
 // NewAdminHandler はハンドラのコンストラクタ
-func NewAdminHandler(db *function.Database) *adminHandler {
+func NewAdminHandler(db *SQL.Database) *adminHandler {
 	return &adminHandler{
 		db: db,
 	}
