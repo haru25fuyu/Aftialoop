@@ -51,8 +51,6 @@ function FleaItemCreatePage() {
     // --------- フォーム状態 ---------
     const [name, setName] = useState("");
     const [price, setPrice] = useState("");
-
-    // ★ 変更：sellerRate をやめて sellerPlusPct（0..8）だけ持つ
     const [sellerPlusPct, setSellerPlusPct] = useState<number>(0);
 
     const [quantity, setQuantity] = useState(1);
