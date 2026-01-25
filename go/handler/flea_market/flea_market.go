@@ -19,11 +19,13 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/flea-market/item/{id}", h.GetFleaMarketItem).Methods("GET")
 	// 一覧・新規出品
 	r.HandleFunc("/flea-market/list", h.ListFleaMarket).Methods("POST")
+	r.HandleFunc("/flea-market/selling/list", h.GetMyListings).Methods("GET")
 	r.HandleFunc("/flea-market/add/item", h.CreateFleaItem).Methods("POST")
 	// ドラフト関連
+	r.HandleFunc("/flea-market/upload/temp", h.UploadTempImage).Methods("POST")
 	r.HandleFunc("/flea-market/draft/save", h.SaveFleaDraft).Methods("POST")
-	r.HandleFunc("/flea-market/draft/{id}", h.GetFleaDraftByID).Methods("GET")
 	r.HandleFunc("/flea-market/draft/list", h.ListFleaDrafts).Methods("GET")
+	r.HandleFunc("/flea-market/draft/{id}", h.GetFleaDraftByID).Methods("GET")
 	r.HandleFunc("/flea-market/draft/{id}", h.DeleteFleaDraft).Methods("DELETE")
 	// 生体詳細
 	r.HandleFunc("/flea-market/item/{id:[0-9]+}/animal-details", h.UpsertAnimalDetails).Methods("POST")
@@ -50,4 +52,5 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/flea-market/transactions/{id}/statement/pdf", h.DownloadSalesStatementPDF).Methods("GET")
 
 	r.HandleFunc("/flea-market/my/sales", h.GetMySalesHistory).Methods("GET")
+	r.HandleFunc("/flea-market/my/sales/exchange", h.ExchangeSalesToPoint).Methods("POST")
 }

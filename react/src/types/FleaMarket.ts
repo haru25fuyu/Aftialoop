@@ -1,11 +1,15 @@
-import { SHIPPING_CARRIERS, ShippingFeePref, ShippingMethod } from "../conf/FleaMarket";
+import {
+  SHIPPING_CARRIERS,
+  ShippingFeePref,
+  ShippingMethod,
+} from "../conf/FleaMarket";
 import { Address } from "./Address";
 
 export type TxRole = "BUYER" | "SELLER";
 
 export type FleaThreadKind = "transaction" | "purchase_request";
 
-export const FLEA_ITEM_TYPES = ["ANIMAL", "SUPPLY"] as const;
+export const FLEA_ITEM_TYPES = ["ANIMAL", "SUPPLY", "GOODS"] as const;
 export type FleaItemType = (typeof FLEA_ITEM_TYPES)[number];
 export interface FleaContent {
   id: number;
@@ -125,4 +129,30 @@ export type FleaThreadResponse = {
 
   item: FleaContent;
   address: Address;
+};
+
+export interface ListingItem {
+  id: number;
+  name: string;
+  price: number;
+  main_image_url: string;
+  status: number; // 1:出品中, 2:取引中, 3:売却済み
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DraftItem {
+  draft_id: number;
+  name: string | null;
+  price: string | null; // 下書きは未入力(null)や文字の可能性もあるため
+  main_image_url: string | null;
+  updated_at: string;
+}
+
+
+export type ImageAsset = {
+    id: string;      // フロントでの識別用ユニークID
+    file?: File;     // 新規追加時はFileがある
+    url: string;     // 表示用＆サーバー保存用URL
+    serverId?: number; // サーバーにアップロード済みの場合のID
 };

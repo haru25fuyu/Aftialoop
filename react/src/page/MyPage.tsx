@@ -1,115 +1,213 @@
-// PaymentForm.tsx
-import React, { useState } from 'react';
-import { useEffect } from 'react';
+import React, { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import {
+    User, Settings, ChevronRight, Wallet, Coins,
+    ShoppingBag, Package, List, Heart, LogOut, MapPin, CreditCard
+} from "lucide-react";
+import { Header } from "../component/Header";
+import api from "../conf/api";
+import { CONFIG } from "../conf/config";
 
-import Header from '../component/Header';
-import Footer from '../component/Footer';
-import LoginModal from '../modal/Login';
-import ContentsList from '../component/ContentsList';
-import { Content } from '../types/Content';
-import BasicContent, { LinkContent } from '../component/Content';
+// ユーザー情報の型定義
+interface UserProfile {
+    id: string;
+    name: string;
+    icon_url: string;
+    point: number;
+    sales_balance: number;
+    listings_count: number; // 出品数
+    followers_count: number;
+    following_count: number;
+}
 
-import api, { getAccessToken } from '../conf/api';
-import { LogOut } from 'lucide-react';
+export default function MyPage() {
+    const navigate = useNavigate();
+    const [user, setUser] = useState<UserProfile | null>(null);
 
-const MyPage: React.FC = () => {
-    const [isLoginModalOpen, setLoginModalOpen] = useState(false);
-    const [reloadTrigger, setReloadTrigger] = useState(0);
     useEffect(() => {
-        const token = getAccessToken();
-        console.log("MyPage トークン確認:", token);
-        if (!token || token === 'undefined') {
-            setLoginModalOpen(true); // ← ここだけにする
-            return;
-        }
+        // ユーザー情報取得 (API実装済み想定)
+        api.post("/mypage").then((res) => {
+            if (!res.data.user) {
+                navigate("/login"); // 未ログインなら飛ばす
+            } else {
+                setUser(res.data.user);
+                console.log("ユーザー情報:", res.data.user);
+            }
+        });
+    }, []);
 
-        api.post('/mypage')
-            .then((res) => {
-                console.log("マイページ情報:", res.data);
-            })
-            .catch((err) => {
-                console.error(err);
-                setLoginModalOpen(true); // ← navigate せずモーダル表示
-            });
-    }, [reloadTrigger]);
-
-    const handleLoginSuccess = () => {
-        console.log("ログイン成功 - MyPage");
-        setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
-    };
-
-    const Logout = (isLogout: boolean) => {
-        if (isLogout) {
-            setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
-        }
-    };
-
-    const logContent: Content[] = [
-        { id: '1', name: '商品1', discription: "商品1の説明", price: 1000, point: 1000, image_url: '/data/Logo.JPG' },
-        { id: '2', name: '商品2', discription: "商品1の説明", price: 2000, point: 2000, image_url: '/data/Logo.JPG' },
-        { id: '3', name: '商品3', discription: "商品1の説明", price: 3000, point: 3000, image_url: '/data/Logo.JPG' },
-        { id: '4', name: '商品4', discription: "商品1の説明", price: 4000, point: 4000, image_url: '/data/Logo.JPG' },
-        { id: '5', name: '商品5', discription: "商品1の説明", price: 5000, point: 5000, image_url: '/data/Logo.JPG' },
-        { id: '6', name: '商品6', discription: "商品1の説明", price: 6000, point: 6000, image_url: '/data/Logo.JPG' },
-        { id: '7', name: '商品7', discription: "商品1の説明", price: 7000, point: 7000, image_url: '/data/Logo.JPG' },
-        { id: '8', name: '商品8', discription: "商品1の説明", price: 8000, point: 8000, image_url: '/data/Logo.JPG' },
-        { id: '9', name: '商品9', discription: "商品1の説明", price: 9000, point: 9000, image_url: '/data/Logo.JPG' },
-        { id: '10', name: '商品10', discription: "商品1の説明", price: 10000, point: 10000, image_url: '/data/Logo.JPG' },
-    ];
-    const linkContent: Content[] = [
-        { id: '1', name: '支払い方法', discription: "商品1の説明", price: 0, point: 0, image_url: '/payment/list' },
-        { id: '2', name: 'アカウント設定', discription: "商品1の説明", price: 0, point: 0, image_url: '/profile' },
-        { id: '3', name: 'アドレス帳', discription: "商品1の説明", price: 0, point: 0, image_url: '/address/list' },
-        { id: '4', name: 'サブスクリプション管理', discription: "商品1の説明", price: 0, point: 0, image_url: '/150x150.png' },
-    ];
+    if (!user) return <div className="p-10 text-center">Loading...</div>;
 
     return (
-        <div className="flex flex-col min-h-screen">
-            <header>
-                <Header />
-            </header>
-            <LoginModal
-                isOpen={isLoginModalOpen}
-                onClose={() => { setLoginModalOpen(false); }} // 閉じられないので空関数 or 固定表示
-                onLoginSuccess={handleLoginSuccess}
-            />
-            <main className="flex-grow">
-                <div className="flex-grow flex justify-center items-center mt-10 max-md:mt-0">
-                    <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded shadow-md">
-                        <h2 className="text-2xl font-bold text-center text-gray-900">マイページ</h2>
-                        <div className="space-y-4">
-                            <div>
-                                <h3 className="text-xl font-semibold">注文履歴</h3>
-                                <div className="flex overflow-x-auto space-x-4">
-                                    <ContentsList contents={logContent} Component={BasicContent} slider={true} show_num={3} />
+        <>
+            <Header />
+            <div className="max-w-md mx-auto pb-20 bg-gray-50 min-h-screen">
+
+                {/* --- 1. プロフィールエリア (一番上) --- */}
+                <div className="bg-white p-6 pb-8">
+                    <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-full bg-gray-200 overflow-hidden border border-gray-100">
+                            {/* アバター画像がなければデフォルトアイコン */}
+                            {user.icon_url ? (
+                                <img src={ CONFIG.BASE_URL + user.icon_url} alt="avatar" className="w-full h-full object-cover" />
+                            ) : (
+                                <div className="w-full h-full flex items-center justify-center bg-gray-100 text-gray-400">
+                                    <User size={32} />
                                 </div>
+                            )}
+                        </div>
+                        <div className="flex-1">
+                            <h1 className="text-xl font-bold text-gray-800">{user.name}</h1>
+                            <Link to="/mypage/profile/edit" className="text-xs text-gray-400 hover:text-blue-500">
+                                プロフィールを編集 &gt;
+                            </Link>
+                        </div>
+                    </div>
+
+                    {/* フォロワー・出品数などのステータス */}
+                    <div className="flex justify-between mt-6 text-center border-t border-gray-100 pt-4">
+                        <div className="flex-1 border-r border-gray-100">
+                            <div className="text-lg font-bold text-gray-800">{user.listings_count}</div>
+                            <div className="text-xs text-gray-400">出品数</div>
+                        </div>
+                        <div className="flex-1 border-r border-gray-100">
+                            <div className="text-lg font-bold text-gray-800">{user.following_count}</div>
+                            <div className="text-xs text-gray-400">フォロー</div>
+                        </div>
+                        <div className="flex-1">
+                            <div className="text-lg font-bold text-gray-800">{user.followers_count}</div>
+                            <div className="text-xs text-gray-400">フォロワー</div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* --- 2. お金とポイント (Wallet) --- */}
+                <div className="p-4">
+                    <div className="grid grid-cols-2 gap-3">
+                        {/* 売上金 (さっき作ったページへ遷移) */}
+                        <Link to="/mypage/sales" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-24 hover:shadow-md transition relative overflow-hidden group">
+                            <div className="absolute right-[-10px] top-[-10px] bg-blue-50 w-20 h-20 rounded-full opacity-50 group-hover:scale-110 transition"></div>
+                            <div className="flex items-center gap-2 text-blue-600 font-bold text-sm relative z-10">
+                                <Wallet size={18} /> 売上金残高
                             </div>
-                            <div>
-                                <h3 className="text-xl font-semibold">お気に入りリスト</h3>
-                                <div className="flex overflow-x-auto space-x-4">
-                                    <ContentsList contents={logContent} Component={BasicContent} slider={true} show_num={3} />
-                                </div>
+                            <div className="text-xl font-bold text-gray-800 relative z-10">
+                                ¥{(user.sales_balance ?? 0).toLocaleString()}
                             </div>
-                            <div>
-                                <h3 className="text-xl font-semibold">アカウントサービス</h3>
-                                <div className="flex overflow-x-auto space-x-4">
-                                    <ContentsList contents={linkContent} Component={LinkContent} slider={true} show_num={3} />
-                                </div>
-                                <button
-                                    className="w-full px-4 py-2 mt-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700"
-                                    onClick={() => Logout(true)}
-                                >
-                                    ログアウト
-                                </button>   
+                        </Link>
+
+                        {/* ポイント */}
+                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-24 relative overflow-hidden">
+                            <div className="absolute right-[-10px] top-[-10px] bg-yellow-50 w-20 h-20 rounded-full opacity-50"></div>
+                            <div className="flex items-center gap-2 text-yellow-600 font-bold text-sm relative z-10">
+                                <Coins size={18} /> 保有ポイント
+                            </div>
+                            <div className="text-xl font-bold text-gray-800 relative z-10">
+                                {(user.point ?? 0).toLocaleString()} P
                             </div>
                         </div>
                     </div>
                 </div>
-            </main>
-            <Footer />
-        </div>
+
+                {/* --- 3. やることリスト (ToDo) --- */}
+                {/* フリマアプリなら「発送してください」「評価してください」が出る場所 */}
+                <div className="bg-orange-50 border border-orange-100 mx-4 p-3 rounded-lg flex items-center justify-between mb-4 cursor-pointer hover:bg-orange-100">
+                    <div className="flex items-center gap-3 text-sm font-bold text-orange-800">
+                        <span className="bg-orange-500 text-white text-xs px-2 py-0.5 rounded-full">New</span>
+                        <span>発送待ちの商品があります</span>
+                    </div>
+                    <ChevronRight size={16} className="text-orange-400" />
+                </div>
+
+                {/* --- 4. メニューリスト --- */}
+                <div className="space-y-6 px-4">
+
+                    {/* ▼ 買い物・取引関係 */}
+                    <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                        <h2 className="text-xs font-bold text-gray-400 mb-2 ml-1">お買い物・取引</h2>
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden divide-y divide-gray-50">
+
+                            <MenuItem
+                                icon={<ShoppingBag size={20} className="text-gray-400" />}
+                                label="購入した商品・取引履歴"
+                                to="/mypage/transactions" // ← さっき作った履歴ページへ
+                                sub="公式・フリマ"
+                            />
+
+                            <MenuItem
+                                icon={<Heart size={20} className="text-gray-400" />}
+                                label="いいね！した商品"
+                                to="/mypage/likes"
+                            />
+                        </div>
+                    </section>
+
+                    {/* ▼ 出品関係 */}
+                    <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                        <h2 className="text-xs font-bold text-gray-400 mb-2 ml-1">出品・販売</h2>
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden divide-y divide-gray-50">
+                            <MenuItem
+                                icon={<List size={20} className="text-gray-400" />}
+                                label="出品した商品"
+                                to="/mypage/selling/list"
+                                sub="出品中・取引中・売却済み"
+                            />
+                            <MenuItem
+                                icon={<Package size={20} className="text-gray-400" />}
+                                label="下書き一覧"
+                                to="/mypage/drafts/list"
+                            />
+                        </div>
+                    </section>
+
+                    {/* ▼ 設定・その他 */}
+                    <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                        <h2 className="text-xs font-bold text-gray-400 mb-2 ml-1">設定・アカウント</h2>
+                        <div className="bg-white rounded-xl shadow-sm overflow-hidden divide-y divide-gray-50">
+                            <MenuItem
+                                icon={<MapPin size={20} className="text-gray-400" />}
+                                label="お届け先住所の管理"
+                                to="/mypage/address"
+                            />
+                            <MenuItem
+                                icon={<CreditCard size={20} className="text-gray-400" />}
+                                label="支払い方法（カード）"
+                                to="/mypage/payment"
+                            />
+                            <MenuItem
+                                icon={<Settings size={20} className="text-gray-400" />}
+                                label="アカウント設定"
+                                to="/mypage/settings"
+                            />
+                            <button
+                                onClick={() => {
+                                    api.post("/logout").then(() => window.location.href = "/");
+                                }}
+                                className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition text-red-500"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <LogOut size={20} />
+                                    <span className="text-sm font-medium">ログアウト</span>
+                                </div>
+                            </button>
+                        </div>
+                    </section>
+                </div>
+
+            </div>
+        </>
     );
-};
+}
 
-export default MyPage;
-
+// メニュー項目のコンポーネント
+const MenuItem = ({ icon, label, to, sub }: { icon: React.ReactNode, label: string, to: string, sub?: string }) => (
+    <Link to={to} className="flex items-center justify-between p-4 hover:bg-gray-50 transition">
+        <div className="flex items-center gap-3">
+            {icon}
+            <div>
+                <div className="text-sm font-medium text-gray-800">{label}</div>
+                {sub && <div className="text-xs text-gray-400 mt-0.5">{sub}</div>}
+            </div>
+        </div>
+        <ChevronRight size={16} className="text-gray-300" />
+    </Link>
+);

@@ -1,5 +1,6 @@
 import api from "./api";
 import {
+  FleaItemType,
   FleaThreadResponse,
   FleaTransactionRow,
   TxRole,
@@ -99,14 +100,26 @@ export function calcTxPhase(tx: FleaTransactionRow, role: TxRole): TxPhase {
     return "SHIPPING";
   }
 
-  if(tx.status === "SHIPPED") return "SHIPPED";
-  
+  if (tx.status === "SHIPPED") return "SHIPPED";
+
   if (tx.status === "RATED_BY_BUYER") return "RATED_BY_BUYER";
 
   if (tx.status === "COMPLETED") return "COMPLETE";
 
   return "UNKNOWN";
 }
+
+export const CATEGORY_OPTIONS: {
+  value: FleaItemType;
+  label: string;
+  icon: string;
+}[] = [
+  { value: "ANIMAL", label: "生体", icon: "🐞" },
+  { value: "SUPPLY", label: "用品", icon: "📦" },
+  // 将来的に増やす例:
+  { value: "GOODS", label: "グッズ", icon: "🎨" },
+  // { value: "OTHER", label: "その他", icon: "✨" },
+];
 
 // 取引を発送済みに変更するAPI呼び出し
 export async function ChangeTxStatustoShipped(

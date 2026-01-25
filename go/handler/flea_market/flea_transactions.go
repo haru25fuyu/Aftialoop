@@ -376,7 +376,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 
 	// 1. ポイント減算
 	if input.UsePoints > 0 {
-		if err := h.db.ChargePointTx(ctx, txDB, buyerID, input.UsePoints); err != nil {
+		if err := h.db.ChargePointTx(ctx, txDB, buyerID, input.UsePoints, "商品購入で利用"); err != nil {
 			log.Println("Error charging points:", err)
 			http.Error(w, "failed to charge points", http.StatusBadRequest)
 			return

@@ -24,10 +24,9 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 		  f.type,
 		  f.main_image_url,
 		  u.name    AS seller_name,
-		  p.icon_url AS seller_icon_url
+		  u.icon_url AS seller_icon_url
 		FROM flea_items AS f
 		LEFT JOIN users   AS u ON u.id     = f.user_id
-		LEFT JOIN profile AS p ON p.user_id = f.user_id
 		WHERE f.deleted_at IS NULL
 		AND f.status = ?
 		ORDER BY f.created_at DESC
@@ -88,10 +87,9 @@ func (d *Database) GetFleaMarketItemByID(id uint64) (*utils.FleaMarketItemDetail
         SELECT 
             f.*, 
             u.name AS user_name, 
-            p.icon_url AS user_icon
+            u.icon_url AS user_icon
         FROM flea_items AS f
         JOIN users AS u ON u.id = f.user_id
-        LEFT JOIN profile AS p ON p.user_id = u.id
         WHERE f.id = ? 
           AND f.deleted_at IS NULL
         LIMIT 1;
@@ -287,4 +285,47 @@ func (d *Database) GetFleaMarketCommissionRate(itemID uint64) (int64, error) {
 		return 0, err
 	}
 	return rate, nil
+}
+
+// ユーザーの出品数をカウント (削除済み以外)
+func (d *Database) CountUserListings(userID string) (int, error) {
+	var count int
+	// status != 0 (出品中) や status != 99 (削除) など、仕様に合わせて調整してください
+	// ここでは単純に「論理削除されていない自分の商品」を数えます
+	err := d.DB.Get(&count, `
+        SELECT COUNT(*) 
+        FROM flea_items 
+        WHERE user_id = ? AND deleted_at IS NULL
+    `, userID)
+
+	if err != nil {
+		return 0, err
+	}
+	return count, nil
+}
+
+// ---------------------------------------------------------
+// マイページ用: 出品した商品一覧 (status > 0)
+// ---------------------------------------------------------
+func (d *Database) GetUserListings(ctx context.Context, userID string, limit, offset int) ([]utils.FleaMarketItemResponse, error) {
+	if d.DB == nil {
+		return nil, errors.New("db not ready")
+	}
+
+	// status > 0 (1:出品中, 2:取引中, 3:売却済み) のものを取得
+	// 下書きは別テーブルにあるので、ここでは status=0 は除外される（または存在しない）前提
+	query := `
+        SELECT id, name, price, main_image_url, status, created_at, updated_at
+        FROM flea_items 
+        WHERE user_id = ? AND status > 0 AND deleted_at IS NULL
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `
+
+	var items []utils.FleaMarketItemResponse
+	err := d.DB.SelectContext(ctx, &items, query, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	return items, nil
 }

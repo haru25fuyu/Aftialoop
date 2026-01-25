@@ -7,8 +7,12 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -116,6 +120,7 @@ func (h *FleaMarketHandler) ListFleaDrafts(w http.ResponseWriter, r *http.Reques
 	defer cancel()
 	resp, err := h.db.ListDraftsByUser(ctx, uid, limit, offset)
 	if err != nil {
+		log.Printf("[draft.list] db error: %v", err)
 		http.Error(w, "db error", 500)
 		return
 	}
@@ -143,8 +148,70 @@ func (h *FleaMarketHandler) DeleteFleaDraft(w http.ResponseWriter, r *http.Reque
 			http.Error(w, "not found", 404)
 			return
 		}
+		log.Printf("[draft.delete] delete failed: %v", err)
 		http.Error(w, "delete failed", 500)
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// レスポンスの型定義
+type UploadResponse struct {
+	ID  int64  `json:"id"`
+	URL string `json:"url"`
+}
+
+func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Request) {
+	// 1. 画像サイズの制限 (例: 10MB)
+	r.ParseMultipartForm(10 << 20)
+
+	// 2. フロントから送られてきた "image" を取得
+	file, handler, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
+		return
+	}
+	defer file.Close()
+
+	// 3. 保存先ディレクトリの作成 (なければ作る)
+	uploadDir := "/var/www/web/Aftialoop/go/static"
+
+	// ディレクトリがなければ作る（権限エラーが出る場合は事前にmkdirが必要かも）
+	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
+		os.MkdirAll(uploadDir, 0755)
+	}
+
+	// 4. ユニークなファイル名を生成 (タイムスタンプ + 元のファイル名)
+	filename := fmt.Sprintf("%d-%s", time.Now().UnixNano(), handler.Filename)
+	filepath := filepath.Join(uploadDir, filename)
+
+	// 5. ファイルを保存
+	dst, err := os.Create(filepath)
+	if err != nil {
+		http.Error(w, "Error saving the file", http.StatusInternalServerError)
+		return
+	}
+	defer dst.Close()
+
+	if _, err := io.Copy(dst, file); err != nil {
+		http.Error(w, "Error copying the file", http.StatusInternalServerError)
+		return
+	}
+
+	// 6. DBに情報を保存 (IDを発番するため)
+	// ※ 公開用URL: "/static/" というパスでアクセスできる前提とします
+	publicURL := fmt.Sprintf("/static/%s", filename)
+
+	id, err := h.db.UploadImageAsset(publicURL)
+	if err != nil {
+		http.Error(w, "Error saving file info to DB", http.StatusInternalServerError)
+		return
+	}
+
+	// 7. JSONで結果を返す
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(UploadResponse{
+		ID:  id,
+		URL: publicURL, // フロントエンドはこのURLを使って画像を表示します
+	})
 }

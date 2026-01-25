@@ -711,5 +711,18 @@ func (d *Database) MarkFleaTransactionCompleted(tx *sql.Tx, txID uint64, feeAmou
 		return fmt.Errorf("target transaction not found or invalid state (id=%d)", txID)
 	}
 
+	//アイテムのステータスを売却済みに変更する
+	const q2 = `
+		UPDATE flea_items
+		SET status = ?
+		WHERE id = (
+			SELECT item_id FROM flea_transactions WHERE id = ?
+		) AND status = ?
+	`
+	_, err = tx.Exec(q2, config.FleaItemStatusSold, txID, config.FleaItemStatusTrading)
+	if err != nil {
+		return fmt.Errorf("item status update failed: %w", err)
+	}
+
 	return nil
 }

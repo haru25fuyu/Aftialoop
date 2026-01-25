@@ -55,24 +55,31 @@ func (mt MySQLTime) Time() time.Time {
    ユーザー関連
 ========================= */
 
+// User (簡易版)
 type User struct {
-	ID    string `json:"id"`
-	Name  string `json:"name"`
-	Email string `json:"email"`
-	Exp   int64  `json:"exp"`
-	Limit int    `json:"limit"`
+	ID      string  `json:"id"`
+	Name    string  `json:"name"`
+	Email   string  `json:"email"`
+	IconURL *string `json:"icon_url"`
+	Exp     int64   `json:"exp"`
+	Limit   int     `json:"limit"`
 }
 
+// SqlUser (usersテーブルの全カラムに対応)
 type SqlUser struct {
-	ID          string `db:"id" json:"id"`
-	CustomerID  string `db:"customer_id" json:"customer_id"`
-	Name        string `db:"name" json:"name"`
-	Email       string `db:"email" json:"email"`
-	Point       int64  `db:"point" json:"point"`
-	Password    string `db:"password" json:"password"`
-	GoogleID    string `db:"google_id" json:"google_id"`
-	AppleID     string `db:"apple_id" json:"apple_id"`
-	DefaultCard string `db:"default_card" json:"default_card"`
+	ID             string  `db:"id" json:"id"`
+	CustomerID     string  `db:"customer_id" json:"customer_id"`
+	Name           string  `db:"name" json:"name"`
+	Email          string  `db:"email" json:"email"`
+	Point          int64   `db:"point" json:"point"`
+	IconURL        *string `db:"icon_url" json:"icon_url"`
+	Password       string  `db:"password" json:"password"`
+	GoogleID       string  `db:"google_id" json:"google_id"`
+	AppleID        string  `db:"apple_id" json:"apple_id"`
+	DefaultCard    string  `db:"default_card" json:"default_card"`
+	FollowingCount int     `db:"following_count" json:"following_count"`
+	FollowersCount int     `db:"followers_count" json:"followers_count"`
+	SalesBalance   int64   `db:"sales_balance" json:"sales_balance"`
 }
 
 /* =========================
@@ -84,7 +91,6 @@ type Profile struct {
 	Gender      *string `db:"gender" json:"gender"`
 	PhoneNumber *string `db:"phone_number" json:"phone"`
 	Bio         *string `db:"bio" json:"bio"`
-	IconURL     *string `db:"icon_url" json:"image"`
 }
 
 type RequestUserProfile struct {
@@ -93,10 +99,10 @@ type RequestUserProfile struct {
 	Email       string  `db:"email" json:"email"`
 	DateOfBirth *string `db:"date_of_birth" json:"birth"`
 	Gender      *string `db:"gender" json:"gender"`
-	DefaultCard *string `db:"default_card" json:"defaultCard"`
+	DefaultCard *string `db:"default_card" json:"default_card"`
 	PhoneNumber *string `db:"phone_number" json:"phone"`
 	Bio         *string `db:"bio" json:"bio"`
-	IconURL     *string `db:"icon_url" json:"image"`
+	IconURL     *string `db:"icon_url" json:"icon_url"`
 }
 
 type SqlResponsUserProfile struct {
@@ -105,10 +111,10 @@ type SqlResponsUserProfile struct {
 	Email       string         `db:"email" json:"email"`
 	DateOfBirth sql.NullString `db:"date_of_birth" json:"birth"`
 	Gender      sql.NullString `db:"gender" json:"gender"`
-	DefaultCard sql.NullString `db:"default_card" json:"defaultCard"`
-	PhoneNumber sql.NullString `db:"phone_number" json:"phone"`
+	DefaultCard sql.NullString `db:"default_card" json:"default_card"`
+	PhoneNumber sql.NullString `db:"phone_number" json:"phone_number"`
 	Bio         sql.NullString `db:"bio" json:"bio"`
-	IconURL     sql.NullString `db:"icon_url" json:"image"`
+	IconURL     sql.NullString `db:"icon_url" json:"icon_url"`
 }
 
 type Address struct {
@@ -440,9 +446,10 @@ type AcceptPurchaseRequestInput struct {
 type DraftListItem struct {
 	DraftID uint64 `json:"draft_id"`
 	// タイトル列がないので Name をそのまま表示用に使う（無ければ "ドラフト #ID" をフロントで補う）
-	Name      *string `json:"name"`
-	UpdatedAt string  `json:"updated_at"`
-	Status    int     `json:"status"`
+	Name         *string `json:"name"`
+	UpdatedAt    string  `json:"updated_at"`
+	Status       int     `json:"status"`
+	MainImageURL *string `json:"main_image_url"`
 }
 
 type DraftListResponse struct {
@@ -451,34 +458,41 @@ type DraftListResponse struct {
 }
 
 type LatestDraftResponse struct {
-	DraftID            uint64    `json:"draft_id"`
-	Name               *string   `json:"name"`
-	Description        *string   `json:"description"`
-	Price              *string   `json:"price"`
-	Quantity           *int      `json:"quantity"`
-	Type               *string   `json:"type"`
-	IsMultiPurchasable *int      `json:"is_multi_purchasable"`
-	ShippingFeeType    *int      `json:"shipping_fee_type"`
-	ShipFrom           *string   `json:"ship_from"`
-	ShipsWithinDays    *int      `json:"ships_within_days"`
-	MainImageURL       *string   `json:"main_image_url"`
-	TempImageURLs      *[]string `json:"temp_image_urls"`
-	UpdatedAt          string    `json:"updated_at"`
+	DraftID            uint64                `json:"draft_id"`
+	Name               *string               `json:"name"`
+	Description        *string               `json:"description"`
+	Price              *string               `json:"price"`
+	Quantity           *int                  `json:"quantity"`
+	Type               *string               `json:"type"`
+	IsMultiPurchasable *int                  `json:"is_multi_purchasable"`
+	ShippingFeeType    *int                  `json:"shipping_fee_type"`
+	ShipFrom           *string               `json:"ship_from"`
+	ShipsWithinDays    *int                  `json:"ships_within_days"`
+	MainImageURL       *string               `json:"main_image_url"`
+	UploadedImages     *[]DraftUploadedImage `json:"uploaded_images"`
+	UpdatedAt          string                `json:"updated_at"`
 }
 
 type DraftPayload struct {
-	Name               *string         `json:"name"`
-	Description        *string         `json:"description"`
-	Price              *string         `json:"price"`
-	Quantity           *int            `json:"quantity"`
-	Type               *string         `json:"type"`
-	IsMultiPurchasable *int            `json:"is_multi_purchasable"`
-	ShippingFeeType    *int            `json:"shipping_fee_type"`
-	ShipFrom           *int            `json:"ship_from"`
-	ShipsWithinDays    *int            `json:"ships_within_days"`
-	MainImageURL       *string         `json:"main_image_url"`
-	TempImageURLs      *[]string       `json:"temp_image_urls"`
-	Details            json.RawMessage `json:"details,omitempty"`
+	Name               *string               `json:"name"`
+	Description        *string               `json:"description"`
+	Price              *string               `json:"price"`
+	Quantity           *int                  `json:"quantity"`
+	Type               *string               `json:"type"`
+	IsMultiPurchasable *int                  `json:"is_multi_purchasable"`
+	ShippingFeeType    *int                  `json:"shipping_fee_type"`
+	ShipFrom           *int                  `json:"ship_from"`
+	ShipsWithinDays    *int                  `json:"ships_within_days"`
+	MainImageURL       *string               `json:"main_image_url"`
+	UploadedImages     *[]DraftUploadedImage `json:"uploaded_images"`
+	Details            json.RawMessage       `json:"details,omitempty"`
+}
+
+// 画像情報の型も定義
+type DraftUploadedImage struct {
+	ID       string `json:"id"`
+	ServerID int64  `json:"serverId"`
+	URL      string `json:"url"`
 }
 
 type SaveDraftRequest struct {
@@ -531,4 +545,38 @@ func ToUserProfileResponse(u SqlResponsUserProfile) RequestUserProfile {
 		Bio:         ptr(u.Bio),
 		IconURL:     ptr(u.IconURL),
 	}
+}
+
+type SalesHistoryResponse struct {
+	Balance   int64              `json:"balance"`   // 現在の残高
+	Histories []SalesHistoryItem `json:"histories"` // 履歴リスト
+}
+
+type SalesHistoryItem struct {
+	ID              uint64 `json:"id" db:"id"`
+	Type            string `json:"type" db:"type"`                         // SALE, WITHDRAWAL, etc.
+	Amount          int64  `json:"amount" db:"amount"`                     // 変動額 (+1000, -500)
+	BalanceSnapshot int64  `json:"balance_snapshot" db:"balance_snapshot"` // その時点の残高
+	Note            string `json:"note" db:"note"`                         // "商品ID:123の売上" など
+	CreatedAt       string `json:"created_at" db:"created_at"`             // 発生日時
+}
+
+// ユーザー投稿
+type UserPost struct {
+	ID            uint64    `db:"id" json:"id"`
+	UserID        string    `db:"user_id" json:"user_id"`
+	User          *User     `db:"-" json:"user,omitempty"` // 投稿者情報(JOIN用)
+	Body          string    `db:"body" json:"body"`
+	ImageURLs     []string  `db:"-" json:"image_urls"` // DBのJSONをパースして入れる
+	LikesCount    int       `db:"likes_count" json:"likes_count"`
+	CommentsCount int       `db:"comments_count" json:"comments_count"`
+	IsLiked       bool      `db:"-" json:"is_liked"` // 閲覧者がいいねしてるか
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+}
+
+// フォロー関係
+type UserRelationship struct {
+	FollowerID  string    `db:"follower_id"`
+	FollowingID string    `db:"following_id"`
+	CreatedAt   time.Time `db:"created_at"`
 }

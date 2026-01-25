@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
     DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent
 } from "@dnd-kit/core";
@@ -6,37 +6,53 @@ import {
     SortableContext, rectSortingStrategy, useSortable, arrayMove
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { CONFIG } from "../conf/config";
+import { ImageAsset } from "../types/FleaMarket"; // ★型をインポート
 
-type Item = { id: string; file: File; url: string; owned: boolean };
+// 内部管理用の型を拡張
+type Item = { 
+    id: string; 
+    url: string; 
+    owned: boolean; 
+    file?: File;         // fileは任意（サーバー画像には無い）
+    serverId?: number;   // サーバーID（あれば保持）
+};
 
 export default function AddImagesModal({
-    open, files, urls, max = 10, onClose, onSave,
+    open, 
+    initialImages, // ★変更: files, urls の代わりにこれを受け取る
+    max = 10, 
+    onClose, 
+    onSave,
 }: {
     open: boolean;
-    files: File[];     // 親の既存画像
-    urls: string[];    // 親が生成した既存URL（filesと同順）
+    initialImages: ImageAsset[]; // ★ ImageAsset配列を受け取る
     max?: number;
     onClose: () => void;
-    onSave: (ordered: File[]) => void; // 先頭=メインで返す
+    onSave: (ordered: ImageAsset[]) => void; // ★ ImageAsset配列を返す
 }) {
     const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
     const inputRef = useRef<HTMLInputElement | null>(null);
 
     const [items, setItems] = useState<Item[]>([]);
 
-    // 開いた時点の既存画像を取り込み（既存URLはowned:falseでrevokeしない）
+    // ★修正: 開いたときに ImageAsset[] から初期状態を作る
     useEffect(() => {
-        if (!open) return;
-        const init: Item[] = files.map((f, i) => ({
-            id: `${i}-${f.name}-${f.size}-${f.lastModified}`,
-            file: f,
-            url: urls[i],     // 既存は親URLを使用
-            owned: false,     // 親管理なのでrevokeしない
-        }));
-        setItems(init);
-    }, [open, files, urls]);
+        if (open) {
+            const init: Item[] = initialImages.map((img) => ({
+                id: img.id,
+                url: img.url,
+                file: img.file,          // あれば保持
+                serverId: img.serverId,  // あれば保持
+                owned: false,            // 親管理なのでrevokeしない
+            }));
+            setItems(init);
+        } else {
+            setItems([]);
+        }
+    }, [open]); // initialImages は open と同期している前提
 
-    // モーダルが閉じるときに「モーダルが生成したURL」だけrevoke
+    // 閉じる時のrevoke処理（ownedなものだけ）
     useEffect(() => {
         if (!open) return;
         return () => {
@@ -50,12 +66,12 @@ export default function AddImagesModal({
         const remain = Math.max(0, max - items.length);
         if (remain <= 0) return;
         const add = Array.from(list).slice(0, remain).map((f, i) => {
-            const url = URL.createObjectURL(f); // モーダル内で暫定URLを生成
+            const url = URL.createObjectURL(f);
             return {
-                id: `${Date.now()}-${i}-${f.name}-${f.size}`,
+                id: `new-${Date.now()}-${i}`,
                 file: f,
                 url,
-                owned: true, // モーダルが所有＝revoke対象
+                owned: true, // 新規追加分なのでモーダルが所有
             } as Item;
         });
         setItems(prev => [...prev, ...add]);
@@ -72,15 +88,25 @@ export default function AddImagesModal({
     const removeAt = (i: number) => {
         setItems(prev => {
             const target = prev[i];
-            if (target?.owned) URL.revokeObjectURL(target.url); // モーダル生成分だけ破棄
-            const next = prev.filter((_, idx) => idx !== i);
-            return next;
+            if (target?.owned) URL.revokeObjectURL(target.url);
+            return prev.filter((_, idx) => idx !== i);
         });
     };
 
     const makeMain = (i: number) => {
         if (i === 0) return;
-        setItems(prev => arrayMove(prev, i, 0)); // 先頭へ
+        setItems(prev => arrayMove(prev, i, 0));
+    };
+
+    // ★追加: 保存ボタンが押されたら、Item[] を ImageAsset[] に戻して返す
+    const handleSave = () => {
+        const result: ImageAsset[] = items.map(it => ({
+            id: it.id,
+            url: it.url,
+            file: it.file,
+            serverId: it.serverId,
+        }));
+        onSave(result);
     };
 
     if (!open) return null;
@@ -118,7 +144,8 @@ export default function AddImagesModal({
                                     <Thumb
                                         key={it.id}
                                         id={it.id}
-                                        url={it.url}           // 既存は親URL、新規はモーダルURL
+                                        // サーバー画像(/static/...)ならBASE_URLをつける、blobならそのまま
+                                        url={it.url.startsWith("blob:") ? it.url : CONFIG.BASE_URL + it.url}
                                         isMain={i === 0}
                                         onRemove={() => removeAt(i)}
                                         onMakeMain={() => makeMain(i)}
@@ -132,7 +159,7 @@ export default function AddImagesModal({
                 <div className="px-5 py-4 border-t flex justify-end gap-2">
                     <button onClick={onClose} className="px-4 h-10 rounded-xl border bg-white">キャンセル</button>
                     <button
-                        onClick={() => onSave(items.map(x => x.file))} // 並び順（先頭=メイン）を返す
+                        onClick={handleSave} // ★修正した関数を呼ぶ
                         className="px-4 h-10 rounded-xl bg-black text-white"
                     >
                         反映する

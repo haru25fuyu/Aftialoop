@@ -60,7 +60,9 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// ポイント決済の処理を実行
-	err = h.db.ChargePoint(user_id, int64(charge.Amount))
+	// ctx と note を追加！
+	// note は "ポイント決済" や "アイテム購入" など、用途に合わせて書いてください
+	err = h.db.ChargePoint(r.Context(), user_id, int64(charge.Amount), "ポイント利用")
 	if err != nil {
 		log.Printf("ポイント決済に失敗: %v", err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -15,35 +15,23 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// userDataHandler は /user 系のエンドポイントをまとめたハンドラです
 type userDataHandler struct {
 	db *SQL.Database
-	// ここに DB やサービスを注入しても OK
 }
 
-// NewUserDataHandler はハンドラのコンストラクタ
 func NewUserDataHandler(db *SQL.Database) *userDataHandler {
-	return &userDataHandler{
-		db: db,
-	}
+	return &userDataHandler{db: db}
 }
 
-// RegisterRoutes がルーティングの登録を行います
 func (h *userDataHandler) RegisterRoutes(r *mux.Router) {
-	// POST /mypage
 	r.HandleFunc("/mypage", h.mypage).Methods("POST")
-	// GET /customer/data
-	r.HandleFunc("/customer/data", h.GetcustomerData).Methods("POST")
-	// DELETE /profile/get
+	r.HandleFunc("/customer/data", h.GetCustomerData).Methods("POST") // メソッド名統一
 	r.HandleFunc("/profile/get", h.GetProfile).Methods("POST")
-	// GET /user/list
 	r.HandleFunc("/profile/edit", h.EditProfile).Methods("POST")
-
 	r.HandleFunc("/customer", h.GetCustomer).Methods("POST")
-
 }
 
-// マイページの取得
+// マイページの取得 (ダッシュボード用: 基本情報 + カウンターのみ)
 func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 	user_id, err := function.CheckUser(h.db, w, r)
 	if err != nil {
@@ -52,45 +40,19 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 結果を格納する変数
-	var history interface{}
-	var favorites interface{}
-	var user interface{}
-
-	// エラーチャネルを用意
-	errCh := make(chan error, 3) // 3つの非同期処理があるためバッファサイズ3
-
+	// 並列処理用のチャネル（エラーハンドリング用）
+	errCh := make(chan error, 2)
 	wg := new(sync.WaitGroup)
 
-	// 履歴取得
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		h, err := h.db.GetHistory(user_id, 0)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		history = h
-	}()
+	var user utils.SqlUser
+	var listingsCount int
 
-	// お気に入り取得
+	// 1. ユーザー基本情報取得 (フォロー数・フォロワー数・アイコン含む)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		f, err := h.db.GetFavoriteItems(user_id, 0)
-		if err != nil {
-			errCh <- err
-			return
-		}
-		favorites = f
-	}()
-
-	// ユーザー情報取得
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		u, err := h.db.GetUserData([]string{"id"}, []interface{}{user_id})
+		// GetUserData は following_count, followers_count, icon_url を含むように修正済み前提
+		u, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{user_id})
 		if err != nil {
 			errCh <- err
 			return
@@ -98,54 +60,53 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 		user = u
 	}()
 
-	// 全ての処理が完了するのを待つ
+	// 2. 出品数をカウント (usersテーブルにカラムがない場合、itemsテーブルから数える)
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		count, err := h.db.CountUserListings(user_id)
+		if err != nil {
+			errCh <- err
+			// カウント失敗しても致命的ではないので、ログだけ出して count=0 で進める手もあり
+			log.Println("出品数カウント失敗:", err)
+			listingsCount = 0
+			return
+		}
+		listingsCount = count
+	}()
+
 	wg.Wait()
 	close(errCh)
 
-	// エラーチェック
+	// エラーがあれば返す（ユーザー取得失敗など）
 	for err := range errCh {
 		if err != nil {
-			// エラーハンドリング
-			log.Println(err)
+			log.Println("MyPage Error:", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
 		}
 	}
-	// レスポンスを返す
+
+	// レスポンス作成
+	// React側(UserProfile型)に合わせて整形
 	response := map[string]interface{}{
-		"history":   history,
-		"favorites": favorites,
-		"user":      user,
-	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
-}
-
-// ユーザー情報取得
-func (h *userDataHandler) GetcustomerData(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
-
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
-		return
-	}
-
-	// IDを返す
-	userData, err := h.db.GetUserDataAndProfile([]string{"u.ID=?"}, []interface{}{user_id})
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
-		return
-	}
-
-	response := map[string]interface{}{
-		"user": userData,
+		"id":              user.ID,
+		"name":            user.Name,
+		"email":           user.Email,
+		"icon_url":        user.IconURL,        // ユーザーアイコン
+		"sales_balance":   user.SalesBalance,   // 売上金 (SqlUserに追加が必要かも)
+		"point":           user.Point,          // ポイント
+		"following_count": user.FollowingCount, // フォロー数
+		"followers_count": user.FollowersCount, // フォロワー数
+		"listings_count":  listingsCount,       // ★追加: 出品数
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(map[string]interface{}{"user": response})
 }
 
-// ユーザー情報取得
+// プロフィール取得 (表示・編集画面用)
+// ★ここを大幅にリファクタリング！
 func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	user_id, err := function.CheckUser(h.db, w, r)
 	if err != nil {
@@ -154,44 +115,36 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ユーザー情報取得
-	userData, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{user_id})
+	// ★ 修正ポイント:
+	// これまでは GetUserData と GetProfile を別々に呼んで結合していましたが、
+	// SQLで JOIN 済みのデータを返す関数を作ったので、それを1発呼ぶだけにします。
+	// これでアイコン(users)も自己紹介(profile)も一度に取れます。
+
+	userData, err := h.db.GetUserDataAndProfile([]string{"u.id = ?"}, []interface{}{user_id})
 	if err != nil {
+		// プロフィールが無い(ユーザーはいる)場合のハンドリングが必要なら
+		// GetUserDataAndProfile 内で LEFT JOIN しているので基本は取れるはず
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "userデータの取得に失敗しました: " + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データ取得失敗: " + err.Error()})
 		return
 	}
 
-	// プロフィール情報取得
-	profileData, err := h.db.GetProfile(user_id)
-	if err != nil {
-		log.Println("DB取得失敗:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "profileデータの取得に失敗しました: " + err.Error()})
-		return
-	}
-
-	// ユーザー情報とプロフィール情報を結合
-	response := map[string]interface{}{
-		"Name":        userData.Name,
-		"Email":       userData.Email,
-		"DateOfBirth": profileData.DateOfBirth,
-		"Gender":      profileData.Gender,
-		"PhoneNumber": profileData.PhoneNumber,
-		"Bio":         profileData.Bio,
-		"IconURL":     profileData.IconURL,
-	}
-
-	log.Println("ユーザー情報取得:", response)
-
+	// レスポンス (RequestUserProfile型をそのまま返せばOK)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(userData)
+}
+
+// ユーザー情報取得 (共通利用)
+func (h *userDataHandler) GetCustomerData(w http.ResponseWriter, r *http.Request) {
+	// GetProfileと同じロジックでOKなら、共通化しても良いですが
+	// 用途が違う（こちらは決済用など）ならそのままで。
+	// 今回は GetProfile と同じく JOIN 版を使います。
+	h.GetProfile(w, r)
 }
 
 // ユーザー情報更新
 func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
-	// 1. multipart/form-dataのリクエストを処理するために、最初にリクエストの解析を行う
-	err := r.ParseMultipartForm(10 << 20) // 例えば最大10MBのフォームデータを許可
+	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
 		http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
 		return
@@ -211,24 +164,18 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 初期値は空文字で
 	var iconPath string
-
-	// 画像がアップロードされているか確認
 	file, _, err := r.FormFile("image")
 	if err == nil {
-		// 画像があるときだけ保存処理
 		defer file.Close()
-
 		dir := "./static/icon/"
-		react_dir := "/static/icon/"
+		react_dir := "/static/icon/" // DB保存用パス
+
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-				http.Error(w, "Failed to create directory", http.StatusInternalServerError)
-				return
-			}
+			os.MkdirAll(dir, os.ModePerm)
 		}
 
+		// キャッシュ対策でファイル名にタイムスタンプを入れるか、UUIDにするのが本来はベター
 		fileName := fmt.Sprintf("icon_%s.png", user_id)
 		iconPath = react_dir + fileName
 
@@ -238,97 +185,72 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		defer outFile.Close()
-
-		if _, err := io.Copy(outFile, file); err != nil {
-			http.Error(w, "Failed to write file", http.StatusInternalServerError)
-			return
-		}
-	} else {
-		// 画像が送信されていない場合は何もしない
-		log.Println("✅ No image uploaded, keeping existing IconURL")
+		io.Copy(outFile, file)
 	}
 
-	log.Println(file)
+	// --- 更新処理 ---
 
-	// ユーザー情報を取得
+	// 1. usersテーブル更新用データ
 	user := utils.SqlUser{
 		ID:    user_id,
 		Name:  request.Name,
 		Email: request.Email,
 	}
+	// ★重要: アイコンURLは users テーブルのカラムになったので、ここでセットする
+	if iconPath != "" {
+		user.IconURL = function.Ptr(iconPath)
+	}
 
-	// 既存プロフィールを取得（←これがキモ！）
-	existingProfile, _ := h.db.GetProfile(user_id)
+	user_map, _ := function.StructToMap(user)
 
+	// usersテーブルを更新 (名前、Email、アイコン)
+	err = h.db.UpdateUser(user_id, user_map)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザー更新失敗: " + err.Error()})
+		return
+	}
+
+	// 2. profileテーブル更新用データ
 	profile := utils.Profile{
 		DateOfBirth: request.DateOfBirth,
 		Gender:      request.Gender,
 		PhoneNumber: request.PhoneNumber,
 		Bio:         request.Bio,
-		IconURL:     existingProfile.IconURL, // デフォは今のやつ
+		// IconURL:   // ★ここからは削除済みなのでセットしない
 	}
 
-	// もし画像が新しくアップロードされてたら、差し替え
-	if iconPath != "" {
-		profile.IconURL = function.Ptr(iconPath)
-	}
+	profile_map, _ := function.StructToMap(profile)
 
-	user_map, err := function.StructToMap(user)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "map変換に失敗しました"})
-		return
-	}
-	// ユーザー情報更新
-	err = h.db.UpdateUser(user_id, user_map)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーデータの更新に失敗しました： " + err.Error()})
-		return
-	}
-
-	profile_map, err := function.StructToMap(profile)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "map変換に失敗しました"})
-		return
-	}
-
-	// プロフィール情報更新
+	// profileテーブルを更新 (自己紹介など)
 	err = h.db.UpdateProfile(user_id, profile_map)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "プロフィールの更新に失敗しました： " + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "プロフィール更新失敗: " + err.Error()})
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "ユーザー情報を更新しました"})
+	json.NewEncoder(w).Encode(map[string]string{"message": "更新しました"})
 }
 
+// GetCustomer (EC購入画面などで使う詳細情報)
 func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
+	// ... (元のコードのままでOK。ただし GetUserData がアイコン等を返すようになっているのでリッチになります)
 	user_id, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
 		return
 	}
 
+	// 最新の GetUserData (icon, follow count入り) を取得
 	customerData, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{user_id})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "カスタマーデータの取得に失敗しました: " + err.Error()})
 		return
 	}
 
-	log.Println("カスタマーデータ取得:", customerData.Point)
-
-	defoltAddress, err := h.db.GetDefaultAddress(user_id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "デフォルトアドレスの取得に失敗しました: " + err.Error()})
-		return
-	}
+	defoltAddress, _ := h.db.GetDefaultAddress(user_id)
 
 	response := map[string]interface{}{
 		"user": customerData,

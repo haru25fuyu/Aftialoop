@@ -4,6 +4,7 @@ import (
 	"animaloop/config"
 	"animaloop/function"
 	"animaloop/utils"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -217,4 +219,40 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)
 	_ = enc.Encode(resp)
+}
+
+// ---------------------------------------------------------
+// ハンドラ: 出品した商品一覧取得
+// GET /mypage/listings/selling
+// ---------------------------------------------------------
+func (h *FleaMarketHandler) GetMyListings(w http.ResponseWriter, r *http.Request) {
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	// クエリパラメータからページング取得
+	q := r.URL.Query()
+	limit := utils.ParseInt(q.Get("limit"), 20)
+	offset := utils.ParseInt(q.Get("offset"), 0)
+
+	// 出品中・売却済みなどの商品を取得
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	listings, err := h.db.GetUserListings(ctx, userID, limit, offset)
+	if err != nil {
+		log.Println("Error fetching listings:", err)
+		http.Error(w, "failed to fetch listings", http.StatusInternalServerError)
+		return
+	}
+
+	// 空の場合は空配列で返す
+	if listings == nil {
+		listings = []utils.FleaMarketItemResponse{}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{"items": listings})
 }

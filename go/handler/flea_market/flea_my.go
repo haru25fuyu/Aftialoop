@@ -2,29 +2,12 @@ package handler
 
 import (
 	"animaloop/function"
+	"animaloop/utils"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"time"
 )
-
-// ---------------------------------------------------------
-// レスポンス用構造体
-// ---------------------------------------------------------
-type SalesHistoryResponse struct {
-	Balance   int64              `json:"balance"`   // 現在の残高
-	Histories []SalesHistoryItem `json:"histories"` // 履歴リスト
-}
-
-type SalesHistoryItem struct {
-	ID              uint64 `json:"id"`
-	Type            string `json:"type"`             // SALE, WITHDRAWAL, etc.
-	Amount          int64  `json:"amount"`           // 変動額 (+1000, -500)
-	BalanceSnapshot int64  `json:"balance_snapshot"` // その時点の残高
-	Note            string `json:"note"`             // "商品ID:123の売上" など
-	CreatedAt       string `json:"created_at"`
-}
 
 // ---------------------------------------------------------
 // ハンドラ: 売上履歴と残高を取得
@@ -39,42 +22,22 @@ func (h *FleaMarketHandler) GetMySalesHistory(w http.ResponseWriter, r *http.Req
 	}
 
 	// 2. 現在の残高を取得 (usersテーブル)
-	var currentBalance int64
-	err = h.db.DB.QueryRow("SELECT sales_balance FROM users WHERE id = ?", userID).Scan(&currentBalance)
+	currentBalance, err := h.db.GetUserSalesBalance(userID)
 	if err != nil {
 		log.Println("Error fetching balance:", err)
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
 
-	// 3. 履歴を取得 (sales_historiesテーブル)
-	rows, err := h.db.DB.Query(`
-        SELECT id, type, amount, balance_snapshot, note, created_at 
-        FROM sales_histories 
-        WHERE user_id = ? 
-        ORDER BY created_at DESC
-        LIMIT 50
-    `, userID)
+	histories, err := h.db.GetUserSalesHistories(userID, 50, 0)
 	if err != nil {
 		log.Println("Error fetching history:", err)
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
-
-	var histories []SalesHistoryItem
-	for rows.Next() {
-		var item SalesHistoryItem
-		var createdAt time.Time
-		if err := rows.Scan(&item.ID, &item.Type, &item.Amount, &item.BalanceSnapshot, &item.Note, &createdAt); err != nil {
-			continue
-		}
-		item.CreatedAt = createdAt.Format(time.RFC3339)
-		histories = append(histories, item)
-	}
 
 	// 4. レスポンス
-	resp := SalesHistoryResponse{
+	resp := utils.SalesHistoryResponse{
 		Balance:   currentBalance,
 		Histories: histories,
 	}
@@ -90,11 +53,17 @@ type ExchangeRequest struct {
 func (h *FleaMarketHandler) ExchangeSalesToPoint(w http.ResponseWriter, r *http.Request) {
 	// 1. 認証 & 入力取得
 	userID, err := function.CheckUser(h.db, w, r)
-	if err != nil { /* ... */
+	if err != nil {
+		log.Println("Unauthorized access attempt")
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
 	}
 
 	var req ExchangeRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil { /* ... */
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Println("Error decoding request:", err)
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
 	}
 
 	// 2. DB更新処理 (売上減らす & ポイント増やす)
@@ -102,6 +71,7 @@ func (h *FleaMarketHandler) ExchangeSalesToPoint(w http.ResponseWriter, r *http.
 	err = h.db.ExchangeSalesToPoint(ctx, userID, req.Amount)
 	if err != nil {
 		// エラーハンドリング (残高不足など)
+		log.Println("Error exchanging sales to point:", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

@@ -47,7 +47,8 @@ func (d *Database) SaveUser(user map[string]interface{}) error {
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, default_card, point FROM users"
+	query := "SELECT id, email, name, default_card, point, icon_url, following_count, followers_count,sales_balance FROM users"
+
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -76,7 +77,7 @@ func (d *Database) GetUserDataWithCustomerIDByID(userID string) (utils.SqlUser, 
 
 // 　カスタマーIDも含めたユーザーデータ取得
 func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, default_card, point, customer_id FROM users"
+	query := "SELECT id, email, name, default_card, point, customer_id, icon_url, following_count, followers_count FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -165,7 +166,7 @@ func (d *Database) SaveProfile(id string, profile map[string]interface{}) error 
 }
 
 func (d *Database) GetProfile(id string) (utils.Profile, error) {
-	query := "SELECT date_of_birth, gender, phone_number, bio, icon_url FROM profile WHERE user_id = ?"
+	query := "SELECT date_of_birth, gender, phone_number, bio FROM profile WHERE user_id = ?"
 	var profile utils.Profile
 
 	err := d.DB.Get(&profile, query, id)
@@ -205,11 +206,12 @@ func (d *Database) UpdateProfile(id string, profile map[string]interface{}) erro
 
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
 	query := `
-		SELECT u.id, u.name, u.email, u.default_card,
-		       p.date_of_birth, p.gender, p.phone_number, p.bio, p.icon_url
-		FROM users u
-		LEFT JOIN profile p ON u.id = p.user_id
-	`
+        SELECT 
+            u.id, u.name, u.email, u.default_card, u.icon_url, -- ★修正: u.icon_url に変更
+            p.date_of_birth, p.gender, p.phone_number, p.bio   -- p.icon_url は削除
+        FROM users u
+        LEFT JOIN profile p ON u.id = p.user_id
+    `
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}

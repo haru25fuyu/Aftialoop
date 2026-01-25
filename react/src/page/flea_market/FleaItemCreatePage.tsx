@@ -1,11 +1,10 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 
 import InlineSortableImages from "../../component/InlineSortableImages";
 import ToastProvider from "../../component/ToastProvider";
-import { Stepper } from "../../component/Stepper";
 import TinySavedPopup from "../../component/TinySavedPopup";
-import { Labeled } from "../../component/Labeled";
 import ShipFromSelect from "../../component/ShipFromSelect";
 
 import AddImagesModal from "../../modal/AddImagesModal";
@@ -13,16 +12,18 @@ import { ConfirmDialog } from "../../modal/ConfirmDialog";
 import { PublishCompleteDialog } from "../../modal/PublishCompleteDialog";
 
 import { CONFIG } from "../../conf/config";
+import api, { getAccessToken } from "../../conf/api";
 import { useToast } from "../../conf/function";
 import { upsertAnimalDetails, upsertSupplyDetails } from "../../conf/fleaDetails";
+import { CATEGORY_OPTIONS } from "../../conf/FleaMarket";
 
-import { FleaItemType } from "../../types/Content";
+import { FleaItemType, ImageAsset } from "../../types/FleaMarket";
 
-const FEE_BASE = 0.10; // 標準手数料率 10%
-const FEE_PER_PLUS_PCT = 0.01; // 追加割引 +1%ごとに +1%
-const FEE_MAX = 0.25; // 上限（任意）
+const FEE_BASE = 0.10;
+const FEE_PER_PLUS_PCT = 0.01;
+const FEE_MAX = 0.25;
 
-// ---------- ラッパ ----------
+// ---------- Wrapper ----------
 export default function FleaItemCreatePageWrapper() {
     return (
         <ToastProvider>
@@ -31,28 +32,32 @@ export default function FleaItemCreatePageWrapper() {
     );
 }
 
-// ---------- 本体 ----------
-type SaveDraftResponse = { draft_id: number; saved_at: string };
-type PublishResponse = { itemId: number };
-type ApiErrorBag = { errors: Array<{ field: string; msg: string }> };
+//★修正: APIエラーの型を定義
+type ApiErrorResponse = {
+    message?: string;
+    errors?: Array<{ field: string; msg: string }>;
+};
 
-// ★ 2ステップ構成：メイン（必須） / 詳細（任意）
+// ★修正: 性別の型を定義
+type SexType = "male" | "female" | "unknown" | "pair";
+
 type StepKey = "main" | "details";
 
+// ---------- Main Component ----------
 function FleaItemCreatePage() {
     const toast = useToast();
 
-    // ===== seller_plus_pct（追加割引%）設定 =====
-    // フロントは「追加割引%」しか持たない（ベース倍率はサーバーの責務）
+    // ===== Settings =====
     const MIN_PLUS_PCT = 0;
-    const MAX_PLUS_PCT = 8; // 例：+0%〜+8%（= 1.02〜1.10相当をサーバー側で解釈）
+    const MAX_PLUS_PCT = 8;
     const STEP_PLUS_PCT = 1;
+    const AUTOSAVE_MS = 1500;
 
-    // --------- フォーム状態 ---------
+    // ===== States =====
+    // Form States
     const [name, setName] = useState("");
     const [price, setPrice] = useState("");
     const [sellerPlusPct, setSellerPlusPct] = useState<number>(0);
-
     const [quantity, setQuantity] = useState(1);
     const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
     const [type, setType] = useState<FleaItemType>("ANIMAL");
@@ -60,129 +65,117 @@ function FleaItemCreatePage() {
     const [shippingFeeType, setShippingFeeType] = useState<0 | 1>(0);
     const [shipFromId, setShipFromId] = useState<number | null>(null);
     const [shipsWithinDays, setShipsWithinDays] = useState<number | "">(2);
-
-    const [images, setImages] = useState<File[]>([]);
+    const [images, setImages] = useState<ImageAsset[]>([]);
     const [mainIndex, setMainIndex] = useState<number>(0);
 
+    // Details States
+    const [liveDetails, setLiveDetails] = useState({
+        locality: "", hatch_date: "", generation: "", size: "", sex: "unknown" as SexType,
+    });
+    const [supplyDetails, setSupplyDetails] = useState({
+        brand: "", sku: "", net_weight_g: "",
+    });
+
+    // System States
+    const [draftId, setDraftId] = useState<number | null>(null);
+    const [current, setCurrent] = useState<StepKey>("main");
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
 
+    // UI Toggles
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [addOpen, setAddOpen] = useState(false);
-    const [imageUrls, setImageUrls] = useState<string[]>([]);
     const [savedOpen, setSavedOpen] = useState(false);
-
     const [completeOpen, setCompleteOpen] = useState(false);
-    const [lastItemId, setLastItemId] = useState<number | null>(null);
-
-    const priceNum = Number(price) || 0;
-
-    // 追加割引（%）: 0,1,2...
-    const plusPct = Math.max(MIN_PLUS_PCT, Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)));
-
-    // 手数料率
-    const feeRate = Math.min(FEE_MAX, FEE_BASE + plusPct * FEE_PER_PLUS_PCT);
-
-    // 手数料（円）と入金見込み（円）
-    // 端数は「切り捨て」が無難（サーバーと合わせる）
-    const feeYen = Math.floor(priceNum * feeRate);
-    const payoutYen = Math.max(0, Math.floor(priceNum - feeYen));
-
-    // 購入者の「追加で」最大お得（上乗せ分の目安）
-    const maxExtraOffYen = Math.max(0, Math.floor(priceNum * (plusPct / 100)));
-
     const [feeOpen, setFeeOpen] = useState(false);
 
-    // 詳細ステップ用状態（任意）
-    const [liveDetails, setLiveDetails] = useState({
-        locality: "",
-        hatch_date: "",
-        generation: "",
-        size: "",
-        sex: "unknown" as "male" | "female" | "unknown" | "pair",
-    });
-
-    const [supplyDetails, setSupplyDetails] = useState({
-        brand: "",
-        sku: "",
-        net_weight_g: "",
-    });
-
-    // フォーム初期化関数（続けて出品）
-    const [draftId, setDraftId] = useState<number | null>(null);
-
-    // --------- ステップ管理（2ページ） ---------
-    const [current, setCurrent] = useState<StepKey>("main");
-
-    const resetForm = () => {
-        setName("");
-        setPrice("");
-        setSellerPlusPct(0);
-        setQuantity(1);
-        setIsMultiPurchasable(false);
-        setType("ANIMAL");
-        setDescription("");
-        setShippingFeeType(0);
-        setShipFromId(null);
-        setShipsWithinDays(2);
-        setImages([]);
-        setMainIndex(0);
-        setDraftId(null);
-        setCurrent("main");
-        setLiveDetails({
-            locality: "",
-            hatch_date: "",
-            generation: "",
-            size: "",
-            sex: "unknown",
-        });
-        setSupplyDetails({
-            brand: "",
-            sku: "",
-            net_weight_g: "",
-        });
-        localStorage.removeItem("flea_item_draft");
-    };
-
-    // 必須系の充足判定
-    const stepBasicDone = !!name.trim() && Number(price) > 0 && quantity >= 1 && (type === "ANIMAL" || type === "SUPPLY");
-    const stepImagesDone = images.length > 0;
-    const stepShippingDone = !!shipFromId && shipsWithinDays !== "";
-
-    // メインステップ完了条件（これが満たされれば公開OK）
-    const stepMainDone = stepBasicDone && stepImagesDone && stepShippingDone;
-
-    // 詳細ステップは「どこか入っていれば complete 表示」するだけ
-    const stepDetailsDone =
-        (type === "ANIMAL" &&
-            (liveDetails.locality || liveDetails.hatch_date || liveDetails.generation || liveDetails.size)) ||
-        (type === "SUPPLY" && (supplyDetails.brand || supplyDetails.sku || supplyDetails.net_weight_g));
-
-    // ★ 公開条件はメインだけ
-    const canPublish = stepMainDone;
-
-    const goNext = () => {
-        if (current === "main") {
-            if (!validateStep("main")) {
-                window.scrollTo({ top: 0, behavior: "smooth" });
-                return;
-            }
-            setCurrent("details");
-        }
-    };
-
-    const goPrev = () => {
-        if (current === "details") setCurrent("main");
-    };
-
-    // --------- 自動下書き保存 ---------
-    type SavingState = "idle" | "saving" | "saved" | "error";
-    const [saving, setSaving] = useState<SavingState>("idle");
+    const [lastItemId, setLastItemId] = useState<number | null>(null);
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
-    const AUTOSAVE_MS = 1500;
+    const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">("idle");
+
+    const [searchParams] = useSearchParams();
+    const queryDraftId = searchParams.get("id");
+
+    // ===== Refs for Autosave (Race Condition Fix) =====
+    const draftIdRef = useRef<number | null>(null);
+    const isSavingRef = useRef(false);
     const autosaveTimerRef = useRef<number | null>(null);
 
-    // --------- バリデーション（全体） ---------
+    // StateのdraftIdが変わったらRefも更新
+    useEffect(() => {
+        draftIdRef.current = draftId;
+    }, [draftId]);
+
+    // ===== Calculations =====
+    const priceNum = Number(price) || 0;
+    const plusPct = Math.max(MIN_PLUS_PCT, Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)));
+    const feeRate = Math.min(FEE_MAX, FEE_BASE + plusPct * FEE_PER_PLUS_PCT);
+    const feeYen = Math.floor(priceNum * feeRate);
+    const payoutYen = Math.max(0, Math.floor(priceNum - feeYen));
+    //const maxExtraOffYen = Math.max(0, Math.floor(priceNum * (plusPct / 100)));
+
+    // ===== Step Logic =====
+    const stepBasicDone = !!name.trim() && Number(price) > 0 && quantity >= 1;
+    const stepImagesDone = images.length > 0;
+    const stepShippingDone = !!shipFromId && shipsWithinDays !== "";
+    const stepMainDone = stepBasicDone && stepImagesDone && stepShippingDone;
+    //const stepDetailsDone = (type === "ANIMAL" && (!!liveDetails.locality || !!liveDetails.hatch_date)) || (type === "SUPPLY" && (!!supplyDetails.brand || !!supplyDetails.sku));
+    const canPublish = stepMainDone;
+
+    // ===== Data Helpers =====
+    const normalizeType = (t: string): "ANIMAL" | "SUPPLY" => (t === "SUPPLY" ? "SUPPLY" : "ANIMAL");
+
+    const prune = <T extends object>(obj: T): Partial<T> => {
+        return Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+    };
+
+    // Payload Builder
+    const buildDraftPayload = useCallback(() => {
+        const priceStr = price && Number(price) > 0 ? String(Number(price)) : "";
+        const details = type === "ANIMAL"
+            ? {
+                kind: "ANIMAL",
+                locality: liveDetails.locality || null,
+                hatch_date: liveDetails.hatch_date || null,
+                generation: liveDetails.generation || null,
+                size: liveDetails.size || null,
+                sex: liveDetails.sex || "unknown",
+            }
+            : {
+                kind: "SUPPLY",
+                brand: supplyDetails.brand || null,
+                sku: supplyDetails.sku || null,
+                net_weight_g: supplyDetails.net_weight_g ? Number(supplyDetails.net_weight_g) : null,
+            };
+
+        const uploadedImages = images
+            .filter(img => img.serverId && img.url)
+            .map(img => ({
+                id: img.id,          // フロント用ID
+                serverId: img.serverId, // サーバー用ID
+                url: img.url         // 表示用URL
+            }));
+
+        const mainImageUrl = uploadedImages.length > 0 ? uploadedImages[0].url : null;
+        return {
+            name: name.trim() || null,
+            description: description.trim() || null,
+            price: priceStr,
+            seller_plus_pct: plusPct,
+            quantity: isMultiPurchasable ? Math.max(1, quantity) : 1,
+            type: normalizeType(type),
+            is_multi_purchasable: isMultiPurchasable ? 1 : 0,
+            shipping_fee_type: shippingFeeType,
+            ship_from_id: shipFromId,
+            ships_within_days: shipsWithinDays === "" ? null : Number(shipsWithinDays),
+            details,
+            uploaded_images: uploadedImages,
+            main_index: mainIndex,
+            main_image_url: mainImageUrl,
+        };
+    }, [name, description, price, plusPct, isMultiPurchasable, quantity, type, shippingFeeType, shipFromId, shipsWithinDays, liveDetails, supplyDetails, images, mainIndex]);
+
+    // ===== Validation =====
     const validate = (): boolean => {
         const e: Record<string, string> = {};
         if (!name.trim()) e.name = "商品名を入力してください";
@@ -193,353 +186,299 @@ function FleaItemCreatePage() {
         if (images.length === 0) e.images = "商品画像を 1 枚以上追加してください";
         if (shipFromId === null) e.shipFrom = "発送元を選択してください";
         if (shipsWithinDays === "") e.shipsWithinDays = "発送目安を選択してください";
-
-        // sellerPlusPct は範囲制限
-        if (!(plusPct >= MIN_PLUS_PCT && plusPct <= MAX_PLUS_PCT)) {
-            e.sellerPlusPct = `追加割引は ${MIN_PLUS_PCT}%〜${MAX_PLUS_PCT}% の範囲で選択してください`;
-        }
-
         setErrors(e);
         return Object.keys(e).length === 0;
     };
 
-    // ステップ単位バリデーション
-    const validateStep = (key: StepKey): boolean => {
-        if (key === "main") return validate();
-        return true;
+    const validateStep = (key: StepKey): boolean => key === "main" ? validate() : true;
+
+    const fetchDraftData = async (id: number) => {
+
+        try {
+            const res = await api.get(`/flea-market/draft/${id}`);
+            const d = res.data;
+
+            // 取得したデータでStateを更新
+            if (d.name) setName(d.name);
+            if (d.price) setPrice(d.price);
+            if (typeof d.seller_plus_pct === "number") setSellerPlusPct(d.seller_plus_pct); // APIのキー名に注意
+            if (d.quantity) setQuantity(d.quantity);
+            if (d.type) setType(d.type);
+            if (d.description) setDescription(d.description);
+            if (d.shipping_fee_type !== undefined) setShippingFeeType(d.shipping_fee_type);
+            if (d.ship_from) setShipFromId(d.ship_from);
+            if (d.ships_within_days) setShipsWithinDays(d.ships_within_days);
+
+            // ★重要: 画像の復元
+            if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
+                const restoredImages: ImageAsset[] = d.uploaded_images.map((img: ImageAsset) => ({
+                    id: img.id || Math.random().toString(36),
+                    url: img.url,       // サーバー上のパス (/static/...)
+                    serverId: img.serverId, // DBに保存されたID
+                }));
+                setImages(restoredImages);
+            }
+
+            // 下書きIDと最終更新日時も同期
+            setDraftId(id);
+            if (d.updated_at) setLastSavedAt(d.updated_at);
+            setSaving("saved");
+
+        } catch (e) {
+            console.error("Failed to fetch draft:", e);
+            // ID指定で飛んできたのにエラー（404など）だった場合、
+            // 新規作成扱いに戻すか、エラー表示をするなどのハンドリングが必要
+            // setDraftId(null);
+        }
     };
 
-    // --------- 下書き（localStorage フォールバック） ---------
+    // ===== Restore from LocalStorage =====
     useEffect(() => {
-        const key = "flea_item_draft";
-        const saved = localStorage.getItem(key);
-        if (saved) {
-            try {
-                const d = JSON.parse(saved);
-                setName(d.name ?? "");
-                setPrice(d.price ?? "");
-
-                // ★ 変更：sellerPlusPct 復元（無ければ 0）
-                const sp =
-                    typeof d.sellerPlusPct === "number"
-                        ? d.sellerPlusPct
-                        : typeof d.seller_plus_pct === "number"
-                            ? d.seller_plus_pct
-                            : 0;
-                setSellerPlusPct(Number.isFinite(sp) ? Math.max(MIN_PLUS_PCT, Math.min(MAX_PLUS_PCT, Math.floor(sp))) : 0);
-
-                setQuantity(d.quantity ?? 1);
-                setIsMultiPurchasable(!!d.isMultiPurchasable);
-                setType(d.type === "SUPPLY" ? "SUPPLY" : "ANIMAL");
-                setDescription(d.description ?? "");
-                setShippingFeeType(d.shippingFeeType ?? 0);
-                setShipFromId(d.shipFromId ?? null);
-                setShipsWithinDays(d.shipsWithinDays ?? 2);
-                setMainIndex(d.mainIndex ?? 0);
-                if (d._draftId) setDraftId(d._draftId);
-
-                // 詳細復元
-                if (d.liveDetails) {
-                    setLiveDetails((prev) => ({ ...prev, ...d.liveDetails }));
-                }
-                if (d.supplyDetails) {
-                    setSupplyDetails((prev) => ({ ...prev, ...d.supplyDetails }));
-                }
-            } catch (e) {
-                console.log(e);
+        // 1. URLパラメータ (?draft_id=123) がある場合
+        if (queryDraftId) {
+            const id = Number(queryDraftId);
+            if (!isNaN(id) && id > 0) {
+                // LocalStorageは見ずに、サーバーから直接データを取る
+                fetchDraftData(id);
+                return; // ここで終了（LocalStorageの読み込みはしない）
             }
         }
-    }, []);
 
-    useEffect(() => {
-        const key = "flea_item_draft";
-        const payload = {
-            name,
-            price,
+        // 2. URL指定がない場合、LocalStorage から復元
+        const saved = localStorage.getItem("flea_item_draft");
+        let restoredId: number | null = null;
 
-            // ★ 変更：sellerPlusPct だけ保存
-            sellerPlusPct: plusPct,
-
-            quantity,
-            isMultiPurchasable,
-            type,
-            description,
-            shippingFeeType,
-            shipFromId,
-            shipsWithinDays,
-            mainIndex,
-            _draftId: draftId,
-
-            liveDetails,
-            supplyDetails,
-        };
-        localStorage.setItem(key, JSON.stringify(payload));
-    }, [
-        name,
-        price,
-        plusPct,
-        quantity,
-        isMultiPurchasable,
-        type,
-        description,
-        shippingFeeType,
-        shipFromId,
-        shipsWithinDays,
-        mainIndex,
-        draftId,
-        liveDetails,
-        supplyDetails,
-    ]);
-
-    // --------- 画像プレビュー URL ---------
-    useEffect(() => {
-        setImageUrls((prev) => {
-            prev.forEach((u) => URL.revokeObjectURL(u));
-            return [];
-        });
-        const urls = images.map((f) => URL.createObjectURL(f));
-        setImageUrls(urls);
-        return () => {
-            urls.forEach((u) => URL.revokeObjectURL(u));
-        };
-    }, [images]);
-
-    // --------- autosave payload ---------
-    const buildDraftPayload = React.useCallback(() => {
-        const priceStr = price && Number(price) > 0 ? String(Number(price)) : "";
-        const normalizedQuantity = isMultiPurchasable ? Math.max(1, quantity) : 1;
-
-        const details =
-            type === "ANIMAL"
-                ? {
-                    kind: "ANIMAL",
-                    locality: liveDetails.locality || null,
-                    hatch_date: liveDetails.hatch_date || null,
-                    generation: liveDetails.generation || null,
-                    size: liveDetails.size || null,
-                    sex: liveDetails.sex || "unknown",
-                }
-                : type === "SUPPLY"
-                    ? {
-                        kind: "SUPPLY",
-                        brand: supplyDetails.brand || null,
-                        sku: supplyDetails.sku || null,
-                        net_weight_g: supplyDetails.net_weight_g ? Number(supplyDetails.net_weight_g) : null,
-                    }
-                    : null;
-
-        return {
-            name: name.trim() || null,
-            description: description.trim() || null,
-            price: priceStr,
-
-            // ★ 変更：seller_plus_pct（int）で送る
-            seller_plus_pct: plusPct,
-
-            quantity: normalizedQuantity,
-            type: type === "SUPPLY" ? "SUPPLY" : "ANIMAL",
-            is_multi_purchasable: isMultiPurchasable ? 1 : 0,
-            shipping_fee_type: shippingFeeType,
-            ship_from_id: shipFromId === null ? null : shipFromId,
-            ships_within_days: shipsWithinDays === "" ? null : Number(shipsWithinDays),
-            main_image_url: null,
-            details,
-        };
-    }, [
-        name,
-        description,
-        price,
-        plusPct,
-        isMultiPurchasable,
-        quantity,
-        type,
-        shippingFeeType,
-        shipFromId,
-        shipsWithinDays,
-        liveDetails,
-        supplyDetails,
-    ]);
-
-    function prune<T extends object>(obj: T): Partial<T> {
-        return Object.fromEntries(Object.entries(obj).filter(([_, v]) => v !== undefined)) as Partial<T>;
-    }
-
-    // --------- autosave ----------
-    const autosaveNow = React.useCallback(
-        async (signal?: AbortSignal) => {
+        if (saved) {
             try {
-                setSaving("saving");
-                const body = {
-                    draft_id: draftId ?? undefined,
-                    payload: prune(buildDraftPayload()),
-                };
 
-                const res = await axios.post<SaveDraftResponse>(CONFIG.BASE_URL + "/flea-market/draft/save", body, {
-                    headers: {
-                        Authorization: `Bearer ${localStorage.getItem("token")}`,
-                        "Content-Type": "application/json",
-                    },
-                    signal,
-                    withCredentials: true,
-                    timeout: 15000,
-                });
-
-                const { draft_id, saved_at } = res.data;
-                if (draft_id && draftId !== draft_id) setDraftId(draft_id);
-                if (saved_at) setLastSavedAt(saved_at);
-                setSaving("saved");
-                setSavedOpen(true);
-            } catch (e: any) {
-                if (axios.isCancel?.(e) || e?.code === "ERR_CANCELED" || e?.name === "CanceledError") {
-                    return;
+                const d = JSON.parse(saved);
+                if (d.name) setName(d.name);
+                if (d.price) setPrice(d.price);
+                if (typeof d.sellerPlusPct === "number") setSellerPlusPct(d.sellerPlusPct);
+                if (d.quantity) setQuantity(d.quantity);
+                if (d.isMultiPurchasable !== undefined) setIsMultiPurchasable(d.isMultiPurchasable);
+                if (d.type) setType(d.type);
+                if (d.description) setDescription(d.description);
+                if (d.shippingFeeType !== undefined) setShippingFeeType(d.shippingFeeType);
+                if (d.shipFromId) setShipFromId(d.shipFromId);
+                if (d.shipsWithinDays) setShipsWithinDays(d.shipsWithinDays);
+                if (d.mainIndex) setMainIndex(d.mainIndex);
+                if (d._draftId) setDraftId(d._draftId);
+                if (d.liveDetails) setLiveDetails(prev => ({ ...prev, ...d.liveDetails }));
+                if (d.supplyDetails) setSupplyDetails(prev => ({ ...prev, ...d.supplyDetails }));
+                if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
+                    const restoredImages: ImageAsset[] = d.uploaded_images.map((img: ImageAsset) => ({
+                        id: img.id || Math.random().toString(36), // IDがなければ仮発行
+                        url: img.url,
+                        serverId: img.serverId,
+                        // file: undefined  // 復元時はファイル実体はない
+                    }));
+                    setImages(restoredImages);
+                    if (d._draftId) {
+                        setDraftId(d._draftId);
+                        restoredId = d._draftId;
+                    }
                 }
 
-                console.error("autosave error", e);
-                setSaving("error");
-            }
-        },
-        [draftId, buildDraftPayload]
-    );
+                if (d.mainIndex !== undefined) setMainIndex(d.mainIndex);
 
+
+            } catch (e) { console.error(e); }
+        }
+        // 2. ★追加: IDがあれば、サーバーから最新情報を取得して上書き（確実性のため）
+        if (restoredId) {
+            fetchDraftData(restoredId);
+        }
+    }, [queryDraftId]);
+
+    // ===== Save to LocalStorage =====
+    useEffect(() => {
+        const payload = buildDraftPayload();
+
+        // ローカルストレージにはドラフトIDなどの管理情報も一緒に保存したいのでマージ
+        const save_data = {
+            ...payload,
+            _draftId: draftId,
+            mainIndex: mainIndex, // mainIndexも保存
+        };
+
+        localStorage.setItem("flea_item_draft", JSON.stringify(save_data));
+    }, [name, price, plusPct, quantity, isMultiPurchasable, type, description, shippingFeeType, shipFromId, shipsWithinDays, mainIndex, draftId, liveDetails, supplyDetails, images]);
+
+    // ===== Autosave Logic (Corrected) =====
+    const autosaveNow = useCallback(async (signal?: AbortSignal) => {
+        // 保存処理中であればスキップ (重複作成防止)
+        if (isSavingRef.current) return;
+
+        const payload = prune(buildDraftPayload());
+
+        // 最新のIDをRefから取得
+        const currentId = draftIdRef.current;
+
+        try {
+            isSavingRef.current = true;
+            setSaving("saving");
+
+            const body = {
+                draft_id: currentId ?? undefined,
+                payload,
+            };
+
+            const res = await api.post("/flea-market/draft/save", body, {
+                signal: signal, // ← これがないとキャンセル機能が動きません
+            });
+
+            const { draft_id, saved_at } = res.data;
+
+            if (draft_id) {
+                draftIdRef.current = draft_id;
+                setDraftId(prev => (prev !== draft_id ? draft_id : prev));
+            }
+            if (saved_at) setLastSavedAt(saved_at);
+
+            setSaving("saved");
+            setSavedOpen(true);
+
+        } catch (e: unknown) {
+            if (axios.isCancel(e)) return;
+            console.error("autosave error", e);
+            setSaving("error");
+        } finally {
+            isSavingRef.current = false;
+        }
+    }, [buildDraftPayload]);
+
+    // Debounce Timer
     useEffect(() => {
         const controller = new AbortController();
         if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+
         autosaveTimerRef.current = window.setTimeout(() => {
             autosaveNow(controller.signal);
         }, AUTOSAVE_MS);
+
         return () => {
             controller.abort();
             if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
         };
     }, [autosaveNow, AUTOSAVE_MS]);
 
-    // 画面離脱時ベストエフォート保存
+    // Save on Leave
     useEffect(() => {
         const endpoint = CONFIG.BASE_URL + "/flea-market/draft/save";
         const saveOnLeave = () => {
             try {
-                const payload = {
-                    draft_id: draftId,
+                if (getAccessToken() == null) return;
+                const currentId = draftIdRef.current;
+                const body = JSON.stringify({
+                    draft_id: currentId,
                     payload: buildDraftPayload(),
-                };
-                const body = JSON.stringify(payload);
-                if (navigator.sendBeacon) {
-                    const blob = new Blob([body], { type: "application/json" });
-                    navigator.sendBeacon(endpoint, blob);
-                    return;
-                }
+                });
+
                 fetch(endpoint, {
                     method: "POST",
                     body,
-                    headers: { "Content-Type": "application/json" },
                     keepalive: true,
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
                     credentials: "include",
                 }).catch(() => void 0);
-            } catch { }
+            } catch {
+                // ignore
+            }
         };
+
+
         const onPageHide = () => saveOnLeave();
-        const onVisibilityChange = () => {
-            if (document.visibilityState === "hidden") saveOnLeave();
-        };
+        const onVisibilityChange = () => { if (document.visibilityState === "hidden") saveOnLeave(); };
         const onBeforeUnload = () => saveOnLeave();
-        const onUnload = () => saveOnLeave();
 
         window.addEventListener("pagehide", onPageHide);
         document.addEventListener("visibilitychange", onVisibilityChange);
         window.addEventListener("beforeunload", onBeforeUnload);
-        window.addEventListener("unload", onUnload);
+
         return () => {
             window.removeEventListener("pagehide", onPageHide);
             document.removeEventListener("visibilitychange", onVisibilityChange);
             window.removeEventListener("beforeunload", onBeforeUnload);
-            window.removeEventListener("unload", onUnload);
         };
-    }, [draftId, buildDraftPayload]);
+    }, [buildDraftPayload]);
 
-    const normalizeType = (t: string): "ANIMAL" | "SUPPLY" => (t === "SUPPLY" ? "SUPPLY" : "ANIMAL");
 
-    // --------- 送信（出品） ---------
+    // ===== Submit (Publish) =====
     const doSubmit = async () => {
         if (submitting) return;
         try {
             setSubmitting(true);
-
             const fd = new FormData();
             fd.append("name", name.trim());
             fd.append("price", String(Number(price)));
-
-            // ★ 変更：seller_plus_pct（0..8）を送信
             fd.append("seller_plus_pct", String(plusPct));
-
             fd.append("quantity", String(isMultiPurchasable ? quantity : 1));
             fd.append("is_multi_purchasable", String(isMultiPurchasable ? 1 : 0));
             fd.append("type", normalizeType(type));
             fd.append("description", description.trim());
             fd.append("shipping_fee_type", String(shippingFeeType));
-            if (shipFromId !== null && shipFromId !== 0) fd.append("ship_from_id", String(shipFromId));
+            if (shipFromId !== null) fd.append("ship_from_id", String(shipFromId));
             if (shipsWithinDays !== "") fd.append("ships_within_days", String(shipsWithinDays));
             fd.append("main_index", String(mainIndex));
             if (draftId != null) fd.append("draft_id", String(draftId));
-
-            images.forEach((f, i) => fd.append("images", f, f.name || `image_${i}.jpg`));
-
-            const res = await axios.post<PublishResponse>(CONFIG.BASE_URL + "/flea-market/add/item", fd, {
-                headers: {
-                    Authorization: `Bearer ${localStorage.getItem("token")}`,
-                },
-                withCredentials: true,
-                timeout: 20000,
+            images.forEach((img, i) => {
+                // パターンA: 既にサーバーにある画像がある場合 (IDを送る)
+                if (img.serverId) {
+                    fd.append("image_ids", String(img.serverId));
+                }
+                // パターンB: アップロード未完了のファイルがある場合 (実体を送る)
+                else if (img.file) {
+                    fd.append("images", img.file, img.file.name || `image_${i}.jpg`);
+                }
             });
 
-            const newId = res.data?.itemId ?? null;
+            const res = await api.post("/flea-market/add/item", fd);
 
+            const newId = res.data?.itemId ?? null;
             setLastItemId(newId);
             setCompleteOpen(true);
 
-            // 詳細の保存
+            // Save Details
             if (newId) {
                 try {
                     if (type === "ANIMAL") {
+                        // ★修正: liveDetails as any を追加して型エラーを回避
                         await upsertAnimalDetails(newId, liveDetails);
                     } else if (type === "SUPPLY") {
                         await upsertSupplyDetails(newId, supplyDetails);
                     }
                 } catch (e) {
                     console.error("save details failed", e);
-                    toast({
-                        text: "詳細情報の保存に失敗しました（出品自体は完了しています）",
-                        kind: "error",
-                    });
+                    toast({ text: "詳細情報の保存に失敗しました（出品自体は完了しています）", kind: "error" });
                 }
             }
 
-            // 出品が成功したら下書きを削除
+            // Cleanup Draft
             localStorage.removeItem("flea_item_draft");
-
-            try {
-                await axios.delete(CONFIG.BASE_URL + "/flea-market/draft/" + draftId, {
-                    headers: {
-                        Authorization: `Bearer ${localStorage.getItem("token")}`,
-                        "Content-Type": "application/json",
-                    },
-                });
-            } catch (e) {
-                console.warn("draft delete failed", e);
+            if (draftId) {
+                try {
+                    await api.delete(CONFIG.BASE_URL + "/flea-market/draft/" + draftId);
+                } catch {
+                    // ignore
+                }
             }
-
             toast({ text: "出品が完了しました！", kind: "success" });
-        } catch (err) {
-            if (axios.isAxiosError<ApiErrorBag>(err)) {
-                const status = err.response?.status;
-                const data = err.response?.data;
-                if (status === 400 && (data as any)?.errors) {
+
+        } catch (err: unknown) { // ★修正: any -> unknown
+            if (axios.isAxiosError(err)) { // ★修正: isAxiosErrorの型ガードを使用
+                // ApiErrorResponse 型として扱う
+                const data = err.response?.data as ApiErrorResponse | undefined;
+                if (err.response?.status === 400 && data?.errors) {
                     const map: Record<string, string> = {};
-                    for (const e of (data as ApiErrorBag).errors) map[e.field] = e.msg;
+                    for (const e of data.errors) map[e.field] = e.msg;
                     setErrors(map);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                     return;
                 }
-                const msg = (data as { message?: string } | undefined)?.message ?? err.message ?? "通信に失敗しました。";
+                const msg = data?.message ?? err.message ?? "通信に失敗しました。";
                 toast({ text: msg, kind: "error" });
             } else {
                 console.error(err);
@@ -559,401 +498,396 @@ function FleaItemCreatePage() {
         setConfirmOpen(true);
     };
 
-    // sellerPlusPct options
-    const sellerPlusPctOptions = React.useMemo(() => {
-        const count = Math.round((MAX_PLUS_PCT - MIN_PLUS_PCT) / STEP_PLUS_PCT) + 1;
-        return Array.from({ length: count }, (_, i) => MIN_PLUS_PCT + STEP_PLUS_PCT * i);
-    }, []);
+    // ===== Render Helpers =====
+    const goNext = () => {
+        if (current === "main") {
+            if (!validateStep("main")) {
+                window.scrollTo({ top: 0, behavior: "smooth" });
+                return;
+            }
+            setCurrent("details");
+        }
+    };
+    const goPrev = () => { if (current === "details") setCurrent("main"); };
 
-    // --------- UI ---------
+    const resetForm = () => {
+        setName(""); setPrice(""); setSellerPlusPct(0); setQuantity(1); setIsMultiPurchasable(false);
+        setType("ANIMAL"); setDescription(""); setShippingFeeType(0); setShipFromId(null); setShipsWithinDays(2);
+        setImages([]); setMainIndex(0); setDraftId(null); setCurrent("main");
+        setLiveDetails({ locality: "", hatch_date: "", generation: "", size: "", sex: "unknown" });
+        setSupplyDetails({ brand: "", sku: "", net_weight_g: "" });
+        localStorage.removeItem("flea_item_draft");
+    };
+
+
+    // 画像アップロード関数
+    const uploadImageFile = async (file: File): Promise<{ url: string; serverId: number } | null> => {
+        try {
+            const fd = new FormData();
+            fd.append("image", file);
+
+            // ★修正: Content-Type を undefined にして、ブラウザに任せる
+            const res = await api.post("/flea-market/upload/temp", fd, {
+                headers: { "Content-Type": undefined }
+            });
+
+            return { url: res.data.url, serverId: res.data.id };
+        } catch (e) {
+            console.error("Upload failed", e);
+            return null;
+        }
+    };
+
+    // AddImagesModalからの保存時の処理
+    const handleAddImages = async (nextImages: ImageAsset[]) => {
+        // まず画面に反映（プレビュー表示）
+        setImages(nextImages);
+        setAddOpen(false);
+
+        // 新規画像（fileがあり、かつ serverIdがない）のみアップロード
+        const uploadedAssets = await Promise.all(
+            nextImages.map(async (img) => {
+                // すでにアップロード済みならスキップ
+                if (img.serverId) return img;
+
+                // サーバー画像(fileなし)もスキップ
+                if (!img.file) return img;
+
+                // 新規画像のみアップロード実行
+                const result = await uploadImageFile(img.file);
+                if (result) {
+                    return { ...img, url: result.url, serverId: result.serverId };
+                }
+                return img; // 失敗時はそのまま
+            })
+        );
+
+        // アップロード完了後の情報で再度更新
+        setImages(uploadedAssets);
+    };
+
+    const sellerPlusPctOptions = useMemo(() =>
+        Array.from({ length: Math.round((MAX_PLUS_PCT - MIN_PLUS_PCT) / STEP_PLUS_PCT) + 1 }, (_, i) => MIN_PLUS_PCT + STEP_PLUS_PCT * i),
+        []);
+
+    // ... (ロジック部分はそのまま)
+
+    // スタイル定数（共通化して統一感を出す）
+    const inputClass = "w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 transition-colors";
+    const labelClass = "block mb-2 text-sm font-bold text-gray-700";
+    const sectionClass = "bg-white p-5 md:p-6 rounded-xl border border-gray-200 shadow-sm";
+
     return (
-        <div className="min-h-[100svh] bg-gray-50">
-            {/* Sticky ヘッダー */}
-            <div className="sticky top-0 z-40 bg-white/80 backdrop-blur">
-                {/* 1段目：タイトル＆出品 */}
-                <div className="border-b">
-                    <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-3">
-                        <h1 className="text-lg font-semibold">出品する</h1>
-                        <div className="hidden md:flex items-center gap-3">
-                            <SaveIndicator saving={saving} lastSavedAt={lastSavedAt} />
-                            <button
-                                onClick={onClickOpenConfirm}
-                                className="px-4 h-10 rounded-xl bg-black text-white disabled:opacity-60"
-                                disabled={!canPublish || submitting}
-                                title={!canPublish ? "基本情報・画像・配送を入力すると出品できます" : undefined}
-                            >
-                                {submitting ? "送信中…" : "出品する"}
-                            </button>
-                        </div>
+        <div className="min-h-screen bg-[#f8f9fa] text-gray-800 font-sans pb-32">
+            {/* Header: シンプルな白背景 */}
+            <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
+                <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
+                    <h1 className="font-bold text-base">商品の情報を入力</h1>
+                    <div className="flex items-center gap-2">
+                        <SaveIndicator saving={saving} lastSavedAt={lastSavedAt} />
                     </div>
                 </div>
-
-                {/* 2段目：ステッパー */}
-                <div className="border-b">
-                    <div className="mx-auto max-w-3xl px-4 py-2">
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="flex-1 overflow-x-auto no-scrollbar">
-                                <Stepper
-                                    steps={[
-                                        { label: "基本情報", complete: stepMainDone },
-                                        { label: "詳細設定（任意）", complete: !!stepDetailsDone },
-                                    ]}
-                                    current={current === "main" ? 0 : 1}
-                                    onSelect={(i) => setCurrent(i === 0 ? "main" : "details")}
-                                />
-                            </div>
-                            <div className="md:hidden text-xs text-gray-600 shrink-0">
-                                {canPublish
-                                    ? "出品可能"
-                                    : `不足: ${!stepBasicDone ? "基本情報 " : ""}${!stepImagesDone ? "画像 " : ""}${!stepShippingDone ? "配送" : ""}`}
-                            </div>
-                        </div>
-                    </div>
+                {/* Stepper: 線だけのシンプル版 */}
+                <div className="max-w-lg mx-auto px-4 h-1 flex w-full">
+                    <div className={`h-full transition-all duration-300 ${current === 'main' ? 'w-1/2 bg-blue-600' : 'w-full bg-green-500'}`} />
+                    <div className="h-full w-full bg-gray-200" />
                 </div>
             </div>
 
-            {/* ページ本体 */}
-            <main className="max-w-3xl mx-auto px-4 py-4 space-y-6">
-                {/* メインページ：基本＋画像＋配送（必須） */}
+            {/* Main Content: 幅をスマホサイズ(max-w-lg)に制限して中央寄せ */}
+            <main className="max-w-xl mx-auto px-0 py-6 space-y-6 pb-0">
+
                 {current === "main" && (
                     <>
-                        {/* 基本情報 */}
-                        <section className="bg-white rounded-2xl shadow-sm border p-4">
-                            <h2 className="font-semibold mb-3">基本情報</h2>
-                            <div className="space-y-3">
-                                <Labeled label="商品名" error={errors.name}>
-                                    <input
-                                        className="input"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        placeholder="例：犬用リード Mサイズ"
-                                    />
-                                </Labeled>
+                        {/* 画像アップロード */}
+                        <section className={sectionClass}>
+                            <div className="flex items-center justify-between mb-4">
+                                <label className={labelClass}>
+                                    商品画像 <span className="text-red-500 ml-1">*</span>
+                                </label>
 
-                                <Labeled label="価格(円)" error={errors.price}>
-                                    <input
-                                        className="input"
-                                        inputMode="decimal"
-                                        value={price}
-                                        onChange={(e) => setPrice(e.target.value)}
-                                        placeholder="例：2980"
-                                    />
-                                </Labeled>
+                                {/* 右上のエリア */}
+                                <div className="flex items-center gap-2">
+                                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                                        {images.length} / 10
+                                    </span>
 
-                                {/* ★ 変更：追加割引（seller_plus_pct） */}
-                                <Labeled label="購入者への追加割引" error={errors.sellerPlusPct}>
-                                    <div className="space-y-2">
-                                        <select
-                                            className="input"
-                                            value={plusPct}
-                                            onChange={(e) => {
-                                                const v = Number(e.target.value);
-                                                const next = Number.isFinite(v) ? Math.max(MIN_PLUS_PCT, Math.min(MAX_PLUS_PCT, Math.floor(v))) : 0;
-                                                setSellerPlusPct(next);
-                                            }}
-                                        >
-                                            {sellerPlusPctOptions.map((v) => (
-                                                <option key={v} value={v}>
-                                                    追加割引：{v === 0 ? "なし" : `+${v}%`}
-                                                </option>
-                                            ))}
-                                        </select>
-
-                                        {/* 追加割引の目安 */}
-                                        <p className="text-xs text-gray-600">
-                                            目安：この設定で最大{" "}
-                                            <span className="font-semibold">+¥{maxExtraOffYen.toLocaleString()}</span>{" "}
-                                            お得になります
-                                        </p>
-
-                                        <p className="text-[11px] text-gray-500 text-red-600">※ 追加割引を増やすと手数料が増える設計です。</p>
-
-                                        <div className="rounded-xl border bg-gray-50 p-3">
-                                            <div className="flex items-center justify-between gap-3">
-                                                <div className="text-sm">
-                                                    <div className="font-semibold">入金見込み（目安） ¥{payoutYen.toLocaleString()}</div>
-                                                    <div className="text-[11px] text-gray-600">
-                                                        手数料 ¥{feeYen.toLocaleString()}（{Math.round(feeRate * 100)}%）
-                                                    </div>
-                                                </div>
-
-                                                <button
-                                                    type="button"
-                                                    className="text-xs text-blue-600 hover:underline shrink-0"
-                                                    onClick={() => setFeeOpen((v) => !v)}
-                                                >
-                                                    {feeOpen ? "詳細を閉じる" : "詳細"}
-                                                </button>
-                                            </div>
-
-                                            {feeOpen && (
-                                                <div className="mt-3 border-t pt-3 text-sm space-y-1">
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">追加割引</span>
-                                                        <span className="font-semibold">+{plusPct}%</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">手数料率</span>
-                                                        <span className="font-semibold">{Math.round(feeRate * 100)}%</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">手数料（目安）</span>
-                                                        <span className="font-semibold">¥{feeYen.toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="flex justify-between">
-                                                        <span className="text-gray-600">入金見込み（目安）</span>
-                                                        <span className="font-semibold">¥{payoutYen.toLocaleString()}</span>
-                                                    </div>
-                                                    <div className="pt-1 text-[11px] text-gray-500">
-                                                        購入者は最大 +¥{maxExtraOffYen.toLocaleString()} 追加でお得（目安）
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                </Labeled>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                    <Labeled label="数量" error={errors.quantity}>
-                                        <div className="flex items-center gap-2">
-                                            <button className="btn" onClick={() => setQuantity((q) => Math.max(1, q - 1))}>
-                                                －
-                                            </button>
-                                            <input className="input text-center w-24" readOnly value={isMultiPurchasable ? quantity : 1} />
-                                            <button className="btn" onClick={() => setQuantity((q) => q + 1)} disabled={!isMultiPurchasable}>
-                                                ＋
-                                            </button>
-                                        </div>
-                                        <label className="mt-2 flex items-center gap-2 text-sm text-gray-600">
-                                            <input
-                                                type="checkbox"
-                                                checked={isMultiPurchasable}
-                                                onChange={(e) => setIsMultiPurchasable(e.target.checked)}
-                                            />{" "}
-                                            複数購入を許可する
-                                        </label>
-                                    </Labeled>
+                                    {/* ★追加: ここにボタンを設置 */}
+                                    <button
+                                        type="button"
+                                        onClick={() => setAddOpen(true)}
+                                        disabled={images.length >= 10}
+                                        className="text-sm font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                                    >
+                                        ＋画像を追加
+                                    </button>
                                 </div>
+                            </div>
 
-                                <Labeled label="出品タイプ" error={errors.type}>
-                                    <div className="flex gap-4">
-                                        <label className="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                name="type"
-                                                value="ANIMAL"
-                                                checked={type === "ANIMAL"}
-                                                onChange={(e) => setType(e.target.value as "ANIMAL")}
-                                            />
-                                            生体
-                                        </label>
-                                        <label className="flex items-center gap-2">
-                                            <input
-                                                type="radio"
-                                                name="type"
-                                                value="SUPPLY"
-                                                checked={type === "SUPPLY"}
-                                                onChange={(e) => setType(e.target.value as "SUPPLY")}
-                                            />
-                                            用品
-                                        </label>
-                                    </div>
-                                </Labeled>
+                            {errors.images && (
+                                <p className="text-sm text-red-500 mb-3 bg-red-50 p-3 rounded-lg flex items-center gap-2">
+                                    ⚠️ {errors.images}
+                                </p>
+                            )}
 
-                                <Labeled label="商品説明" error={errors.description}>
-                                    <textarea
-                                        className="input min-h-[120px]"
-                                        value={description}
-                                        onChange={(e) => setDescription(e.target.value)}
-                                        placeholder="サイズ / 使用感 / 注意点など"
-                                    />
-                                </Labeled>
+                            <div className="min-h-[120px]">
+                                <InlineSortableImages
+                                    files={images}
+                                    onChange={(next) => { setImages(next); setMainIndex(0); }}
+                                    onOpenAdd={() => setAddOpen(true)}
+                                    max={10}
+                                />
                             </div>
                         </section>
 
-                        {/* 商品画像 */}
-                        <section className="bg-white rounded-2xl shadow-sm border p-4">
-                            <h2 className="font-semibold mb-3">商品画像</h2>
-                            {errors.images && <p className="text-sm text-red-600 mb-2">{errors.images}</p>}
-                            <InlineSortableImages
-                                files={images}
-                                onChange={(next) => {
-                                    setImages(next);
-                                    setMainIndex(0);
-                                }}
-                                onOpenAdd={() => setAddOpen(true)}
-                                urls={imageUrls}
-                                max={10}
-                            />
-                        </section>
+                        {/* 基本情報 */}
+                        <section className={sectionClass}>
+                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">基本情報</h2>
 
-                        {/* 配送設定 */}
-                        <section className="bg-white rounded-2xl shadow-sm border p-4">
-                            <h2 className="font-semibold mb-3">配送設定</h2>
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <Labeled label="送料負担">
-                                    <div className="flex gap-4 text-sm">
-                                        <label className="flex items-center gap-2">
-                                            <input type="radio" name="shipfee" checked={shippingFeeType === 0} onChange={() => setShippingFeeType(0)} />{" "}
-                                            送料込み（出品者負担）
-                                        </label>
-                                        <label className="flex items-center gap-2">
-                                            <input type="radio" name="shipfee" checked={shippingFeeType === 1} onChange={() => setShippingFeeType(1)} />{" "}
-                                            着払い（購入者負担）
+                            <div className="space-y-6">
+                                <div>
+                                    <label className={labelClass}>商品名 <span className="text-red-500">*</span></label>
+                                    <input
+                                        className={inputClass}
+                                        value={name}
+                                        onChange={(e) => setName(e.target.value)}
+                                        placeholder="商品名（必須 40文字まで）"
+                                    />
+                                    {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
+                                </div>
+
+                                <div>
+                                    <label className={labelClass}>商品の説明 <span className="text-red-500">*</span></label>
+                                    <textarea
+                                        className={`${inputClass} min-h-[150px] resize-none`}
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="商品の色、素材、状態、重さ、定価などを記載しましょう"
+                                    />
+                                    {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={labelClass}>カテゴリー</label>
+                                        <div className="relative">
+                                            <select
+                                                className={`${inputClass} appearance-none cursor-pointer`}
+                                                value={type}
+                                                onChange={(e) => setType(e.target.value as FleaItemType)}
+                                            >
+                                                {CATEGORY_OPTIONS.map((option) => (
+                                                    <option key={option.value} value={option.value}>
+                                                        {option.icon} {option.label}
+                                                    </option>
+                                                ))}
+                                            </select>
+
+                                            {/* ドロップダウンの矢印アイコン（装飾） */}
+                                            <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-gray-500">
+                                                <svg className="h-4 w-4 fill-current" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
+                                                    <path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z" />
+                                                </svg>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className={labelClass}>数量</label>
+                                        <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden h-[50px]">
+                                            <button className="w-10 h-full bg-gray-50 hover:bg-gray-100 text-gray-600 border-r" onClick={() => setQuantity(q => Math.max(1, q - 1))}>－</button>
+                                            <div className="flex-1 text-center font-bold text-lg">{isMultiPurchasable ? quantity : 1}</div>
+                                            <button className="w-10 h-full bg-gray-50 hover:bg-gray-100 text-gray-600 border-l disabled:opacity-50" onClick={() => setQuantity(q => q + 1)} disabled={!isMultiPurchasable}>＋</button>
+                                        </div>
+                                        <label className="flex items-center gap-2 mt-2 text-xs text-gray-600 justify-end cursor-pointer">
+                                            <input type="checkbox" className="rounded text-blue-600" checked={isMultiPurchasable} onChange={(e) => setIsMultiPurchasable(e.target.checked)} />
+                                            複数購入可
                                         </label>
                                     </div>
-                                </Labeled>
+                                </div>
+                            </div>
+                        </section>
 
-                                <ShipFromSelect value={shipFromId} onChange={(val) => setShipFromId(val)} error={errors.shipFrom} />
+                        {/* 配送について */}
+                        <section className={sectionClass}>
+                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">配送について</h2>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className={labelClass}>配送料の負担</label>
+                                    <div className="flex gap-2">
+                                        <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-sm text-center transition-all ${shippingFeeType === 0 ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                                            <input type="radio" className="hidden" checked={shippingFeeType === 0} onChange={() => setShippingFeeType(0)} />
+                                            送料込み
+                                        </label>
+                                        <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-sm text-center transition-all ${shippingFeeType === 1 ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                                            <input type="radio" className="hidden" checked={shippingFeeType === 1} onChange={() => setShippingFeeType(1)} />
+                                            着払い
+                                        </label>
+                                    </div>
+                                </div>
 
-                                <Labeled label="発送までの目安" error={errors.shipsWithinDays}>
-                                    <select
-                                        className="input"
-                                        value={String(shipsWithinDays)}
-                                        onChange={(e) => setShipsWithinDays(e.target.value === "" ? "" : Number(e.target.value))}
-                                    >
+                                <div>
+                                    <label className={labelClass}>発送元の地域</label>
+                                    <ShipFromSelect value={shipFromId} onChange={setShipFromId} error={errors.shipFrom} />
+                                </div>
+
+                                <div>
+                                    <label className={labelClass}>発送までの日数</label>
+                                    <select className={inputClass} value={shipsWithinDays} onChange={(e) => setShipsWithinDays(e.target.value === "" ? "" : Number(e.target.value))}>
                                         <option value="">選択してください</option>
-                                        <option value="1">1日以内</option>
-                                        <option value="2">2日以内</option>
-                                        <option value="4">4日以内</option>
-                                        <option value="7">1週間以内</option>
+                                        <option value="1">1〜2日で発送</option>
+                                        <option value="2">2〜3日で発送</option>
+                                        <option value="4">4〜7日で発送</option>
                                     </select>
-                                </Labeled>
+                                    {errors.shipsWithinDays && <p className="text-xs text-red-500 mt-1">{errors.shipsWithinDays}</p>}
+                                </div>
+                            </div>
+                        </section>
+
+                        {/* 価格設定 */}
+                        <section className={sectionClass}>
+                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">販売価格</h2>
+
+                            <div className="space-y-6">
+                                <div className="flex items-center gap-4">
+                                    <label className="font-bold text-gray-700 whitespace-nowrap">価格</label>
+                                    <div className="relative w-full">
+                                        <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                                            <span className="text-gray-500 font-bold">¥</span>
+                                        </div>
+                                        <input
+                                            className={`${inputClass} pl-8 text-right text-lg font-bold`}
+                                            inputMode="decimal"
+                                            value={price}
+                                            onChange={(e) => setPrice(e.target.value)}
+                                            placeholder="0"
+                                        />
+                                    </div>
+                                </div>
+                                {errors.price && <p className="text-xs text-red-500 text-right">{errors.price}</p>}
+
+                                {/* 利益計算部分（シンプルに） */}
+                                <div className="space-y-3 pt-4 border-t border-dashed border-gray-200">
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">販売手数料 ({Math.round(feeRate * 100)}%)</span>
+                                        <span className="text-gray-800">¥{feeYen.toLocaleString()}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-lg font-bold">
+                                        <span className="text-gray-800">販売利益</span>
+                                        <span className="text-blue-600">¥{payoutYen.toLocaleString()}</span>
+                                    </div>
+                                </div>
+
+                                {/* 追加割引オプション（アコーディオン風） */}
+                                <div className="pt-2">
+                                    <button
+                                        className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1 w-full justify-end"
+                                        onClick={() => setFeeOpen(!feeOpen)}
+                                    >
+                                        {feeOpen ? "▲ オプションを閉じる" : "▼ 購入者割引を設定する（任意）"}
+                                    </button>
+
+                                    {feeOpen && (
+                                        <div className="mt-3 bg-gray-50 p-3 rounded-lg text-sm animate-in fade-in slide-in-from-top-2">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <span className="font-bold text-gray-700">割引率</span>
+                                                <select className="bg-white border border-gray-300 rounded px-2 py-1 text-sm" value={plusPct} onChange={(e) => setSellerPlusPct(Number(e.target.value))}>
+                                                    {sellerPlusPctOptions.map((v) => <option key={v} value={v}>{v === 0 ? "設定なし" : `+${v}%`}</option>)}
+                                                </select>
+                                            </div>
+                                            <p className="text-xs text-gray-500 leading-relaxed">
+                                                売上から少し手数料を多く払うことで、購入者にポイント還元などのメリットを提供し、売れやすくします。
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </section>
                     </>
                 )}
 
-                {/* 詳細ページ：完全任意 */}
+                {/* 詳細画面 */}
                 {current === "details" && (
-                    <section className="bg-white rounded-2xl shadow-sm border p-4">
-                        <h2 className="font-semibold mb-3">詳細（{type === "ANIMAL" ? "生体" : "用品"}・任意）</h2>
-
+                    <section className={sectionClass}>
+                        <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">詳細情報（任意）</h2>
                         {type === "ANIMAL" ? (
-                            <div className="grid gap-3">
-                                <Labeled label="産地">
-                                    <input
-                                        className="input"
-                                        value={liveDetails.locality}
-                                        onChange={(e) => setLiveDetails({ ...liveDetails, locality: e.target.value })}
-                                        placeholder="例：兵庫"
-                                    />
-                                </Labeled>
-
-                                <div className="grid grid-cols-3 gap-3">
-                                    <Labeled label="羽化/孵化日">
-                                        <input
-                                            type="date"
-                                            className="input"
-                                            value={liveDetails.hatch_date}
-                                            onChange={(e) => setLiveDetails({ ...liveDetails, hatch_date: e.target.value })}
-                                        />
-                                    </Labeled>
-                                    <Labeled label="累代">
-                                        <input
-                                            className="input"
-                                            value={liveDetails.generation}
-                                            onChange={(e) => setLiveDetails({ ...liveDetails, generation: e.target.value })}
-                                            placeholder="F1 / CB など"
-                                        />
-                                    </Labeled>
-                                    <Labeled label="サイズ">
-                                        <input
-                                            className="input"
-                                            value={liveDetails.size}
-                                            onChange={(e) => setLiveDetails({ ...liveDetails, size: e.target.value })}
-                                            placeholder="S / M / L"
-                                        />
-                                    </Labeled>
+                            <div className="space-y-6">
+                                <div>
+                                    <label className={labelClass}>産地</label>
+                                    <input className={inputClass} value={liveDetails.locality} onChange={(e) => setLiveDetails({ ...liveDetails, locality: e.target.value })} placeholder="例：兵庫県 川西市" />
                                 </div>
-
-                                <Labeled label="性別">
-                                    <select
-                                        className="input"
-                                        value={liveDetails.sex}
-                                        onChange={(e) =>
-                                            setLiveDetails({
-                                                ...liveDetails,
-                                                sex: e.target.value as "male" | "female" | "unknown" | "pair",
-                                            })
-                                        }
-                                    >
-                                        <option value="unknown">不明</option>
-                                        <option value="male">オス</option>
-                                        <option value="female">メス</option>
-                                    </select>
-                                </Labeled>
-
-                                <p className="text-xs text-gray-500">※ 任意項目です。公開後も編集できます。</p>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={labelClass}>羽化日</label>
+                                        <input type="date" className={inputClass} value={liveDetails.hatch_date} onChange={(e) => setLiveDetails({ ...liveDetails, hatch_date: e.target.value })} />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>サイズ</label>
+                                        <input className={inputClass} value={liveDetails.size} onChange={(e) => setLiveDetails({ ...liveDetails, size: e.target.value })} placeholder="例：75mm" />
+                                    </div>
+                                </div>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={labelClass}>累代</label>
+                                        <input className={inputClass} value={liveDetails.generation} onChange={(e) => setLiveDetails({ ...liveDetails, generation: e.target.value })} placeholder="例：CBF1" />
+                                    </div>
+                                    <div>
+                                        <label className={labelClass}>性別</label>
+                                        <select className={inputClass} value={liveDetails.sex} onChange={(e) => setLiveDetails({ ...liveDetails, sex: e.target.value as SexType })}>
+                                            <option value="unknown">不明</option>
+                                            <option value="male">オス</option>
+                                            <option value="female">メス</option>
+                                            <option value="pair">ペア</option>
+                                        </select>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
-                            <div className="grid gap-3">
-                                <div className="grid grid-cols-2 gap-3">
-                                    <Labeled label="ブランド">
-                                        <input
-                                            className="input"
-                                            value={supplyDetails.brand}
-                                            onChange={(e) => setSupplyDetails({ ...supplyDetails, brand: e.target.value })}
-                                        />
-                                    </Labeled>
-                                    <Labeled label="SKU">
-                                        <input
-                                            className="input"
-                                            value={supplyDetails.sku}
-                                            onChange={(e) => setSupplyDetails({ ...supplyDetails, sku: e.target.value })}
-                                        />
-                                    </Labeled>
-                                </div>
-
-                                <Labeled label="内容量(g)">
-                                    <input
-                                        type="number"
-                                        className="input"
-                                        value={supplyDetails.net_weight_g}
-                                        onChange={(e) => setSupplyDetails({ ...supplyDetails, net_weight_g: e.target.value })}
-                                    />
-                                </Labeled>
-
-                                <p className="text-xs text-gray-500">※ 任意項目です。公開後も編集できます。</p>
+                            <div className="space-y-6">
+                                <div><label className={labelClass}>ブランド名</label><input className={inputClass} value={supplyDetails.brand} onChange={(e) => setSupplyDetails({ ...supplyDetails, brand: e.target.value })} /></div>
+                                <div><label className={labelClass}>SKU / 型番</label><input className={inputClass} value={supplyDetails.sku} onChange={(e) => setSupplyDetails({ ...supplyDetails, sku: e.target.value })} /></div>
+                                <div><label className={labelClass}>内容量(g)</label><input type="number" className={inputClass} value={supplyDetails.net_weight_g} onChange={(e) => setSupplyDetails({ ...supplyDetails, net_weight_g: e.target.value })} /></div>
                             </div>
                         )}
                     </section>
                 )}
             </main>
 
-            {/* スペーサー（モバイル） */}
-            <div className="h-[calc(64px+env(safe-area-inset-bottom))]" />
+            {/* ★修正: フッターに隠れないよう、たっぷり余白をとるスペーサー */}
+            <div className="h-32 md:h-10" />
 
-            {/* 下部固定バー */}
-            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur border-t">
-                <div className="max-w-3xl mx-auto px-4 py-3 flex items-center justify-between gap-3">
-                    <div className="hidden md:block text-xs text-gray-600">
-                        {canPublish ? "出品可能：どのステップからでも公開できます" : "基本情報・画像・配送を入力すると出品できます"}
-                    </div>
-                    <div className="flex gap-2">
-                        <button onClick={goPrev} className="h-10 px-4 rounded-xl border bg-white disabled:opacity-50" disabled={current === "main"}>
-                            戻る
-                        </button>
+            {/* Footer Bar: 固定フッター（最も安定するUI） */}
+            <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 px-4 py-3 safe-area-bottom">
+                <div className="max-w-lg mx-auto flex gap-3">
+                    <button
+                        onClick={goPrev}
+                        className="flex-1 bg-gray-100 text-gray-700 font-bold h-12 rounded-lg disabled:opacity-30 disabled:cursor-not-allowed"
+                        disabled={current === "main"}
+                    >
+                        戻る
+                    </button>
 
-                        {current === "main" && (
-                            <button onClick={goNext} className="h-10 px-4 rounded-xl border bg-white">
-                                詳細の追加
-                            </button>
-                        )}
-
+                    {current === "main" ? (
                         <button
-                            onClick={onClickOpenConfirm}
-                            disabled={!canPublish || submitting}
-                            className="h-10 px-4 rounded-xl bg-black text-white disabled:opacity-60"
-                            title={!canPublish ? "基本情報・画像・配送を入力すると出品できます" : undefined}
+                            onClick={goNext}
+                            className="flex-[2] bg-gray-800 text-white font-bold h-12 rounded-lg hover:bg-gray-700 transition-colors"
                         >
-                            {submitting ? "送信中…" : "出品する"}
+                            次へ（詳細設定）
                         </button>
-                    </div>
+                    ) : null}
+
+                    <button
+                        onClick={onClickOpenConfirm}
+                        disabled={!canPublish || submitting}
+                        className={`flex-[2] font-bold h-12 rounded-lg transition-colors text-white ${!canPublish || submitting ? "bg-gray-300 cursor-not-allowed" : "bg-red-500 hover:bg-red-600 shadow-md"
+                            }`}
+                    >
+                        {submitting ? "出品中..." : "出品する"}
+                    </button>
                 </div>
             </div>
 
-            {/* 確認モーダル */}
+            {/* Modals... (変更なし) */}
             <ConfirmDialog
                 open={confirmOpen}
                 onClose={() => setConfirmOpen(false)}
@@ -962,10 +896,7 @@ function FleaItemCreatePage() {
                 summary={{
                     name,
                     price: Number(price) || 0,
-
-                    // ★ 変更：seller_plus_pct を渡す（ConfirmDialog側が未使用でも保持）
                     seller_plus_pct: plusPct,
-
                     quantity: isMultiPurchasable ? quantity : 1,
                     total: (Number(price) || 0) * (isMultiPurchasable ? quantity : 1),
                     isMultiPurchasable,
@@ -975,47 +906,18 @@ function FleaItemCreatePage() {
                     shipFromId,
                     shipsWithinDays: shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
                     mainIndex,
-                    files: images,
-                }}
-            />
-
-            {/* 画像追加モーダル */}
-            <AddImagesModal
-                open={addOpen}
-                files={images}
-                urls={imageUrls}
-                onClose={() => setAddOpen(false)}
-                onSave={(ordered) => {
-                    setImages(ordered);
-                    setMainIndex(0);
-                    setAddOpen(false);
-                }}
-            />
-
+                    files: images.map(img => img.file).filter((f): f is File => f !== undefined),
+                }} />
+            <AddImagesModal open={addOpen} initialImages={images} onClose={() => setAddOpen(false)} onSave={handleAddImages} />
             <TinySavedPopup open={savedOpen} onClose={() => setSavedOpen(false)} x={50} y={20} />
-
-            <PublishCompleteDialog
-                open={completeOpen}
-                itemId={lastItemId}
-                onClose={() => setCompleteOpen(false)}
-                onContinue={() => {
-                    setCompleteOpen(false);
-                    resetForm();
-                }}
-            />
+            <PublishCompleteDialog open={completeOpen} itemId={lastItemId} onClose={() => setCompleteOpen(false)} onContinue={() => { setCompleteOpen(false); resetForm(); }} />
         </div>
     );
 }
 
-// 保存インジケータ
 function SaveIndicator({ saving, lastSavedAt }: { saving: "idle" | "saving" | "saved" | "error"; lastSavedAt: string | null }) {
     if (saving === "saving") return <span className="text-xs text-gray-500">保存中…</span>;
     if (saving === "error") return <span className="text-xs text-red-600">保存エラー</span>;
-    if (saving === "saved")
-        return (
-            <span className="text-[11px] text-gray-500">
-                保存済み{lastSavedAt ? `（${new Date(lastSavedAt).toLocaleTimeString()}）` : ""}
-            </span>
-        );
+    if (saving === "saved") return <span className="text-[11px] text-gray-500">保存済み{lastSavedAt ? `（${new Date(lastSavedAt).toLocaleTimeString()}）` : ""}</span>;
     return null;
 }
