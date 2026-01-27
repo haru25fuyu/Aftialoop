@@ -35,7 +35,6 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 		http.Error(w, "failed to fetch item", http.StatusInternalServerError)
 		return
 	}
-	log.Println("Fetched flea market item:", item)
 
 	detail, err := h.db.GetFleaMarketItemDetail(item.ID, item.Type)
 	if err != nil {
@@ -52,7 +51,9 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	resp := map[string]any{"item": item, "images": images, "details": detail}
+	fcg := config.GetFleaConfig()
+
+	resp := map[string]any{"item": item, "images": images, "details": detail, "rate_den": fcg.RateDen}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
@@ -68,8 +69,12 @@ func (h *FleaMarketHandler) ListFleaMarket(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "failed to fetch items", http.StatusInternalServerError)
 		return
 	}
+	fcg := config.GetFleaConfig()
+
+	resp := map[string]any{"items": items, "rate_den": fcg.RateDen}
+
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(items)
+	json.NewEncoder(w).Encode(resp)
 }
 
 // POST /flea-market/add/item  (React から FormData で送られてくる前提)
@@ -102,44 +107,43 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	price := utils.ParseInt(r.FormValue("price"), 0)
-
-	// ★ 変更：seller_plus_pct（0..N）
 	sellerPlusPct := utils.ParseInt(r.FormValue("seller_plus_pct"), 0)
 
-	// サーバー側設定（信用できるのはサーバー）
+	// サーバー側設定
 	cfg := config.GetFleaConfig()
-
-	// 1.02 -> 10200 のような bp（basis points *100 のノリ）
 	baseBP := cfg.BaseRate
 	maxBP := cfg.MaxRate
 	baseCR := cfg.CommissionRate
-
-	// maxPlusPct は設定から逆算（base/max を変えても安全）
 	maxPlusPct := int((maxBP - baseBP) / cfg.RateDen)
-	// 範囲ガード（丸めるより弾くのが誠実）
+
 	if sellerPlusPct < 0 || sellerPlusPct > maxPlusPct {
 		http.Error(w, "invalid seller_plus_pct", http.StatusBadRequest)
 		return
 	}
 
-	// 保存値（bp）
 	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(cfg.RateDen)
 	commissionRateBP := baseCR + int64(sellerPlusPct)*int64(cfg.RateDen)
 
 	quantity := utils.ParseInt(r.FormValue("quantity"), 1)
 	isMulti := utils.ParseBool(r.FormValue("is_multi_purchasable"))
 	shipFeeType := utils.ParseInt(r.FormValue("shipping_fee_type"), 0)
-
 	shipFrom := utils.ParseInt(r.FormValue("ship_from_id"), 0)
 	shipsWithin := utils.ParseOptInt(r.FormValue("ships_within_days"))
 	mainIndex := utils.ParseInt(r.FormValue("main_index"), 0)
 	type_ := r.FormValue("type")
 
-	// ---- 画像を保存して URL 配列を作る ----
+	// ---- 新規画像の保存 ----
 	files := r.MultipartForm.File["images"]
-	imageURLs := make([]string, 0, len(files))
+	imageURLs := make([]string, 0, len(files)) // 新規分のURLリスト
 
-	uploadDir := "./static/flea" // 環境に合わせて
+	// ★重要: 「新規ファイルなし」かつ「既存画像IDなし」ならエラー
+	existingImageIDs := r.Form["image_ids"]
+	if len(files) == 0 && len(existingImageIDs) == 0 {
+		http.Error(w, "image required", http.StatusBadRequest)
+		return
+	}
+
+	uploadDir := "./static/flea"
 	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
 		http.Error(w, "failed to create upload dir", http.StatusInternalServerError)
 		return
@@ -172,16 +176,35 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		}()
 	}
 
-	// main_image_url
-	var mainURL string
-	if len(imageURLs) > 0 {
-		if mainIndex < 0 || mainIndex >= len(imageURLs) {
-			mainIndex = 0
+	// ---------------------------------------------------------
+	// ★ 全画像のURLリストを作成（ここが重要）
+	// ---------------------------------------------------------
+	var finalImageURLs []string
+
+	// A. 下書き画像 (ID -> URL変換)
+	for _, idStr := range existingImageIDs {
+		id, _ := strconv.ParseInt(idStr, 10, 64)
+		if url, err := h.db.GetImageURLByID(id); err == nil && url != "" {
+			finalImageURLs = append(finalImageURLs, url)
 		}
-		mainURL = imageURLs[mainIndex]
 	}
 
-	// ---- DB Create 用の入力を組み立て ----
+	// B. 新規アップロード画像
+	finalImageURLs = append(finalImageURLs, imageURLs...)
+
+	// C. メイン画像の決定
+	var mainURL string
+	if len(finalImageURLs) > 0 {
+		if mainIndex >= 0 && mainIndex < len(finalImageURLs) {
+			mainURL = finalImageURLs[mainIndex]
+		} else {
+			mainURL = finalImageURLs[0]
+		}
+	}
+
+	// ---------------------------------------------------------
+	// DB登録用データの作成
+	// ---------------------------------------------------------
 	in := utils.CreateFleaMarketItemInput{
 		Name:               name,
 		Price:              int64(price),
@@ -189,15 +212,18 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		IsMultiPurchasable: isMulti,
 		Type:               type_,
 		Description:        description,
-		MainImageURL:       mainURL,
-		ImageURLs:          imageURLs,
-		ShippingFeeType:    shipFeeType,
-		ShipFrom:           &shipFrom,
-		ShipsWithinDays:    shipsWithin,
-		SellerRateBP:       int64(sellerRateBP),
-		CommissionRateBP:   int64(commissionRateBP),
+
+		MainImageURL: mainURL,
+		ImageURLs:    finalImageURLs, // ★全URLを渡す
+
+		ShippingFeeType:  shipFeeType,
+		ShipFrom:         &shipFrom,
+		ShipsWithinDays:  shipsWithin,
+		SellerRateBP:     int64(sellerRateBP),
+		CommissionRateBP: int64(commissionRateBP),
 	}
 
+	// ★ここで「item作成」と「image紐付け」が一気に行われる
 	itemID, err := h.db.CreateFleaMarketItem(userID, in)
 	if err != nil {
 		http.Error(w, "failed to create item", http.StatusInternalServerError)
@@ -205,16 +231,27 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// 下書きを削除
+	draftIDStr := r.FormValue("draft_id")
+
+	if draftIDStr != "" {
+		if draftID, err := strconv.ParseUint(draftIDStr, 10, 64); err == nil {
+			if err := h.db.ArchiveDraft(r.Context(), userID, draftID); err != nil {
+				// ここでエラーが出ているかも確認
+				log.Println("failed to archive draft after item creation:", err)
+			} else {
+				log.Println("Draft archived successfully")
+			}
+		}
+	}
+
 	// ---- レスポンス ----
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	resp := map[string]any{
-		"message": "item created",
-		"itemId":  itemID,
-
-		// UIが必要なら返す（なくてもOK）
+		"message":         "item created",
+		"itemId":          itemID,
 		"seller_plus_pct": sellerPlusPct,
-
-		"imageUrls": imageURLs,
+		"imageUrls":       finalImageURLs, // レスポンスには全URLを返すと親切
 	}
 	enc := json.NewEncoder(w)
 	enc.SetEscapeHTML(false)

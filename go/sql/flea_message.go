@@ -22,10 +22,9 @@ func (d *Database) GetFleaItemMessages(itemID uint64) ([]*utils.FleaItemMessage,
 			fim.body,
 			fim.created_at,
 			u.name AS user_name,
-			p.icon_url AS user_icon
+			u.icon_url AS user_icon
         FROM flea_item_messages fim
 		JOIN users u ON u.id = fim.user_id
-		LEFT JOIN profile p ON p.user_id = u.id
         WHERE fim.item_id = ? AND fim.deleted_at IS NULL
         ORDER BY fim.created_at ASC, fim.id ASC
     `, itemID)

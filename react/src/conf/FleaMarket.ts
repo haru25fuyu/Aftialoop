@@ -80,6 +80,12 @@ export const SHIPPING_CARRIER_OPTIONS = [
   { id: SHIPPING_CARRIERS.JAPAN_POST, label: "ゆうパック" },
 ];
 
+export const SHIPPING_FEE_TYPES_MAP = [
+  { id: 0, label: "送料込み" },
+  { id: 1, label: "着払い" },
+  { id: 2, label: "送料別" },
+];
+
 export function calcTxPhase(tx: FleaTransactionRow, role: TxRole): TxPhase {
   // cancelled 優先
   if (tx.status === "CANCELLED") return "CANCELLED";
@@ -120,6 +126,8 @@ export const CATEGORY_OPTIONS: {
   { value: "GOODS", label: "グッズ", icon: "🎨" },
   // { value: "OTHER", label: "その他", icon: "✨" },
 ];
+
+
 
 // 取引を発送済みに変更するAPI呼び出し
 export async function ChangeTxStatustoShipped(

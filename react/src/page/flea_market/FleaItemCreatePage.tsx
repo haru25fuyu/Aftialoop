@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 
@@ -46,6 +47,16 @@ type StepKey = "main" | "details";
 // ---------- Main Component ----------
 function FleaItemCreatePage() {
     const toast = useToast();
+    const navigate = useNavigate();
+
+    // 2. パスパラメータ (:id) を取得
+    const { id: pathParamId } = useParams();
+
+    // 3. クエリパラメータ (?id=) も念のため取得（どちらでも動くようにするなら）
+    const [searchParams] = useSearchParams();
+    const queryParamId = searchParams.get("id");
+
+    const targetDraftId = pathParamId || queryParamId;
 
     // ===== Settings =====
     const MIN_PLUS_PCT = 0;
@@ -62,7 +73,7 @@ function FleaItemCreatePage() {
     const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
     const [type, setType] = useState<FleaItemType>("ANIMAL");
     const [description, setDescription] = useState("");
-    const [shippingFeeType, setShippingFeeType] = useState<0 | 1>(0);
+    const [shippingFeeType, setShippingFeeType] = useState<0 | 1 | 2>(0);
     const [shipFromId, setShipFromId] = useState<number | null>(null);
     const [shipsWithinDays, setShipsWithinDays] = useState<number | "">(2);
     const [images, setImages] = useState<ImageAsset[]>([]);
@@ -81,6 +92,7 @@ function FleaItemCreatePage() {
     const [current, setCurrent] = useState<StepKey>("main");
     const [submitting, setSubmitting] = useState(false);
     const [errors, setErrors] = useState<Record<string, string>>({});
+    const isSubmittingRef = useRef(false); //  出品中フラグ
 
     // UI Toggles
     const [confirmOpen, setConfirmOpen] = useState(false);
@@ -92,9 +104,6 @@ function FleaItemCreatePage() {
     const [lastItemId, setLastItemId] = useState<number | null>(null);
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
     const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">("idle");
-
-    const [searchParams] = useSearchParams();
-    const queryDraftId = searchParams.get("id");
 
     // ===== Refs for Autosave (Race Condition Fix) =====
     const draftIdRef = useRef<number | null>(null);
@@ -130,44 +139,67 @@ function FleaItemCreatePage() {
     };
 
     // Payload Builder
+    // Payload Builder
     const buildDraftPayload = useCallback(() => {
-        const priceStr = price && Number(price) > 0 ? String(Number(price)) : "";
+        const p = Number(price);
+
+        // 価格は「文字列」に変換して送る！ (Go側の定義が string なので)
+        // 数値として有効、かつ0より大きい場合のみ値を送る
+        const priceVal = (price !== "" && !isNaN(p) && p > 0) ? String(p) : undefined;
+
+        const quantityVal = isMultiPurchasable ? Math.max(1, quantity) : 1;
+        const shipsDaysVal = shipsWithinDays === "" ? undefined : Number(shipsWithinDays);
+
+        // 発送元は「数値」に変換して送る！
+        // (ペイロードで "11" と文字列になっていたので、念のため数値化します)
+        const shipFromVal = shipFromId ? Number(shipFromId) : undefined;
+
+        // 詳細情報
         const details = type === "ANIMAL"
             ? {
                 kind: "ANIMAL",
-                locality: liveDetails.locality || null,
-                hatch_date: liveDetails.hatch_date || null,
-                generation: liveDetails.generation || null,
-                size: liveDetails.size || null,
+                locality: liveDetails.locality || undefined,
+                hatch_date: liveDetails.hatch_date || undefined,
+                generation: liveDetails.generation || undefined,
+                size: liveDetails.size || undefined,
                 sex: liveDetails.sex || "unknown",
             }
             : {
                 kind: "SUPPLY",
-                brand: supplyDetails.brand || null,
-                sku: supplyDetails.sku || null,
-                net_weight_g: supplyDetails.net_weight_g ? Number(supplyDetails.net_weight_g) : null,
+                brand: supplyDetails.brand || undefined,
+                sku: supplyDetails.sku || undefined,
+                net_weight_g: (supplyDetails.net_weight_g && !isNaN(Number(supplyDetails.net_weight_g)))
+                    ? Number(supplyDetails.net_weight_g)
+                    : undefined,
             };
 
         const uploadedImages = images
             .filter(img => img.serverId && img.url)
             .map(img => ({
-                id: img.id,          // フロント用ID
-                serverId: img.serverId, // サーバー用ID
-                url: img.url         // 表示用URL
+                id: img.id,
+                serverId: img.serverId,
+                url: img.url
             }));
 
-        const mainImageUrl = uploadedImages.length > 0 ? uploadedImages[0].url : null;
+        const mainImageUrl = uploadedImages.length > 0 ? uploadedImages[0].url : undefined;
+
         return {
-            name: name.trim() || null,
-            description: description.trim() || null,
-            price: priceStr,
+            name: name.trim() || undefined,
+            description: description.trim() || undefined,
+
+            // 文字列として送る
+            price: priceVal,
+
             seller_plus_pct: plusPct,
-            quantity: isMultiPurchasable ? Math.max(1, quantity) : 1,
+            quantity: quantityVal,
             type: normalizeType(type),
             is_multi_purchasable: isMultiPurchasable ? 1 : 0,
             shipping_fee_type: shippingFeeType,
-            ship_from_id: shipFromId,
-            ships_within_days: shipsWithinDays === "" ? null : Number(shipsWithinDays),
+
+            // 数値として送る
+            ship_from: shipFromVal,
+
+            ships_within_days: shipsDaysVal,
             details,
             uploaded_images: uploadedImages,
             main_index: mainIndex,
@@ -192,6 +224,33 @@ function FleaItemCreatePage() {
 
     const validateStep = (key: StepKey): boolean => key === "main" ? validate() : true;
 
+    const resetForm = useCallback(() => {
+        // ユーザーに確認（誤操作防止）
+        if (!window.confirm("入力内容をクリアして、新規作成に戻りますか？\n（現在の下書きへの変更は保存されません）")) {
+            return;
+        }
+
+        // 1. ステートの初期化
+        setName(""); setPrice(""); setSellerPlusPct(0); setQuantity(1); setIsMultiPurchasable(false);
+        setType("ANIMAL"); setDescription(""); setShippingFeeType(0); setShipFromId(null); setShipsWithinDays(2);
+        setImages([]); setMainIndex(0);
+        setLiveDetails({ locality: "", hatch_date: "", generation: "", size: "", sex: "unknown" });
+        setSupplyDetails({ brand: "", sku: "", net_weight_g: "" });
+
+        // 2. システム状態の初期化
+        setDraftId(null);
+        setLastItemId(null);
+        setLastSavedAt(null);
+        setSaving("idle");
+
+        // 3. ローカルストレージの削除
+        localStorage.removeItem("flea_item_draft");
+
+        // 4. URLのIDを消して、新規作成URLへ移動
+        navigate("/flea-market/sell/create", { replace: true });
+
+    }, [navigate]);
+
     const fetchDraftData = async (id: number) => {
 
         try {
@@ -205,9 +264,17 @@ function FleaItemCreatePage() {
             if (d.quantity) setQuantity(d.quantity);
             if (d.type) setType(d.type);
             if (d.description) setDescription(d.description);
-            if (d.shipping_fee_type !== undefined) setShippingFeeType(d.shipping_fee_type);
-            if (d.ship_from) setShipFromId(d.ship_from);
-            if (d.ships_within_days) setShipsWithinDays(d.ships_within_days);
+            if (d.shipping_fee_type !== undefined && d.shipping_fee_type !== null) {
+                setShippingFeeType(Number(d.shipping_fee_type) as 0 | 1);
+            }
+            const sf = d.ship_from ?? d.shipFrom ?? d.ship_from_id;
+            if (sf) {
+                setShipFromId(Number(sf));
+            }
+            const days = d.ships_within_days ?? d.shipsWithinDays;
+            if (days !== undefined && days !== null) {
+                setShipsWithinDays(Number(days));
+            }
 
             // ★重要: 画像の復元
             if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
@@ -219,6 +286,23 @@ function FleaItemCreatePage() {
                 setImages(restoredImages);
             }
 
+            if (d.details) {
+                // ANIMALの場合
+                if (d.type === "ANIMAL") {
+                    setLiveDetails(prev => ({
+                        ...prev,
+                        ...d.details
+                    }));
+                }
+                // SUPPLYの場合
+                else if (d.type === "SUPPLY") {
+                    setSupplyDetails(prev => ({
+                        ...prev,
+                        ...d.details
+                    }));
+                }
+            }
+
             // 下書きIDと最終更新日時も同期
             setDraftId(id);
             if (d.updated_at) setLastSavedAt(d.updated_at);
@@ -226,21 +310,33 @@ function FleaItemCreatePage() {
 
         } catch (e) {
             console.error("Failed to fetch draft:", e);
-            // ID指定で飛んできたのにエラー（404など）だった場合、
-            // 新規作成扱いに戻すか、エラー表示をするなどのハンドリングが必要
-            // setDraftId(null);
+            /// エラー（404等）なら、きれいなURLへリダイレクトして新規作成にする
+            // 401(認証切れ)は api.ts が自動でリトライしてくれるので、
+            // ここに来るのは「本当にデータがない(404)」か「権限がない(403)」場合がほとんどです
+
+            // ユーザーに通知
+            toast({ text: "下書きが見つからなかったため、新規作成画面に戻りました。", kind: "error" });
+
+            // ★追加: リダイレクト前にローカルストレージのゴミを確実に消す！
+            localStorage.removeItem("flea_item_draft");
+
+            // Stateもクリア
+            setDraftId(null);
+
+            // きれいなURLへリダイレクト
+            navigate("/flea-market/sell/create", { replace: true });
         }
     };
 
     // ===== Restore from LocalStorage =====
     useEffect(() => {
         // 1. URLパラメータ (?draft_id=123) がある場合
-        if (queryDraftId) {
-            const id = Number(queryDraftId);
+        if (targetDraftId) {
+            const id = Number(targetDraftId);
             if (!isNaN(id) && id > 0) {
                 // LocalStorageは見ずに、サーバーから直接データを取る
                 fetchDraftData(id);
-                return; // ここで終了（LocalStorageの読み込みはしない）
+                return;
             }
         }
 
@@ -285,11 +381,11 @@ function FleaItemCreatePage() {
 
             } catch (e) { console.error(e); }
         }
-        // 2. ★追加: IDがあれば、サーバーから最新情報を取得して上書き（確実性のため）
+        // 2. IDがあれば、サーバーから最新情報を取得して上書き（確実性のため）
         if (restoredId) {
             fetchDraftData(restoredId);
         }
-    }, [queryDraftId]);
+    }, [targetDraftId]);
 
     // ===== Save to LocalStorage =====
     useEffect(() => {
@@ -307,12 +403,13 @@ function FleaItemCreatePage() {
 
     // ===== Autosave Logic (Corrected) =====
     const autosaveNow = useCallback(async (signal?: AbortSignal) => {
-        // 保存処理中であればスキップ (重複作成防止)
-        if (isSavingRef.current) return;
+        if (isSavingRef.current || isSubmittingRef.current) return;
 
-        const payload = prune(buildDraftPayload());
+        const rawPayload = buildDraftPayload();
 
-        // 最新のIDをRefから取得
+        if (Number.isNaN(rawPayload.price)) rawPayload.price = undefined;
+
+        const payload = prune(rawPayload);
         const currentId = draftIdRef.current;
 
         try {
@@ -325,7 +422,7 @@ function FleaItemCreatePage() {
             };
 
             const res = await api.post("/flea-market/draft/save", body, {
-                signal: signal, // ← これがないとキャンセル機能が動きません
+                signal: signal,
             });
 
             const { draft_id, saved_at } = res.data;
@@ -367,6 +464,7 @@ function FleaItemCreatePage() {
     useEffect(() => {
         const endpoint = CONFIG.BASE_URL + "/flea-market/draft/save";
         const saveOnLeave = () => {
+            if (isSubmittingRef.current) return;
             try {
                 if (getAccessToken() == null) return;
                 const currentId = draftIdRef.current;
@@ -409,6 +507,12 @@ function FleaItemCreatePage() {
     // ===== Submit (Publish) =====
     const doSubmit = async () => {
         if (submitting) return;
+
+        // 出品開始フラグを立てる
+        isSubmittingRef.current = true;
+        // 待機中のオートセーブがあればキャンセル
+        if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+
         try {
             setSubmitting(true);
             const fd = new FormData();
@@ -435,7 +539,9 @@ function FleaItemCreatePage() {
                 }
             });
 
-            const res = await api.post("/flea-market/add/item", fd);
+            const res = await api.post("/flea-market/add/item", fd, {
+                headers: { "Content-Type": undefined }
+            });
 
             const newId = res.data?.itemId ?? null;
             setLastItemId(newId);
@@ -510,15 +616,6 @@ function FleaItemCreatePage() {
     };
     const goPrev = () => { if (current === "details") setCurrent("main"); };
 
-    const resetForm = () => {
-        setName(""); setPrice(""); setSellerPlusPct(0); setQuantity(1); setIsMultiPurchasable(false);
-        setType("ANIMAL"); setDescription(""); setShippingFeeType(0); setShipFromId(null); setShipsWithinDays(2);
-        setImages([]); setMainIndex(0); setDraftId(null); setCurrent("main");
-        setLiveDetails({ locality: "", hatch_date: "", generation: "", size: "", sex: "unknown" });
-        setSupplyDetails({ brand: "", sku: "", net_weight_g: "" });
-        localStorage.removeItem("flea_item_draft");
-    };
-
 
     // 画像アップロード関数
     const uploadImageFile = async (file: File): Promise<{ url: string; serverId: number } | null> => {
@@ -582,9 +679,29 @@ function FleaItemCreatePage() {
             {/* Header: シンプルな白背景 */}
             <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
                 <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
-                    <h1 className="font-bold text-base">商品の情報を入力</h1>
-                    <div className="flex items-center gap-2">
+                    <h1 className="font-bold text-base">
+                        {draftId ? "下書きを編集" : "商品の情報を入力"}
+                    </h1>
+
+                    <div className="flex items-center gap-3">
                         <SaveIndicator saving={saving} lastSavedAt={lastSavedAt} />
+
+                        {/* 手動保存ボタン */}
+                        <button
+                            onClick={() => autosaveNow()}
+                            disabled={saving === "saving"}
+                            className="text-xs font-bold text-blue-600 hover:text-blue-800 border border-blue-600 rounded px-2 py-1 disabled:opacity-50"
+                        >
+                            保存
+                        </button>
+
+                        {/* クリアボタン（前回追加したもの） */}
+                        <button
+                            onClick={resetForm}
+                            className="text-xs text-gray-500 hover:text-red-600 underline"
+                        >
+                            {draftId ? "新規にする" : "クリア"}
+                        </button>
                     </div>
                 </div>
                 {/* Stepper: 線だけのシンプル版 */}
@@ -595,7 +712,7 @@ function FleaItemCreatePage() {
             </div>
 
             {/* Main Content: 幅をスマホサイズ(max-w-lg)に制限して中央寄せ */}
-            <main className="max-w-xl mx-auto px-0 py-6 space-y-6 pb-0">
+            <main className="py-6 space-y-6 pb-0 max-w-xl mx-auto pt-6 px-4">
 
                 {current === "main" && (
                     <>
@@ -715,15 +832,30 @@ function FleaItemCreatePage() {
                                 <div>
                                     <label className={labelClass}>配送料の負担</label>
                                     <div className="flex gap-2">
+                                        {/* 0: 送料込み */}
                                         <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-sm text-center transition-all ${shippingFeeType === 0 ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
                                             <input type="radio" className="hidden" checked={shippingFeeType === 0} onChange={() => setShippingFeeType(0)} />
                                             送料込み
                                         </label>
+
+                                        {/* 1: 着払い */}
                                         <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-sm text-center transition-all ${shippingFeeType === 1 ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
                                             <input type="radio" className="hidden" checked={shippingFeeType === 1} onChange={() => setShippingFeeType(1)} />
                                             着払い
                                         </label>
+
+                                        {/* 2: 送料別（後から追加） */}
+                                        <label className={`flex-1 cursor-pointer border rounded-lg p-3 text-sm text-center transition-all ${shippingFeeType === 2 ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                                            <input type="radio" className="hidden" checked={shippingFeeType === 2} onChange={() => setShippingFeeType(2)} />
+                                            送料別
+                                        </label>
                                     </div>
+                                    {/* 補足テキストを入れると親切です */}
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        {shippingFeeType === 0 && "出品者が送料を負担します。"}
+                                        {shippingFeeType === 1 && "商品受け取り時に購入者が送料を支払います。"}
+                                        {shippingFeeType === 2 && "購入後に送料を計算し、別途請求します。"}
+                                    </p>
                                 </div>
 
                                 <div>
@@ -853,7 +985,7 @@ function FleaItemCreatePage() {
                 )}
             </main>
 
-            {/* ★修正: フッターに隠れないよう、たっぷり余白をとるスペーサー */}
+            {/* フッターに隠れないよう、たっぷり余白をとるスペーサー */}
             <div className="h-32 md:h-10" />
 
             {/* Footer Bar: 固定フッター（最も安定するUI） */}
@@ -887,7 +1019,6 @@ function FleaItemCreatePage() {
                 </div>
             </div>
 
-            {/* Modals... (変更なし) */}
             <ConfirmDialog
                 open={confirmOpen}
                 onClose={() => setConfirmOpen(false)}
@@ -906,7 +1037,8 @@ function FleaItemCreatePage() {
                     shipFromId,
                     shipsWithinDays: shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
                     mainIndex,
-                    files: images.map(img => img.file).filter((f): f is File => f !== undefined),
+                    details: type === "ANIMAL" ? liveDetails : supplyDetails,
+                    images: images,
                 }} />
             <AddImagesModal open={addOpen} initialImages={images} onClose={() => setAddOpen(false)} onSave={handleAddImages} />
             <TinySavedPopup open={savedOpen} onClose={() => setSavedOpen(false)} x={50} y={20} />

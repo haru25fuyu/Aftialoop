@@ -90,33 +90,39 @@ function Thumb({
 
     return (
         <div ref={setNodeRef} style={style} className="relative w-full h-full rounded-xl overflow-hidden border border-gray-200 bg-white select-none shadow-sm touch-none group">
+
+            {/* 1. Image */}
             <img src={url} className="w-full h-full object-cover pointer-events-none" />
 
+            {/* 2. Drag Layer (Moved to the back, but visually covers the image) */}
+            <div {...attributes} {...listeners} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
+
+            {/* 3. Buttons (Placed AFTER the drag layer with z-10) */}
             {isMain && (
-                <div className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-1 rounded">
-                    メイン
+                <div className="absolute top-2 left-2 bg-black/70 text-white text-[10px] font-bold px-2 py-1 rounded z-10 pointer-events-none">
+                    Main
                 </div>
             )}
 
             {!isMain && (
                 <button
                     type="button"
+                    onPointerDown={(e) => e.stopPropagation()} // Stop drag start
                     onClick={(e) => { e.stopPropagation(); onMakeMain(); }}
-                    className="absolute top-1 left-1 bg-white/90 text-xs font-bold px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute top-1 left-1 bg-white/90 text-xs font-bold px-2 py-1 rounded shadow-sm opacity-0 group-hover:opacity-100 transition-opacity z-10"
                 >
-                    メインにする
+                    Make Main
                 </button>
             )}
 
             <button
                 type="button"
+                onPointerDown={(e) => e.stopPropagation()} // Stop drag start
                 onClick={(e) => { e.stopPropagation(); onRemove(); }}
-                className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-500 transition-colors"
+                className="absolute top-1 right-1 bg-black/50 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-500 transition-colors z-10"
             >
                 ×
             </button>
-
-            <div {...attributes} {...listeners} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
         </div>
     );
 }

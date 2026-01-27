@@ -3,6 +3,7 @@ package handler
 import (
 	"animaloop/function"
 	"animaloop/utils"
+	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -18,7 +19,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// ---- ドラフト関連 ----
+// ---- 下書き関連 ----
 
 // 保存（新規 or 更新）
 func (h *FleaMarketHandler) SaveFleaDraft(w http.ResponseWriter, r *http.Request) {
@@ -28,9 +29,14 @@ func (h *FleaMarketHandler) SaveFleaDraft(w http.ResponseWriter, r *http.Request
 		return
 	}
 
+	// ★デバッグ: リクエストボディを一度読み出してログに出す
+	bodyBytes, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // 読み出した分を戻す
+
 	var req utils.SaveDraftRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
+		log.Printf("[ERROR] JSON Decode Error: %v", err) // エラー内容をログに
+		http.Error(w, fmt.Sprintf("invalid json: %v", err), http.StatusBadRequest)
 		return
 	}
 
@@ -96,10 +102,11 @@ func (h *FleaMarketHandler) GetFleaDraftByID(w http.ResponseWriter, r *http.Requ
 	resp, err := h.db.GetFleaDraftByID(ctx, uid, did)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, "not found", 404)
+			http.Error(w, "draft not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "db error", 500)
+		// その他のエラー
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	_ = json.NewEncoder(w).Encode(resp)

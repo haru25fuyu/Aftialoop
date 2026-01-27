@@ -136,76 +136,64 @@ func (d *Database) GetFleaMarketItemImages(itemID uint64) ([]utils.ItemImage, er
 	return images, nil
 }
 
-func (d *Database) CreateFleaMarketItem(uID string, in utils.CreateFleaMarketItemInput) (id int64, err error) {
-	tx, err := d.DB.Beginx()
+// utils.CreateFleaMarketItemInput に ImageURLs []string がある前提です
+
+func (db *Database) CreateFleaMarketItem(userID string, p utils.CreateFleaMarketItemInput) (int64, error) {
+	// 1. トランザクション開始
+	tx, err := db.DB.Begin()
 	if err != nil {
 		return 0, err
 	}
+	defer tx.Rollback()
 
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback()
-			panic(p)
-		} else if err != nil {
-			_ = tx.Rollback()
-		} else {
-			err = tx.Commit()
-		}
-	}()
-
+	// 2. flea_items テーブルへの保存 (ここは既存のまま)
 	res, err := tx.Exec(`
-		INSERT INTO flea_items
-			(user_id, name, description, price, seller_rate, commission_rate, quantity, type, is_multi_purchasable,
-			 main_image_url, status, ship_from, shipping_fee_type, ships_within_days,
-			 created_at, updated_at)
-		VALUES
-			(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
-	`,
-		uID,
-		in.Name,
-		in.Description,
-		in.Price,
-		in.SellerRateBP,
-		in.CommissionRateBP,
-		in.Quantity,
-		in.Type,
-		in.IsMultiPurchasable,
-		in.MainImageURL,
-		0,
-		in.ShipFrom,
-		in.ShippingFeeType,
-		in.ShipsWithinDays,
+        INSERT INTO flea_items (
+            user_id, name, description, price, 
+            quantity, type, is_multi_purchasable, 
+            main_image_url, 
+            ship_from, shipping_fee_type, ships_within_days, 
+            seller_rate, commission_rate, 
+            created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+    `,
+		userID, p.Name, p.Description, p.Price,
+		p.Quantity, p.Type, p.IsMultiPurchasable,
+		p.MainImageURL, // ← ここには1枚目のURLが入ります
+		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
+		p.SellerRateBP, p.CommissionRateBP,
 	)
 	if err != nil {
+		return 0, fmt.Errorf("insert item: %w", err)
+	}
+
+	itemID, _ := res.LastInsertId()
+
+	// ------------------------------------------------------------
+	// ★★★  flea_item_images への保存処理 ★★★
+	// ------------------------------------------------------------
+	// p.ImageURLs には「下書きからの画像」と「新規画像」のすべてのURLが入っている必要があります
+	if len(p.ImageURLs) > 0 {
+		query := "INSERT INTO flea_item_images (item_id, url, sort_num) VALUES "
+		var args []interface{}
+
+		for i, url := range p.ImageURLs {
+			query += "(?, ?, ?),"
+			args = append(args, itemID, url, i) // sort_num は 0 からの連番
+		}
+
+		// 最後のカンマを削除
+		query = query[:len(query)-1]
+
+		if _, err := tx.Exec(query, args...); err != nil {
+			return 0, fmt.Errorf("insert item images: %w", err)
+		}
+	}
+	// ------------------------------------------------------------
+
+	// 3. コミット
+	if err := tx.Commit(); err != nil {
 		return 0, err
-	}
-
-	itemID, err := res.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-
-	firstImageURL := ""
-	for i, u := range in.ImageURLs {
-		if _, err = tx.Exec(`
-			INSERT INTO flea_item_images (item_id, url, sort_num)
-			VALUES (?, ?, ?)
-		`, itemID, u, i); err != nil {
-			return 0, err
-		}
-		if i == 0 {
-			firstImageURL = u
-		}
-	}
-
-	if (in.MainImageURL == "" || in.MainImageURL == "null") && firstImageURL != "" {
-		if _, err = tx.Exec(`
-			UPDATE flea_items
-			SET main_image_url = ?, updated_at = UTC_TIMESTAMP()
-			WHERE id = ?
-		`, firstImageURL, itemID); err != nil {
-			return 0, err
-		}
 	}
 
 	return itemID, nil

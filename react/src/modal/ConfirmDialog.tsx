@@ -1,7 +1,22 @@
 // src/modal/ConfirmDialog.tsx
 import React, { useMemo, useEffect } from "react";
+import { CONFIG, PREFS } from "../conf/config";
+import { ImageAsset } from "../types/FleaMarket";
 
-import { PREFS } from "../conf/config"
+// ★詳細情報の型定義を追加（ページ側のStateと合わせる）
+type LiveDetails = {
+    locality: string;
+    hatch_date: string;
+    generation: string;
+    size: string;
+    sex: "male" | "female" | "unknown" | "pair";
+};
+
+type SupplyDetails = {
+    brand: string;
+    sku: string;
+    net_weight_g: string;
+};
 
 type Summary = {
     name: string;
@@ -10,14 +25,14 @@ type Summary = {
     total: number;
     isMultiPurchasable: boolean;
     seller_plus_pct?: number;
-    // itemState?: number;
     type: string;
     description: string;
-    shippingFeeType: 0 | 1;
+    shippingFeeType: 0 | 1 | 2;
     shipFromId: number | null;
-    shipsWithinDays?: number; // 空のときは undefined を受ける
-    files: File[];        // ← ここをFile[]に
-    mainIndex: number;      // プレビューURL（useMemoで生成）
+    shipsWithinDays?: number;
+    images: ImageAsset[];
+    mainIndex: number;
+    details: LiveDetails | SupplyDetails;
 };
 
 export function ConfirmDialog({
@@ -33,101 +48,141 @@ export function ConfirmDialog({
     submitting: boolean;
     summary: Summary;
 }) {
+    const displayUrls = useMemo(() => {
+        return summary.images.map(img => {
+            if (img.file) return { src: URL.createObjectURL(img.file), isBlob: true };
+            return { src: img.url, isBlob: false };
+        });
+    }, [summary.images]);
 
-    const urls = useMemo(() => summary.files.map(f => URL.createObjectURL(f)), [summary.files]);
-    useEffect(() => () => { urls.forEach(u => URL.revokeObjectURL(u)); }, [urls]);
+    useEffect(() => {
+        return () => {
+            displayUrls.forEach(d => { if (d.isBlob) URL.revokeObjectURL(d.src); });
+        };
+    }, [displayUrls]);
+
     if (!open) return null;
 
     const {
-        name,
-        price,
-        quantity,
-        total,
-        isMultiPurchasable,
-        // itemState,
-        seller_plus_pct,
-        type,
-        description,
-        shippingFeeType,
-        shipFromId,
-        shipsWithinDays,
-        mainIndex,
+        name, price, quantity, total, isMultiPurchasable, seller_plus_pct,
+        type, description, shippingFeeType, shipFromId, shipsWithinDays, mainIndex,
+        details, // ★受け取る
     } = summary;
 
     const fmt = (n: number) => n.toLocaleString("ja-JP");
-
     const typeLabel = type === "ANIMAL" ? "生体" : type === "SUPPLY" ? "用品" : "未選択";
-    const shipFeeLabel = shippingFeeType === 0 ? "送料込み（出品者負担）" : "着払い（購入者負担）";
-    const shipsLabel =
-        shipsWithinDays == null ? "未選択" :
-            shipsWithinDays === 1 ? "1日以内" :
-                shipsWithinDays === 2 ? "2日以内" :
-                    shipsWithinDays === 4 ? "4日以内" :
-                        shipsWithinDays === 7 ? "1週間以内" : `${shipsWithinDays}日以内`;
+    const shipFeeLabel = shippingFeeType === 0 ? "送料込み (出品者負担)" : "着払い (購入者負担)";
+    const shipsLabel = shipsWithinDays == null ? "未選択" :
+        shipsWithinDays === 1 ? "1日以内" :
+            shipsWithinDays === 2 ? "2〜3日" :
+                shipsWithinDays === 4 ? "4〜7日" : `${shipsWithinDays}日以内`;
+
+    // 性別の表示用ラベル
+    const getSexLabel = (sex: string) => {
+        switch (sex) {
+            case "male": return "オス";
+            case "female": return "メス";
+            case "pair": return "ペア";
+            default: return "不明";
+        }
+    };
 
     return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center">
-            <div className="bg-white w-[92%] max-w-2xl rounded-2xl shadow-xl">
-                <div className="px-5 py-4 border-b flex items-center justify-between">
-                    <h3 className="text-lg font-semibold">この内容で出品しますか？</h3>
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-700">×</button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
+
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+                    <h3 className="text-xl font-bold text-gray-800">出品内容の確認</h3>
+                    <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
                 </div>
 
-                <div className="p-5 space-y-4 max-h-[70vh] overflow-auto">
-                    {/* 画像サマリ */}
-                    <div>
-                        <div className="text-sm text-gray-600 mb-2">画像</div>
-                        <div className="flex gap-2 flex-wrap">
-                            {urls.length === 0 ? (
-                                <div className="text-gray-500 text-sm">画像は選択されていません</div>
+                {/* Content */}
+                <div className="p-6 overflow-y-auto custom-scrollbar space-y-8">
+
+                    {/* 画像 (そのまま) */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">商品画像</h4>
+                        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
+                            {summary.images.length === 0 ? (
+                                <div className="w-full h-32 bg-gray-50 rounded-xl border-2 border-dashed border-gray-200 flex items-center justify-center text-gray-400 text-sm">画像なし</div>
                             ) : (
-                                urls.map((src, i) => (
-                                    <div key={i} className={`relative w-20 h-20 rounded-lg overflow-hidden border ${i === mainIndex ? "ring-2 ring-yellow-400" : ""}`}>
-                                        <img src={src} className="w-full h-full object-cover" />
-                                        {i === mainIndex && (
-                                            <span className="absolute bottom-0 left-0 right-0 text-[10px] text-black bg-yellow-300/90 text-center">メイン</span>
-                                        )}
+                                summary.images.map((img, i) => (
+                                    <div key={i} className={`relative shrink-0 w-24 h-24 rounded-lg overflow-hidden border bg-gray-50 ${i === mainIndex ? "ring-2 ring-offset-2 ring-blue-600 border-transparent" : "border-gray-200"}`}>
+                                        <img src={img.file ? URL.createObjectURL(img.file) : CONFIG.BASE_URL + img.url} className="w-full h-full object-cover" alt={`preview-${i}`} />
+                                        {i === mainIndex && <div className="absolute inset-x-0 bottom-0 bg-blue-600/90 py-0.5"><p className="text-[10px] font-bold text-white text-center leading-none">メイン</p></div>}
                                     </div>
                                 ))
                             )}
                         </div>
                     </div>
 
-                    {/* 基本 */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Row label="商品名" value={name || "（未入力）"} />
-                        <Row label="出品タイプ" value={typeLabel} />
-                        <Row label="価格" value={`${fmt(price)} 円`} />
-                        <Row label="追加割引" value={`${seller_plus_pct ?? 0} %`} />
-                        <Row label="数量" value={`${quantity} 個${isMultiPurchasable ? "（複数購入可）" : ""}`} />
-                        <Row label="送料負担" value={shipFeeLabel} />
-                        <Row
-                            label="発送元"
-                            value={PREFS.find(p => p.id === shipFromId)?.name || "（未入力）"}
-                        />
-                        <Row label="発送までの目安" value={shipsLabel} />
-                        <Row label="合計金額" value={`${fmt(total)} 円`} strong />
+                    {/* 基本情報 */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">基本情報</h4>
+                        <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+                                <Row label="商品名" value={name} isLarge />
+                                <Row label="出品タイプ" value={<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${type === "ANIMAL" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>{typeLabel}</span>} />
+                                <div className="col-span-1 md:col-span-2 my-2 border-t border-gray-200" />
+                                <Row label="販売価格" value={`¥ ${fmt(price)}`} isMoney />
+                                <Row label="数量" value={`${quantity} 個 ${isMultiPurchasable ? "(複数可)" : ""}`} />
+                                <Row label="追加割引" value={seller_plus_pct ? `${seller_plus_pct}%` : "なし"} />
+                                <Row label="合計金額 (概算)" value={`¥ ${fmt(total)}`} isMoney isTotal />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 詳細スペック */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">詳細スペック ({typeLabel})</h4>
+                        <div className="bg-white border border-gray-200 rounded-xl p-5">
+                            {type === "ANIMAL" ? (
+                                <div className="grid grid-cols-2 gap-4">
+                                    {/* TypeScriptの型ガード的にキャストするか、プロパティアクセスを工夫 */}
+                                    <Row label="産地" value={(details as LiveDetails).locality} />
+                                    <Row label="羽化日" value={(details as LiveDetails).hatch_date} />
+                                    <Row label="サイズ" value={(details as LiveDetails).size} />
+                                    <Row label="累代" value={(details as LiveDetails).generation} />
+                                    <Row label="性別" value={getSexLabel((details as LiveDetails).sex)} />
+                                </div>
+                            ) : (
+                                <div className="grid grid-cols-2 gap-4">
+                                    <Row label="ブランド" value={(details as SupplyDetails).brand} />
+                                    <Row label="SKU / 型番" value={(details as SupplyDetails).sku} />
+                                    <Row label="内容量" value={(details as SupplyDetails).net_weight_g ? `${(details as SupplyDetails).net_weight_g} g` : ""} />
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {/* 配送について */}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">配送について</h4>
+                        <div className="bg-white border border-gray-200 rounded-xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <Row label="配送料の負担" value={shipFeeLabel} />
+                            <Row label="発送元の地域" value={PREFS.find(p => p.id === shipFromId)?.name || "未選択"} />
+                            <Row label="発送までの日数" value={shipsLabel} />
+                        </div>
                     </div>
 
                     {/* 説明 */}
-                    <div>
-                        <div className="text-sm text-gray-600 mb-1">商品説明</div>
-                        <div className="whitespace-pre-wrap text-sm border rounded-lg p-3">
-                            {description || "（未入力）"}
+                    <div className="space-y-3">
+                        <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">商品説明</h4>
+                        <div className="bg-gray-50 rounded-xl p-5 border border-gray-100 text-sm text-gray-700 leading-relaxed whitespace-pre-wrap min-h-[100px]">
+                            {description || <span className="text-gray-400 italic">商品説明はありません</span>}
                         </div>
                     </div>
                 </div>
 
-                <div className="px-5 py-4 border-t flex justify-end gap-2">
-                    <button onClick={onClose} className="px-4 h-10 rounded-xl border bg-white">
-                        戻る
-                    </button>
-                    <button
-                        onClick={onConfirm}
-                        disabled={submitting}
-                        className="px-4 h-10 rounded-xl bg-black text-white disabled:opacity-60"
-                    >
-                        {submitting ? "送信中…" : "出品する"}
+                {/* Footer Buttons */}
+                <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
+                    <button onClick={onClose} className="w-full sm:w-auto px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">修正する</button>
+                    <button onClick={onConfirm} disabled={submitting} className="w-full sm:w-auto px-8 py-2.5 rounded-lg bg-red-600 text-white font-bold shadow-sm hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                        {submitting && <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
+                        {submitting ? "出品処理中..." : "規約に同意して出品する"}
                     </button>
                 </div>
             </div>
@@ -135,11 +190,11 @@ export function ConfirmDialog({
     );
 }
 
-function Row({ label, value, strong }: { label: string; value: React.ReactNode; strong?: boolean }) {
+function Row({ label, value, isLarge, isMoney, isTotal }: { label: string; value: React.ReactNode; isLarge?: boolean; isMoney?: boolean; isTotal?: boolean; }) {
     return (
-        <div className="text-sm">
-            <div className="text-gray-500">{label}</div>
-            <div className={strong ? "font-semibold" : ""}>{value}</div>
+        <div className="flex flex-col gap-1">
+            <dt className="text-xs font-medium text-gray-500">{label}</dt>
+            <dd className={`text-gray-900 break-words ${isLarge ? "text-lg font-bold" : "text-sm"} ${isMoney ? "font-mono tracking-tight" : ""} ${isTotal ? "text-xl text-red-600 font-bold" : ""}`}>{value || "—"}</dd>
         </div>
     );
 }

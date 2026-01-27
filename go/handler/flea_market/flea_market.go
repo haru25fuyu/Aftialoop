@@ -51,6 +51,7 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/flea-market/transactions/{id}/receipt/pdf", h.DownloadReceiptPDF).Methods("GET")
 	r.HandleFunc("/flea-market/transactions/{id}/statement/pdf", h.DownloadSalesStatementPDF).Methods("GET")
 
+	// マイページ関連
 	r.HandleFunc("/flea-market/my/sales", h.GetMySalesHistory).Methods("GET")
 	r.HandleFunc("/flea-market/my/sales/exchange", h.ExchangeSalesToPoint).Methods("POST")
 }

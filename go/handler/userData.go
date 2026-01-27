@@ -29,6 +29,9 @@ func (h *userDataHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/profile/get", h.GetProfile).Methods("POST")
 	r.HandleFunc("/profile/edit", h.EditProfile).Methods("POST")
 	r.HandleFunc("/customer", h.GetCustomer).Methods("POST")
+
+	// 他人のプロフィール取得
+	r.HandleFunc("/users/{id}/profile", h.GetUserProfile).Methods("GET")
 }
 
 // マイページの取得 (ダッシュボード用: 基本情報 + カウンターのみ)
@@ -165,7 +168,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var iconPath string
-	file, _, err := r.FormFile("image")
+	file, _, err := r.FormFile("icon_url")
 	if err == nil {
 		defer file.Close()
 		dir := "./static/icon/"
@@ -201,10 +204,8 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		user.IconURL = function.Ptr(iconPath)
 	}
 
-	user_map, _ := function.StructToMap(user)
-
 	// usersテーブルを更新 (名前、Email、アイコン)
-	err = h.db.UpdateUser(user_id, user_map)
+	err = h.db.UpdateUser(user_id, user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザー更新失敗: " + err.Error()})
@@ -217,13 +218,10 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		Gender:      request.Gender,
 		PhoneNumber: request.PhoneNumber,
 		Bio:         request.Bio,
-		// IconURL:   // ★ここからは削除済みなのでセットしない
 	}
 
-	profile_map, _ := function.StructToMap(profile)
-
 	// profileテーブルを更新 (自己紹介など)
-	err = h.db.UpdateProfile(user_id, profile_map)
+	err = h.db.UpdateProfile(user_id, profile)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "プロフィール更新失敗: " + err.Error()})
@@ -264,4 +262,62 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
+}
+
+// プロフィールAPIのレスポンス構造体
+type UserProfileAPIResponse struct {
+	ID            string  `json:"id"`
+	Name          string  `json:"name"`
+	IconUrl       *string `json:"iconUrl"`
+	Description   string  `json:"description"`
+	RatingAverage float64 `json:"ratingAverage"`
+	RatingCount   int     `json:"ratingCount"`
+
+	Listings []utils.FleaMarketItemResponse `json:"listings"`
+	Reviews  []utils.UserReviewResponse     `json:"reviews"`
+}
+
+// GET /users/{id}/profile
+func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	targetUserID := vars["id"]
+
+	// 1. 基本ユーザー情報 & プロフィール (bioなど)
+	// 既存の GetUserDataAndProfile を活用
+	basicInfo, err := h.db.GetUserDataAndProfile([]string{"u.id = ?"}, []interface{}{targetUserID})
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	// 2. 出品リスト取得 (最新20件)
+	listings, err := h.db.GetUserListings(r.Context(), targetUserID, 20, 0)
+	if err != nil {
+		// エラー時は空リストで続行
+		listings = []utils.FleaMarketItemResponse{}
+	}
+
+	// 3. レビューリスト取得 (最新20件)
+	reviews, err := h.db.GetUserReviews(targetUserID, 20)
+	if err != nil {
+		reviews = []utils.UserReviewResponse{}
+	}
+
+	// 4. 評価集計 (平均点・件数)
+	avg, count, _ := h.db.GetUserRatingStats(targetUserID)
+
+	// レスポンス構築
+	resp := UserProfileAPIResponse{
+		ID:            basicInfo.ID,
+		Name:          basicInfo.Name,
+		IconUrl:       basicInfo.IconURL,
+		Description:   *basicInfo.Bio,
+		RatingAverage: avg,
+		RatingCount:   count,
+		Listings:      listings,
+		Reviews:       reviews,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }

@@ -10,19 +10,19 @@ import { CONFIG } from "../conf/config";
 import { ImageAsset } from "../types/FleaMarket"; // ★型をインポート
 
 // 内部管理用の型を拡張
-type Item = { 
-    id: string; 
-    url: string; 
-    owned: boolean; 
+type Item = {
+    id: string;
+    url: string;
+    owned: boolean;
     file?: File;         // fileは任意（サーバー画像には無い）
     serverId?: number;   // サーバーID（あれば保持）
 };
 
 export default function AddImagesModal({
-    open, 
+    open,
     initialImages, // ★変更: files, urls の代わりにこれを受け取る
-    max = 10, 
-    onClose, 
+    max = 10,
+    onClose,
     onSave,
 }: {
     open: boolean;
@@ -98,7 +98,7 @@ export default function AddImagesModal({
         setItems(prev => arrayMove(prev, i, 0));
     };
 
-    // ★追加: 保存ボタンが押されたら、Item[] を ImageAsset[] に戻して返す
+    // 保存ボタンが押されたら、Item[] を ImageAsset[] に戻して返す
     const handleSave = () => {
         const result: ImageAsset[] = items.map(it => ({
             id: it.id,
@@ -173,22 +173,42 @@ export default function AddImagesModal({
 function Thumb({
     id, url, isMain, onRemove, onMakeMain,
 }: { id: string; url: string; isMain: boolean; onRemove: () => void; onMakeMain: () => void }) {
-    // dnd-kit
+
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
     const style: React.CSSProperties = { transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 10 : undefined };
 
     return (
-        <div ref={setNodeRef} style={style} className="relative w-36 h-36 md:w-40 md:h-40 rounded-xl overflow-hidden border bg-white select-none">
+        <div ref={setNodeRef} style={style} className="relative w-36 h-36 md:w-40 md:h-40 rounded-xl overflow-hidden border bg-white select-none group"> {/* groupを追加 */}
+
+            {/* 画像 */}
             <img src={url} className="w-full h-full object-cover pointer-events-none" />
-            <div className="absolute top-1 left-1 flex gap-1">
-                <button type="button" onClick={onMakeMain}
-                    className={`px-2 py-1 rounded-md text-xs ${isMain ? "bg-yellow-400 text-black" : "bg-black/60 text-white"}`}>
-                    {isMain ? "メイン" : "メインに"}
+
+            {/* ドラッグ用の透明レイヤーを下層に配置 */}
+            <div {...attributes} {...listeners} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
+
+            {/* 操作ボタン類をドラッグ層より上に配置 (z-10) */}
+            <div className="absolute top-1 left-1 flex gap-1 z-10">
+                <button
+                    type="button"
+                    // onPointerDownを追加してドラッグ開始を防ぐのがベストプラクティス
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={(e) => { e.stopPropagation(); onMakeMain(); }}
+                    className={`px-2 py-1 rounded-md text-xs font-bold shadow-sm ${isMain ? "bg-yellow-400 text-black" : "bg-black/60 text-white hover:bg-black/80"}`}
+                >
+                    {isMain ? "メイン" : "メインにする"}
                 </button>
             </div>
-            <button type="button" onClick={onRemove}
-                className="absolute bottom-1 right-1 px-2 py-1 rounded-md text-xs bg-red-500 text-white">削除</button>
-            <div {...attributes} {...listeners} className="absolute inset-0 cursor-grab active:cursor-grabbing" />
+
+            <button
+                type="button"
+                // ここもドラッグ開始を防ぐ
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); onRemove(); }}
+                className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600 z-10"
+            >
+                ×
+            </button>
+
         </div>
     );
 }

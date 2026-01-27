@@ -4,9 +4,9 @@ import (
 	"animaloop/utils"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -29,8 +29,16 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 	}
 	defer tx.Rollback()
 
+	// ★追加: detailsオブジェクトをJSON文字列に変換
+	var detailsJSON interface{} = nil
+	if p.Details != nil {
+		b, err := json.Marshal(p.Details)
+		if err == nil {
+			detailsJSON = string(b) // 文字列として保存
+		}
+	}
+
 	// 2. 親テーブル (flea_item_drafts) への INSERT
-	// ※ temp_image_urls はもう使わないので NULL または 空文字 を入れます
 	res, err := tx.ExecContext(ctx, `
         INSERT INTO flea_item_drafts
         SET user_id = ?,
@@ -45,6 +53,9 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
             ship_from = ?,
             shipping_fee_type = ?,
             ships_within_days = ?,
+            
+            details = ?,  -- ★ここにJSON文字列を入れる
+            
             created_at = UTC_TIMESTAMP(),
             updated_at = UTC_TIMESTAMP()
     `,
@@ -56,7 +67,9 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 		p.IsMultiPurchasable,
 		p.MainImageURL,
 		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
+		detailsJSON,
 	)
+
 	if err != nil {
 		return 0, time.Time{}, fmt.Errorf("insert draft: %w", err)
 	}
@@ -109,6 +122,15 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 	}
 	defer tx.Rollback()
 
+	// detailsをJSON文字列に
+	var detailsJSON interface{} = nil
+	if p.Details != nil {
+		b, err := json.Marshal(p.Details)
+		if err == nil {
+			detailsJSON = string(b)
+		}
+	}
+
 	// ... (存在チェック等は省略、変更なし) ...
 	// ↓ チェック用簡易コード
 	var exists bool
@@ -130,11 +152,20 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
                ship_from = COALESCE(?, ship_from),
                shipping_fee_type = COALESCE(?, shipping_fee_type),
                ships_within_days = COALESCE(?, ships_within_days),
+               
+               details = COALESCE(?, details), -- ★更新
+               
                updated_at = UTC_TIMESTAMP()
          WHERE id = ? AND user_id = ?
     `,
-		p.Name, p.Description, p.Price, p.Price, p.Price, p.Quantity, p.Type, p.IsMultiPurchasable, p.MainImageURL, p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays, draftID, userID,
+		p.Name, p.Description,
+		p.Price, p.Price, p.Price,
+		p.Quantity, p.Type, p.IsMultiPurchasable, p.MainImageURL,
+		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
+		detailsJSON,
+		draftID, userID,
 	)
+
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -173,22 +204,41 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
 	}
 	var updated time.Time
 
-	// 親テーブル取得 (変更なし)
+	var detailsString sql.NullString // ★DBのlongtextを受け取る変数
+
+	// SELECT実行
 	err := db.DB.QueryRowContext(ctx, `
         SELECT id, name, description,
                CASE WHEN price IS NULL THEN NULL ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM price)) END,
                quantity, type, is_multi_purchasable,
                main_image_url,
-               ship_from, shipping_fee_type, ships_within_days, updated_at
+               ship_from, shipping_fee_type, ships_within_days, 
+               
+               details, -- ★取得
+               
+               updated_at
           FROM flea_item_drafts
          WHERE id = ? AND user_id = ? AND status = 0
     `, draftID, userID).Scan(
 		&out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type, &out.IsMultiPurchasable,
-		&out.MainImageURL, &out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays, &updated,
+		&out.MainImageURL, &out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays,
+
+		&detailsString, // ★受け取る
+
+		&out.UpdatedAt, // (型に合わせて調整してください)
 	)
 	if err != nil {
 		return out, err
 	}
+
+	// ★JSON文字列をオブジェクトに戻す
+	if detailsString.Valid && detailsString.String != "" {
+		var det interface{}
+		if err := json.Unmarshal([]byte(detailsString.String), &det); err == nil {
+			out.Details = det
+		}
+	}
+
 	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
 
 	// ★画像取得（asset_id を serverId として復元）
@@ -282,23 +332,4 @@ func (db *Database) UploadImageAsset(publicURL string) (int64, error) {
 	id, _ := result.LastInsertId()
 
 	return id, nil
-}
-
-func (d *Database) LinkImagesToItem(itemID int64, imageIDs []int64) error {
-	if len(imageIDs) == 0 {
-		return nil
-	}
-
-	// クエリの構築: UPDATE image_assets SET item_id = ? WHERE id IN (?, ?, ?)
-	query := "UPDATE image_assets SET item_id = ? WHERE id IN (?" + strings.Repeat(",?", len(imageIDs)-1) + ")"
-
-	// 引数の構築
-	args := make([]interface{}, len(imageIDs)+1)
-	args[0] = itemID
-	for i, id := range imageIDs {
-		args[i+1] = id
-	}
-
-	_, err := d.DB.Exec(query, args...)
-	return err
 }

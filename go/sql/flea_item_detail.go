@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log"
 )
 
 // ============================================================
@@ -102,14 +103,14 @@ func (d *Database) GetFleaMarketItemDetail(id int64, itemType string) (*utils.Fl
 	detail := &utils.FleaMarketItemDetails{}
 
 	switch itemType {
-	case "animal":
+	case "ANIMAL":
 		ad, err := d.GetAnimalDetailsByItemID(id)
 		if err != nil {
 			return nil, err
 		}
 		detail.Animal = ad
 
-	case "supply":
+	case "SUPPLY":
 		sd, err := d.GetSupplyDetailsByItemID(id)
 		if err != nil {
 			return nil, err
@@ -117,7 +118,9 @@ func (d *Database) GetFleaMarketItemDetail(id int64, itemType string) (*utils.Fl
 		detail.Supply = sd
 
 	default:
-		// noop
+		// なかったログ
+		log.Printf("[flea_item_detail] unknown item type: %s", itemType)
+		return nil, nil
 	}
 
 	return detail, nil

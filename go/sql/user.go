@@ -113,35 +113,67 @@ func (d *Database) GetCustomerID(userID string) (string, error) {
 	return customerID, err
 }
 
-func (d *Database) UpdateUser(id string, user map[string]interface{}) error {
-	setClauses := []string{}
-	values := []interface{}{}
+func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
+	var setClauses []string
+	var args []interface{}
 
-	for key, value := range user {
-		if key == "id" {
-			continue
-		}
-		if key == "google_id" && value == "" {
-			continue
-		}
-		if key == "password" && value == "" {
-			continue
-		}
-		if key == "apple_id" && value == "" {
-			continue
-		}
+	// 1. 各フィールドをチェックして、更新対象リストに追加
 
-		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
-		values = append(values, value)
+	// Name
+	if user.Name != "" {
+		setClauses = append(setClauses, "name = ?")
+		args = append(args, user.Name)
 	}
 
-	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(setClauses, ","))
-	log.Println(query)
+	// Email
+	if user.Email != "" {
+		setClauses = append(setClauses, "email = ?")
+		args = append(args, user.Email)
+	}
 
-	values = append(values, id)
-	log.Println(values)
+	// IconURL (*string なので nil チェック)
+	// nil でなければ、空文字であっても更新する（アイコン削除の場合などに対応可能）
+	if user.IconURL != nil {
+		setClauses = append(setClauses, "icon_url = ?")
+		args = append(args, *user.IconURL)
+	}
 
-	_, err := d.DB.Exec(query, values...)
+	// Password
+	if user.Password != "" {
+		setClauses = append(setClauses, "password = ?")
+		args = append(args, user.Password)
+	}
+
+	// GoogleID
+	if user.GoogleID != "" {
+		setClauses = append(setClauses, "google_id = ?")
+		args = append(args, user.GoogleID)
+	}
+
+	// AppleID
+	if user.AppleID != "" {
+		setClauses = append(setClauses, "apple_id = ?")
+		args = append(args, user.AppleID)
+	}
+
+	// DefaultCard
+	if user.DefaultCard != "" {
+		setClauses = append(setClauses, "default_card = ?")
+		args = append(args, user.DefaultCard)
+	}
+
+	// 2. 更新する項目がなければ終了
+	if len(setClauses) == 0 {
+		return nil
+	}
+
+	// 3. クエリ組み立て
+	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(setClauses, ", "))
+
+	// 4. IDを追加して実行
+	args = append(args, id)
+
+	_, err := d.DB.Exec(query, args...)
 	return err
 }
 
@@ -188,19 +220,53 @@ func (d *Database) SetDefaultCard(userID, cardID string) error {
 	return err
 }
 
-func (d *Database) UpdateProfile(id string, profile map[string]interface{}) error {
-	setClauses := []string{}
-	values := []interface{}{}
+func (d *Database) UpdateProfile(userID string, profile utils.Profile) error {
+	// 1. クエリの部品（"name = ?" など）と、値を入れるスライスを用意
+	var setClauses []string
+	var args []interface{}
 
-	for key, value := range profile {
-		setClauses = append(setClauses, fmt.Sprintf("%s = ?", key))
-		values = append(values, value)
+	// 2. 各フィールドをチェックして、値があればリストに追加
+
+	// 誕生日
+	if profile.DateOfBirth != nil && *profile.DateOfBirth != "" {
+		setClauses = append(setClauses, "date_of_birth = ?")
+		args = append(args, *profile.DateOfBirth)
 	}
 
-	query := fmt.Sprintf("UPDATE profile SET %s WHERE user_id = ?", strings.Join(setClauses, ","))
-	values = append(values, id)
+	// 性別
+	if profile.Gender != nil && *profile.Gender != "" {
+		setClauses = append(setClauses, "gender = ?")
+		args = append(args, *profile.Gender)
+	}
 
-	_, err := d.DB.Exec(query, values...)
+	// 電話番号
+	if profile.PhoneNumber != nil && *profile.PhoneNumber != "" {
+		setClauses = append(setClauses, "phone_number = ?")
+		args = append(args, *profile.PhoneNumber)
+	}
+
+	// 自己紹介
+	// ※Bioは空文字で「消去」したい場合もあると思うので、nilチェックだけにしています
+	if profile.Bio != nil {
+		setClauses = append(setClauses, "bio = ?")
+		args = append(args, *profile.Bio)
+	}
+
+	// 3. 更新する項目が一つもなければ何もしない
+	if len(setClauses) == 0 {
+		return nil
+	}
+
+	// 4. クエリを組み立てる
+	// strings.Join を使うと、カンマ区切りを自動でやってくれます
+	// 例: "UPDATE profile SET date_of_birth = ?, bio = ? WHERE user_id = ?"
+	query := fmt.Sprintf("UPDATE profile SET %s WHERE user_id = ?", strings.Join(setClauses, ", "))
+
+	// 5. 最後に WHERE句用の user_id を引数リストに追加
+	args = append(args, userID)
+
+	// 6. 実行 (args... でスライスを展開して渡す)
+	_, err := d.DB.Exec(query, args...)
 	return err
 }
 

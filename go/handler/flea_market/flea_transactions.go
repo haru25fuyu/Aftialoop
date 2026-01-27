@@ -321,9 +321,15 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	totalPriceYen := float64(tx.PriceItem + tx.PriceShipping)
 
 	// ポイント換算額
-	// ★ここも四捨五入したければ math.Round ですが、通常ポイントは「切り捨て」か「切り上げ」が多いです。
-	// 今回は安全側に倒して Floor (1pt = 1.02円 のとき 100pt -> 102円)
-	discountYen := math.Floor(float64(input.UsePoints) * sellerRate)
+	// ★修正: Floor(切り捨て)だと、フロントで切り捨てたポイント数では1円足りなくなるため、
+	//        バックエンドでは Ceil(切り上げ) を使って「端数分はおまけ」してあげる必要があります。
+	// 例: 1960pt * 1.02 = 1999.2円 -> Ceilして 2000円分の価値とみなす
+	discountYen := math.Ceil(float64(input.UsePoints) * sellerRate)
+
+	// キャップ処理: 割引額が合計金額を超えないようにする
+	if discountYen > totalPriceYen {
+		discountYen = totalPriceYen
+	}
 
 	// 請求額 (float64のまま計算)
 	chargeAmount := totalPriceYen - discountYen

@@ -37,6 +37,7 @@ import SalesHistoryPage from './page/SalesHistory';
 import PaymentList from './page/PaymentList';
 import DraftListPage from './page/DraftList';
 import SellingListPage from './page/SellingList';
+import UserProfile from './page/UserProfile';
 
 
 const App: React.FC = () => {
@@ -56,6 +57,7 @@ const App: React.FC = () => {
         <Route path="/register/confirm" element={<RegisterConfirm />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="*" element={<NotFound />} />
+        <Route path="/user/profile/:userId" element={<UserProfile />} />
 
         {/* protected */}
         <Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />

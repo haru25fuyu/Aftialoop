@@ -17,6 +17,7 @@ export interface FleaContent {
   main_image_url: string;
   name: string;
   price: number;
+  seller_rate: number;
   quantity: number;
   shipFrom: number;
   shippingFeeType: number;
@@ -28,6 +29,25 @@ export interface FleaContent {
 
   seller_name: string;
   seller_icon_url: string | null;
+}
+
+export interface FleaItemDetails {
+  // ANIMAL 用
+  animal_details?: {
+    locality: string;
+    hatch_date: string;
+    generation: string;
+    size: string;
+    sex: string;
+  };
+
+  // SUPPLY 用
+  supply_details?: {
+    brand: string;
+    sku: string;
+    net_weight_g: string;
+    //model: string;
+  };
 }
 
 export interface FleaListContent {
@@ -149,10 +169,34 @@ export interface DraftItem {
   updated_at: string;
 }
 
-
 export type ImageAsset = {
-    id: string;      // フロントでの識別用ユニークID
-    file?: File;     // 新規追加時はFileがある
-    url: string;     // 表示用＆サーバー保存用URL
-    serverId?: number; // サーバーにアップロード済みの場合のID
+  id: string; // フロントでの識別用ユニークID
+  file?: File; // 新規追加時はFileがある
+  url: string; // 表示用＆サーバー保存用URL
+  serverId?: number; // サーバーにアップロード済みの場合のID
+};
+
+// 型定義（別ファイルに分けてもOK）
+export type UserReview = {
+  id: number;
+  reviewerName: string;
+  reviewerIconUrl: string;
+  rating: number;
+  comment: string;
+  createdAt: number;
+  itemName?: string;
+};
+
+export type UserProfileData = {
+    id: string;
+    name: string;
+    iconUrl: string;
+    description: string;
+    ratingAverage: number;
+    ratingCount: number;
+    isFollowing: boolean;    // ★追加
+    followersCount: number;  // ★追加
+    followingCount: number;  // ★追加
+    listings: FleaContent[];
+    reviews: any[];
 };

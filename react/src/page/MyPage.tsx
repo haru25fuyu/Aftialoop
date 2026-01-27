@@ -58,7 +58,7 @@ export default function MyPage() {
                         </div>
                         <div className="flex-1">
                             <h1 className="text-xl font-bold text-gray-800">{user.name}</h1>
-                            <Link to="/mypage/profile/edit" className="text-xs text-gray-400 hover:text-blue-500">
+                            <Link to="/mypage/profile" className="text-xs text-gray-400 hover:text-blue-500">
                                 プロフィールを編集 &gt;
                             </Link>
                         </div>

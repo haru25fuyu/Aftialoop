@@ -2,7 +2,6 @@ package utils
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"time"
 )
@@ -333,9 +332,10 @@ type CreateFleaMarketItemInput struct {
 	Description        *string  `json:"description,omitempty"`
 	MainImageURL       string   `json:"main_image_url"`
 	ImageURLs          []string `json:"imageUrls"`       // 画像を先にアップしてURL化しておく想定
-	ShippingFeeType    int      `json:"shippingFeeType"` // 0送料込み/1着払い
+	ShippingFeeType    int      `json:"shippingFeeType"` // 0送料込み/1着払い/2送料別
 	ShipFrom           *int     `json:"shipFrom,omitempty"`
 	ShipsWithinDays    *int     `json:"shipsWithinDays,omitempty"`
+	AssetIDs           []string `json:"asset_ids,omitempty"` // 画像アセットID群
 }
 
 type AnimalDetails struct {
@@ -461,12 +461,13 @@ type LatestDraftResponse struct {
 	DraftID            uint64                `json:"draft_id"`
 	Name               *string               `json:"name"`
 	Description        *string               `json:"description"`
-	Price              *string               `json:"price"`
+	Price              *string               `json:"price"` // 文字列(OK)
 	Quantity           *int                  `json:"quantity"`
 	Type               *string               `json:"type"`
+	Details            interface{}           `json:"details,omitempty"`
 	IsMultiPurchasable *int                  `json:"is_multi_purchasable"`
 	ShippingFeeType    *int                  `json:"shipping_fee_type"`
-	ShipFrom           *string               `json:"ship_from"`
+	ShipFrom           *int                  `json:"ship_from"`
 	ShipsWithinDays    *int                  `json:"ships_within_days"`
 	MainImageURL       *string               `json:"main_image_url"`
 	UploadedImages     *[]DraftUploadedImage `json:"uploaded_images"`
@@ -474,18 +475,21 @@ type LatestDraftResponse struct {
 }
 
 type DraftPayload struct {
-	Name               *string               `json:"name"`
-	Description        *string               `json:"description"`
-	Price              *string               `json:"price"`
-	Quantity           *int                  `json:"quantity"`
-	Type               *string               `json:"type"`
-	IsMultiPurchasable *int                  `json:"is_multi_purchasable"`
-	ShippingFeeType    *int                  `json:"shipping_fee_type"`
-	ShipFrom           *int                  `json:"ship_from"`
-	ShipsWithinDays    *int                  `json:"ships_within_days"`
-	MainImageURL       *string               `json:"main_image_url"`
-	UploadedImages     *[]DraftUploadedImage `json:"uploaded_images"`
-	Details            json.RawMessage       `json:"details,omitempty"`
+	Name               *string `json:"name"`
+	Description        *string `json:"description"`
+	Price              *string `json:"price"`
+	Quantity           *int    `json:"quantity"`
+	Type               *string `json:"type"`
+	IsMultiPurchasable *int    `json:"is_multi_purchasable"`
+	ShippingFeeType    *int    `json:"shipping_fee_type"`
+
+	ShipFrom *int `json:"ship_from"`
+
+	ShipsWithinDays *int                  `json:"ships_within_days"`
+	MainImageURL    *string               `json:"main_image_url"`
+	UploadedImages  *[]DraftUploadedImage `json:"uploaded_images"`
+
+	Details interface{} `json:"details,omitempty"` // ★ここを json.RawMessage から interface{} に変更
 }
 
 // 画像情報の型も定義
@@ -579,4 +583,16 @@ type UserRelationship struct {
 	FollowerID  string    `db:"follower_id"`
 	FollowingID string    `db:"following_id"`
 	CreatedAt   time.Time `db:"created_at"`
+}
+
+// review
+// プロフィール用: レビュー詳細
+type UserReviewResponse struct {
+	ID              uint64    `db:"id" json:"id"`
+	Rating          int       `db:"rating" json:"rating"`
+	Comment         string    `db:"comment" json:"comment"`
+	CreatedAt       time.Time `db:"created_at" json:"createdAt"`
+	ReviewerName    string    `db:"reviewer_name" json:"reviewerName"`
+	ReviewerIconURL *string   `db:"reviewer_icon_url" json:"reviewerIconUrl"`
+	ItemName        *string   `db:"item_name" json:"itemName"`
 }

@@ -146,9 +146,9 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		err = h.db.UpdateUser(user.ID, map[string]interface{}{
-			"name":      payload["name"].(string),
-			"google_id": payload["sub"].(string),
+		err = h.db.UpdateUser(user.ID, utils.SqlUser{
+			Name:     payload["name"].(string),
+			GoogleID: payload["sub"].(string),
 		})
 
 		// トークン生成
