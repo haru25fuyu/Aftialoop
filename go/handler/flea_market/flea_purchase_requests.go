@@ -68,7 +68,6 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 		}
 	}
 
-	// DB（既に作ってあるやつを呼ぶ）
 	id, err := h.db.CreateFleaPurchaseRequest(
 		r.Context(),
 		buyerID,
@@ -98,6 +97,10 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 			http.Error(w, "failed", http.StatusInternalServerError)
 			return
 		}
+	}
+
+	if note != nil {
+		h.db.CreateTransactionMessage(id, buyerID, *req.Note)
 	}
 
 	// 出品者取得

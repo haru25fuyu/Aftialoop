@@ -25,6 +25,7 @@ export default function FleaTransactionPage() {
     const [err, setErr] = useState<string | null>(null);
     const [isLoginModalOpen, setLoginModalOpen] = useState(false); // State for Login Modal
     const [isLoggedIn, setIsLoggedIn] = useState(false); // State to track login status
+    const [myUserId, setMyUserId] = useState<string | null>(null); // State to store logged-in user ID
 
     // Function to check user login status
     const checkLoginStatus = async () => {
@@ -34,8 +35,10 @@ export default function FleaTransactionPage() {
             if (!res.data.user || !res.data.user.id) {
                 setLoginModalOpen(true);
                 setIsLoggedIn(false);
+                setMyUserId(null);
             } else {
                 setIsLoggedIn(true);
+                setMyUserId(res.data.user.id);
                 // If logged in, proceed to load data
                 load();
             }
@@ -126,6 +129,7 @@ export default function FleaTransactionPage() {
 
                     <SellerSetTerms
                         pr={data.purchase_request}
+                        myUserId={myUserId!}
                         role={data.role}
                         item={data.item}
                         buyer_address={data.address}
@@ -144,7 +148,7 @@ export default function FleaTransactionPage() {
             <div className="mx-auto w-full max-w-[900px] p-4 sm:p-6 space-y-4">
                 <TxHeader data={data} phase={phase} />
                 <TxTimeline phase={phase} />
-                <PhasePanel data={data} phase={phase} onChanged={load} />
+                <PhasePanel data={data} myUserId={myUserId!} phase={phase} onChanged={load} />
             </div>
         </>
     );

@@ -116,3 +116,31 @@ func (d *Database) GetFleaItemMessageUserIDs(itemID uint64, userID string) ([]st
 
 	return userIDs, nil
 }
+
+// -----------------------------------------------------------
+// 取引メッセージ関係
+// -----------------------------------------------------------
+
+// 取引メッセージ一覧取得
+func (d *Database) GetTransactionMessages(prID uint64) ([]utils.FleaTXMessage, error) {
+	query := `
+        SELECT 
+            m.id, m.purchase_request_id, m.user_id, m.message, m.created_at,
+            u.name AS user_name, u.icon_url AS user_icon_url
+        FROM flea_transaction_messages m
+        JOIN users u ON m.user_id = u.id
+        WHERE m.purchase_request_id = ?
+        ORDER BY m.created_at ASC
+    `
+
+	var messages []utils.FleaTXMessage
+	err := d.DB.Select(&messages, query, prID)
+	return messages, err
+}
+
+// 取引メッセージ追加
+func (d *Database) CreateTransactionMessage(prID uint64, userID string, message string) error {
+	query := `INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message) VALUES (?, ?, ?)`
+	_, err := d.DB.Exec(query, prID, userID, message)
+	return err
+}

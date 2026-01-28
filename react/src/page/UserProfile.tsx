@@ -32,6 +32,7 @@ const UserProfile: React.FC = () => {
                 setLoading(true);
                 const res = await api.get(`/users/${userId}/profile`);
                 setProfile(res.data);
+                console.log("Fetched profile:", res.data);
             } catch (error) {
                 console.error("Failed to fetch user profile", error);
             } finally {

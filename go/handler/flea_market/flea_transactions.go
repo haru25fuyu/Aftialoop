@@ -229,6 +229,10 @@ func (h *FleaMarketHandler) AcceptPurchaseRequest(w http.ResponseWriter, r *http
 		return
 	}
 
+	if input.NoteToBuyer != "" && strings.TrimSpace(input.NoteToBuyer) != "" {
+		h.db.CreateTransactionMessage(txID, sellerID, input.NoteToBuyer)
+	}
+
 	// E. 出品者情報取得
 	// (メール本文に名前を入れるため)
 	seller, err := h.db.GetUserDataByID(pr.SellerID)

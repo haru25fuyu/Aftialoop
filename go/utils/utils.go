@@ -368,6 +368,18 @@ type FleaItemMessage struct {
 	CreatedAt       int64  `json:"createdAt"`
 }
 
+type FleaTXMessage struct {
+	ID        uint64    `db:"id" json:"id"`
+	TxID      uint64    `db:"purchase_request_id" json:"purchase_request_id"`
+	UserID    string    `db:"user_id" json:"user_id"`
+	Message   string    `db:"message" json:"message"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+
+	// 表示用
+	UserName    string  `db:"user_name" json:"user_name"`
+	UserIconURL *string `db:"user_icon_url" json:"user_icon_url"`
+}
+
 type AddMessageRequest struct {
 	ParentMessageID *uint64 `json:"parentMessageId"`
 	Body            string  `json:"body"`

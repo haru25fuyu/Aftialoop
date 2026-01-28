@@ -1,17 +1,21 @@
 import React from "react";
 import { FleaThreadResponse } from "../../types/FleaMarket";
 import { Clock, AlertTriangle, ChevronRight, Package, CreditCard } from "lucide-react"; // アイコン用
+import { TransactionChat } from "../TransactionChat";
 
 const cn = (...xs: Array<string | false | undefined | null>) => xs.filter(Boolean).join(" ");
 
 export default function WaitPaymentPanel({
     data,
+    myUserId,
+    onChanged,
 }: {
     data: FleaThreadResponse;
+    myUserId: string;
     onChanged: () => void;
 }) {
     const { transaction } = data;
-    
+
     // 金額計算
     const itemPrice = transaction?.price_item ?? 0;
     const shippingPrice = transaction?.price_shipping ?? 0;
@@ -41,7 +45,7 @@ export default function WaitPaymentPanel({
                         <CreditCard className="w-4 h-4" /> 取引情報の確認
                     </h4>
                 </div>
-                
+
                 <div className="p-4 space-y-3">
                     {/* 商品価格 */}
                     <div className="flex justify-between items-center text-sm">
@@ -82,7 +86,17 @@ export default function WaitPaymentPanel({
                     </div>
                 </div>
             </div>
-            
+
+            {/* チャットエリアを追加 */}
+            {data.transaction && myUserId && (
+                <div className="mt-8">
+                    <TransactionChat
+                        purchase_request_id={data.transaction.purchase_request_id.toString()}
+                        myUserId={myUserId}
+                    />
+                </div>
+            )}
+
             {/* おまけ: 取引キャンセルなどの動線が必要ならここに置く */}
             <div className="text-center">
                 <button className="text-xs text-gray-400 hover:text-gray-600 underline">

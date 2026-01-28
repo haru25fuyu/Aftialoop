@@ -15,9 +15,9 @@ import { acceptPurchaseRequest } from "../../function/FleaMarket";
 
 // Icons
 import {
-    Calculator, Truck, Package, Thermometer, Box,
-    Check, AlertCircle, MessageCircle, MapPin, Info, ArrowRight
+    Calculator, Truck, Thermometer, Box, MapPin, Info, ArrowRight
 } from "lucide-react";
+import { TransactionChat } from "../TransactionChat";
 
 // ---------------------------------------------------------
 // 定数・型定義
@@ -153,10 +153,12 @@ export default function SellerSetTerms({
     role,
     item,
     buyer_address,
+    myUserId,
     onChanged,
 }: {
     pr: FleaPurchaseRequestRow | null;
     role: "BUYER" | "SELLER";
+    myUserId: string; // 自分のID (チャット用)
     item: FleaContent | null;
     buyer_address: Address | null;
     onChanged: () => void;
@@ -265,6 +267,7 @@ export default function SellerSetTerms({
             onChanged();
         } catch (e) {
             alert("エラーが発生しました");
+            console.error(e);
         }
     };
 
@@ -306,10 +309,13 @@ export default function SellerSetTerms({
                                 {SHIPPING_FEE_TYPES.find((f) => f.id === pr.shipping_fee_pref)?.label}
                             </span>
                         </div>
-                        {pr.note && (
-                            <div className="bg-gray-50 p-3 rounded-lg text-gray-600 text-xs">
-                                <span className="font-bold block mb-1 text-gray-400">備考</span>
-                                {pr.note}
+                        {/* チャットエリアを追加 */}
+                        {pr && myUserId && (
+                            <div className="mt-8">
+                                <TransactionChat
+                                    purchase_request_id={pr.id.toString()}
+                                    myUserId={myUserId}
+                                />
                             </div>
                         )}
                     </div>
@@ -531,22 +537,15 @@ export default function SellerSetTerms({
                         </div>
                     )}
 
-                    {/* メッセージ */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-black flex items-center gap-2">
-                            メッセージ <span className="text-gray-400 text-xs font-normal">任意</span>
-                        </label>
-                        <div className="relative">
-                            <MessageCircle className="absolute top-3 left-3 text-gray-400" size={18} />
-                            <textarea
-                                className="w-full pl-10 pr-3 py-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-black focus:border-black outline-none text-sm min-h-[80px]"
-                                placeholder="購入者に伝えたいことがあれば入力してください"
-                                value={noteToBuyer}
-                                onChange={(e) => setNoteToBuyer(e.target.value)}
-                                maxLength={500}
+                    {/* チャットエリアを追加 */}
+                    {pr && myUserId && (
+                        <div className="mt-8">
+                            <TransactionChat
+                                purchase_request_id={pr.id.toString()}
+                                myUserId={myUserId}
                             />
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {/* 合計確認エリア */}

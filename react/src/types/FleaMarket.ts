@@ -187,16 +187,22 @@ export type UserReview = {
   itemName?: string;
 };
 
+export type Reviews = {
+  id: string;
+  rating: number;
+  comment: string;
+};
+
 export type UserProfileData = {
-    id: string;
-    name: string;
-    iconUrl: string;
-    description: string;
-    ratingAverage: number;
-    ratingCount: number;
-    isFollowing: boolean;    // ★追加
-    followersCount: number;  // ★追加
-    followingCount: number;  // ★追加
-    listings: FleaContent[];
-    reviews: any[];
+  id: string;
+  name: string;
+  iconUrl: string;
+  description: string;
+  ratingAverage: number;
+  ratingCount: number;
+  isFollowing: boolean; // ★追加
+  followersCount: number; // ★追加
+  followingCount: number; // ★追加
+  listings: FleaContent[];
+  reviews: Reviews[];
 };

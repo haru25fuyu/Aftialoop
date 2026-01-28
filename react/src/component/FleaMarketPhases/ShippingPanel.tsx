@@ -13,6 +13,7 @@ import { FleaThreadResponse } from "../../types/FleaMarket";
 import { Address } from "../../types/Address";
 
 import FleaReviewModal from "../../modal/FleaReviewModal";
+import { TransactionChat } from "../TransactionChat";
 
 
 
@@ -36,9 +37,11 @@ function getCarrierLabel(key: string | null | undefined) {
 
 export default function ShippingPanel({
     data,
+    myUserId,
     onChanged,
 }: {
     data: FleaThreadResponse;
+    myUserId: string;
     onChanged: () => void;
 }) {
     const { transaction: tx, role, address } = data;
@@ -82,15 +85,15 @@ export default function ShippingPanel({
     }
 
     // 購入者: 取引完了 (モーダルから呼ばれる)
-    const handleRateSubmit = async (rating: number, comment: string) => {
-
-        // API呼び出し
-        await RateTransactionByBuyer(tx.id, rating, comment);
-
-        setIsModalOpen(false); // 成功したら閉じる
-        alert("取引が完了しました！お疲れ様でした。");
-        onChanged();
-    };
+    //const handleRateSubmit = async (rating: number, comment: string) => {
+    //
+    //    // API呼び出し
+    //    await RateTransactionByBuyer(tx.id, rating, comment);
+    //
+    //    setIsModalOpen(false); // 成功したら閉じる
+    //    alert("取引が完了しました！お疲れ様でした。");
+    //    onChanged();
+    //};
 
     // 2. 評価送信 (共通モーダルから呼ばれる)
     const handleReviewSubmit = async (rating: number, comment: string) => {
@@ -121,6 +124,14 @@ export default function ShippingPanel({
 
     return (
         <>
+            {data.transaction && myUserId && (
+                <div className="mt-8">
+                    <TransactionChat
+                        purchase_request_id={data.transaction.purchase_request_id.toString()}
+                        myUserId={myUserId}
+                    />
+                </div>
+            )}
             <div className="rounded-2xl border border-gray-300 bg-white shadow-sm overflow-hidden">
                 {/* --- ヘッダー領域 --- */}
                 <div className="text-center py-4 bg-gray-50 border-b border-gray-100">
@@ -195,7 +206,7 @@ export default function ShippingPanel({
                                 <div className="grid grid-cols-1 gap-3 text-sm">
                                     <div>
                                         <div className="text-gray-500 text-xs">配送業者</div>
-                                        <div className="font-medium mt-0.5">{getCarrierLabel(tx.shipping_carrier as any)}</div>
+                                        <div className="font-medium mt-0.5">{getCarrierLabel(tx.shipping_carrier as SHIPPING_CARRIERS | undefined)}</div>
                                     </div>
                                     <div>
                                         <div className="text-gray-500 text-xs">追跡番号</div>
@@ -293,7 +304,7 @@ export default function ShippingPanel({
                                     <div className="flex flex-wrap gap-4 text-sm">
                                         <div>
                                             <span className="text-gray-500 text-xs block">配送業者</span>
-                                            <span className="font-medium">{getCarrierLabel(tx.shipping_carrier as any)}</span>
+                                            <span className="font-medium">{getCarrierLabel(tx.shipping_carrier as SHIPPING_CARRIERS | undefined)}</span>
                                         </div>
                                         <div>
                                             <span className="text-gray-500 text-xs block">追跡番号</span>
