@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
-import { Edit2, Trash2, ImageOff, Clock, FileText } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { Edit2, Trash2, ImageOff, Clock, FileText, ChevronLeft } from "lucide-react";
 import { Header } from "../component/Header";
 import api from "../conf/api";
 import { DraftItem } from "../types/FleaMarket";
 import { CONFIG } from "../conf/config";
 
 export default function DraftListPage() {
+    const navigate = useNavigate();
     const [drafts, setDrafts] = useState<DraftItem[]>([]);
     const [loading, setLoading] = useState(true);
 
@@ -41,6 +42,9 @@ export default function DraftListPage() {
             <Header />
             <div className="max-w-2xl mx-auto p-4 space-y-6">
                 <div className="flex items-center gap-2 mt-4">
+                    <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-100 rounded-full">
+                        <ChevronLeft size={24} className="text-gray-600" />
+                    </button>
                     <FileText className="text-blue-600" />
                     <h1 className="text-2xl font-bold text-gray-800">下書き一覧</h1>
                 </div>

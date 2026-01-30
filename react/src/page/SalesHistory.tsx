@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../conf/api";
-import { Loader2, ArrowUpCircle, ArrowDownCircle, Wallet, History } from "lucide-react";
+import { Loader2, ArrowUpCircle, ArrowDownCircle, Wallet, History, ChevronLeft } from "lucide-react";
 import { Header } from "../component/Header";
 import ExchangePointModal from "../modal/ExchangePointModal";
 import LoginModal from "../modal/Login"; // ★追加: ログインモーダル
@@ -41,6 +42,7 @@ function formatType(type: string) {
 }
 
 export default function SalesHistoryPage() {
+    const navigate = useNavigate();
     const [data, setData] = useState<SalesResponse | null>(null);
     const [loading, setLoading] = useState(true);
 
@@ -113,6 +115,9 @@ export default function SalesHistoryPage() {
             {data && (
                 <div className="max-w-2xl mx-auto p-4 space-y-6">
                     <h1 className="text-2xl font-bold flex items-center gap-2">
+                        <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-100 rounded-full">
+                            <ChevronLeft size={24} className="text-gray-600" />
+                        </button>
                         <Wallet className="text-blue-600" /> 売上・振込管理
                     </h1>
 

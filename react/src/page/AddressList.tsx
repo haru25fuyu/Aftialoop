@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Header } from '../component/Header';
 import EditAddress from '../modal/EditAddress';
 import api from '../conf/api';
 import { Address } from '../types/Address';
-import { Plus, MapPin, CheckCircle, Phone, Edit2 } from 'lucide-react'; // アイコン追加
+import { Plus, MapPin, CheckCircle, Phone, Edit2, ChevronLeft } from 'lucide-react'; // アイコン追加
 
 const AddressList: React.FC = () => {
+    const navigate = useNavigate();
     const [address, setAddress] = React.useState<Address[]>([])
     const [isModalOpen, setIsModalOpen] = React.useState(false);
     const [selectedAddress, setSelectedAddress] = React.useState<Address>({} as Address);
@@ -50,6 +52,9 @@ const AddressList: React.FC = () => {
 
             <main className="max-w-3xl mx-auto p-4 space-y-6">
                 <div className="flex items-center gap-2 mt-4 mb-6">
+                    <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-100 rounded-full">
+                        <ChevronLeft size={24} className="text-gray-600" />
+                    </button>
                     <MapPin className="text-blue-600" />
                     <h1 className="text-2xl font-bold text-gray-800">お届け先住所の管理</h1>
                 </div>
