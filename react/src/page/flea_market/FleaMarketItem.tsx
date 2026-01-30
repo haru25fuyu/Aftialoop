@@ -18,6 +18,7 @@ import api, { getAccessToken } from "../../conf/api";
 import { CONFIG } from "../../conf/config";
 import { SHIPPING_FEE_TYPES_MAP } from "../../conf/FleaMarket";
 import { getPrefName } from "../../conf/function";
+import { LikeButton } from "../../component/LikeButton";
 
 // ★追加: 計算用ヘルパー (一覧画面と同じもの)
 const DEFAULT_RATE = 1.00;
@@ -147,7 +148,7 @@ const Item: React.FC = () => {
                     <div className="col-span-1 md:col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 border-b pb-1">生体情報</div>
 
                     <DetailRow label="産地" value={itemDetails.animal_details?.locality} />
-                    {/* ★修正2: formatDate関数を通して表示 */}
+                    {/* formatDate関数を通して表示 */}
                     <DetailRow label="羽化日" value={formatDate(itemDetails.animal_details?.hatch_date || "")} />
                     <DetailRow label="サイズ" value={itemDetails.animal_details?.size} />
                     <DetailRow label="累代" value={itemDetails.animal_details?.generation} />
@@ -217,14 +218,23 @@ const Item: React.FC = () => {
                             className="w-full aspect-square md:rounded-2xl md:border border-gray-100 shadow-sm bg-white"
                         >
                             {images.length > 0 ? images.map((img) => (
-                                <SwiperSlide key={img.id} className="!w-full">
-                                    <div className="w-full h-full flex items-center justify-center bg-white">
+                                <SwiperSlide key={img.id} className="!w-full relative"> {/* Added relative here just in case */}
+                                    <div className="w-full h-full flex items-center justify-center bg-white relative"> {/* Ensure relative parent */}
                                         <img
                                             className="!w-full !h-full object-contain"
                                             style={{ width: "100%", height: "100%" }}
                                             src={CONFIG.BASE_URL + img.url}
                                             alt={item.name}
                                         />
+
+                                        <div className="absolute bottom-4 right-4 z-[20]">
+                                            <LikeButton
+                                                itemId={item.id}
+                                                initialLiked={item.is_liked}
+                                                size={32}
+                                                className="bg-white p-2 rounded-full shadow-md bg-opacity-90 hover:bg-gray-50 transition-all"
+                                            />
+                                        </div>
                                     </div>
                                 </SwiperSlide>
                             )) : (

@@ -102,6 +102,9 @@ type RequestUserProfile struct {
 	PhoneNumber *string `db:"phone_number" json:"phone"`
 	Bio         *string `db:"bio" json:"bio"`
 	IconURL     *string `db:"icon_url" json:"icon_url"`
+
+	FollowersCount int `db:"followers_count" json:"followersCount"`
+	FollowingCount int `db:"following_count" json:"followingCount"`
 }
 
 type SqlResponsUserProfile struct {
@@ -114,6 +117,9 @@ type SqlResponsUserProfile struct {
 	PhoneNumber sql.NullString `db:"phone_number" json:"phone_number"`
 	Bio         sql.NullString `db:"bio" json:"bio"`
 	IconURL     sql.NullString `db:"icon_url" json:"icon_url"`
+
+	FollowersCount int `db:"followers_count" json:"followersCount"`
+	FollowingCount int `db:"following_count" json:"followingCount"`
 }
 
 type Address struct {
@@ -245,6 +251,7 @@ type FleaMarketListLite struct {
 	MainImageURL  *string `json:"main_image_url"`
 	SellerName    string  `json:"seller_name"`
 	SellerIconURL *string `json:"seller_icon_url"`
+	IsLiked       bool    `json:"is_liked"`
 }
 
 type FleaMarketItem struct {
@@ -295,14 +302,14 @@ type FleaMarketItemResponse struct {
 
 type FleaMarketItemDetail struct {
 	FleaMarketItem
-
+	IsLiked  bool   `db:"is_liked" json:"is_liked"`
 	UserName string `db:"user_name" json:"seller_name"`
 	UserIcon string `db:"user_icon" json:"seller_icon_url"`
 }
 
 type FleaMarketItemDetailResponse struct {
 	FleaMarketItemResponse
-
+	IsLiked  bool   `db:"is_liked" json:"is_liked"`
 	UserName string `db:"user_name" json:"seller_name"`
 	UserIcon string `db:"user_icon" json:"seller_icon_url"`
 }
@@ -451,6 +458,28 @@ type AcceptPurchaseRequestInput struct {
 	NoteToBuyer       string `json:"note_to_buyer"`       // 購入者へのメッセージ
 }
 
+type ActiveTransactionResponse struct {
+	ID                uint64 `json:"id"`
+	PurchaseRequestID uint64 `json:"pr_id"`
+	ItemName          string `json:"item_name"`
+	ItemImageURL      string `json:"item_image_url"`
+	Price             uint32 `json:"price"`
+	Status            string `json:"status"`
+	IsSeller          bool   `json:"is_seller"` // 自分が売る側ならtrue
+	UpdatedAt         string `json:"updated_at"`
+}
+
+type PurchaseRequestResponse struct {
+	ID               uint64 `json:"id"`
+	ItemID           int64  `json:"item_id"`
+	ItemName         string `json:"item_name"`
+	ItemMainImageURL string `json:"item_main_image_url"`
+	BuyerID          string `json:"buyer_id"`
+	BuyerName        string `json:"buyer_name"`
+	CreatedAt        string `json:"created_at"`
+	Status           string `json:"status"`
+}
+
 /* =========================
    ドラフト関連
 ========================= */
@@ -551,15 +580,17 @@ func ToUserProfileResponse(u SqlResponsUserProfile) RequestUserProfile {
 	}
 
 	return RequestUserProfile{
-		ID:          u.ID,
-		Name:        u.Name,
-		Email:       u.Email,
-		DateOfBirth: ptr(u.DateOfBirth),
-		Gender:      ptr(u.Gender),
-		DefaultCard: ptr(u.DefaultCard),
-		PhoneNumber: ptr(u.PhoneNumber),
-		Bio:         ptr(u.Bio),
-		IconURL:     ptr(u.IconURL),
+		ID:             u.ID,
+		Name:           u.Name,
+		Email:          u.Email,
+		DateOfBirth:    ptr(u.DateOfBirth),
+		Gender:         ptr(u.Gender),
+		DefaultCard:    ptr(u.DefaultCard),
+		PhoneNumber:    ptr(u.PhoneNumber),
+		Bio:            ptr(u.Bio),
+		IconURL:        ptr(u.IconURL),
+		FollowersCount: u.FollowersCount,
+		FollowingCount: u.FollowingCount,
 	}
 }
 

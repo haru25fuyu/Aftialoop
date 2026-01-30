@@ -1,14 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
-import { Address, Content, Payment } from '../types/Content';
-import { Customer } from '../types/Content';
+import { Customer, Content } from '../types/Content';
+import { Address } from '../types/Address';
+import { Payment } from '../types/Payment';
+
 
 import api from '../conf/api';
 import { chargeCard, chargePoint } from '../conf/function';
 
-import LoginModal from '../modal/Login';
 import SquarePayment from '../modal/EditPayment';
+
 
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
@@ -22,7 +24,6 @@ const Checkout: React.FC = () => {
   const [reloadTrigger, setReloadTrigger] = useState(0);
   const [paymentList, setPaymentList] = useState<Payment[]>([]); // 支払い方法のリスト
   const [selectCard, setSelectCard] = useState<string>(''); // 選択されたカードID
-  const [isLoginModalOpen, setLoginModalOpen] = useState(false);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const handleLoginSuccess = () => {
     setReloadTrigger(prev => prev + 1); // トリガーを変えることでuseEffect再発火
@@ -68,7 +69,6 @@ const Checkout: React.FC = () => {
         console.log(res.data);
         if (!res.data.user) {
           setCustomer(null);
-          setLoginModalOpen(true);
         } else {
           setCustomer(res.data.user);
           // ローカルストレージから選択した住所を取得
@@ -89,7 +89,6 @@ const Checkout: React.FC = () => {
       })
       .catch((err) => {
         setCustomer(null);
-        setLoginModalOpen(true);
         console.error(err);
       });
 
@@ -305,22 +304,6 @@ const Checkout: React.FC = () => {
         </div>
       </main>
 
-      {/* ログインモーダル */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => { setLoginModalOpen(false) }} onLoginSuccess={handleLoginSuccess} showCloseButton={true} />
-      {/* 支払い方法モーダル */}
-      {isPaymentModalOpen && (
-        <SquarePayment
-          setPayments={setPaymentList}
-          id={""}
-          isOpen={isPaymentModalOpen}
-          onClose={() => {
-            setReloadTrigger(prev => prev + 1); // 支払い方法を更新したらリロードトリガーを増やす
-            setIsPaymentModalOpen(false);
-          }}
-          openMode={"card"}
-
-        />
-      )}
     </>
   );
 };

@@ -2,14 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 
 import Header from "../component/Header";
+import { Avatar } from "../component/Avatar";
+// Checkout.tsx に合わせてパスを修正
+import LoginModal from "../modal/Login";
 
 import api from "../conf/api";
 import { CONFIG } from "../conf/config";
-
 import { UserProfileData } from "../types/FleaMarket";
-import { Avatar } from "../component/Avatar";
-
-
 
 const UserProfile: React.FC = () => {
     const { userId } = useParams<{ userId: string }>();
@@ -17,14 +16,29 @@ const UserProfile: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [activeTab, setActiveTab] = useState<"listings" | "reviews">("listings");
 
-    // 自分のIDを取得して、自分自身のプロフィールか判定する
+    // 自分のID (ログイン判定用)
     const [myUserId, setMyUserId] = useState<string | null>(null);
 
+    // ★ログインモーダルの表示状態管理
+    const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+
+    // 自分の情報を取得する関数
+    const fetchMe = () => {
+        api.post('/customer', {})
+            .then(res => {
+                if (res.data.user) {
+                    setMyUserId(res.data.user.id);
+                }
+            })
+            .catch(() => setMyUserId(null));
+    };
+
+    // 初回ロード時に自分の情報を取得
     useEffect(() => {
-        // ログインユーザー情報の取得（簡易的）
-        api.post('/customer', {}).then(res => setMyUserId(res.data.user.id));
+        fetchMe();
     }, []);
 
+    // プロフィール情報の取得
     useEffect(() => {
         if (!userId) return;
         const fetchProfile = async () => {
@@ -32,7 +46,7 @@ const UserProfile: React.FC = () => {
                 setLoading(true);
                 const res = await api.get(`/users/${userId}/profile`);
                 setProfile(res.data);
-                console.log("Fetched profile:", res.data);
+                console.log("Fetched user profile:", res.data);
             } catch (error) {
                 console.error("Failed to fetch user profile", error);
             } finally {
@@ -42,14 +56,23 @@ const UserProfile: React.FC = () => {
         fetchProfile();
     }, [userId]);
 
-    // ★フォロー切り替え処理
+    // ★ログイン成功時のコールバック
+    const handleLoginSuccess = () => {
+        setLoginModalOpen(false);
+        fetchMe(); // 自分の情報を再取得してフォローボタンを押せるようにする
+    };
+
+    // フォロー切り替え処理
     const handleToggleFollow = async () => {
-        if (!profile || !myUserId) {
-            alert("ログインが必要です"); // またはログイン画面へ誘導
+        // ★ログインしていない場合はモーダルを開く
+        if (!myUserId) {
+            setLoginModalOpen(true);
             return;
         }
 
-        // 楽観的UI更新（API通信の完了を待たずに見た目を変える）
+        if (!profile) return;
+
+        // 楽観的UI更新（API通信を待たずに見た目を変える）
         const prevIsFollowing = profile.isFollowing;
         const prevCount = profile.followersCount;
 
@@ -61,15 +84,15 @@ const UserProfile: React.FC = () => {
 
         try {
             if (prevIsFollowing) {
-                // フォロー解除 (DELETE)
-                await api.delete(`/users/${userId}/follow`);
+                // 解除
+                await api.delete(`/sns/users/${userId}/follow`);
             } else {
-                // フォローする (POST)
-                await api.post(`/users/${userId}/follow`, {});
+                // 登録
+                await api.post(`/sns/users/${userId}/follow`, {});
             }
         } catch (e) {
-            // 失敗したら元に戻す
             console.error(e);
+            // 失敗したら元に戻す
             setProfile(prev => prev ? {
                 ...prev,
                 isFollowing: prevIsFollowing,
@@ -89,6 +112,8 @@ const UserProfile: React.FC = () => {
             <Header />
 
             <main className="w-full max-w-4xl mx-auto px-3 pt-4 md:px-4 md:pt-6">
+
+                {/* プロフィールヘッダーエリア */}
                 <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-center md:items-start gap-6">
                     <div className="flex-shrink-0 mx-auto md:mx-0">
                         <Avatar
@@ -103,7 +128,7 @@ const UserProfile: React.FC = () => {
                             <div>
                                 <h1 className="text-2xl font-bold text-gray-900 text-center md:text-left">{profile.name}</h1>
 
-                                {/* 評価・フォロワー数などのステータス行 */}
+                                {/* ステータス行 */}
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-2 text-sm text-gray-600">
                                     <div className="flex items-center gap-1">
                                         <span className="text-orange-400">★</span>
@@ -123,14 +148,14 @@ const UserProfile: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* ★フォローボタンエリア */}
+                            {/* ボタンエリア */}
                             {!isMe && (
                                 <div className="flex justify-center md:justify-end">
                                     <button
                                         onClick={handleToggleFollow}
                                         className={`px-6 py-2 rounded-full font-bold transition-all shadow-sm border ${profile.isFollowing
-                                            ? "bg-white text-gray-500 border-gray-300 hover:bg-gray-50" // フォロー中
-                                            : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:shadow-md" // フォローする
+                                            ? "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
+                                            : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:shadow-md"
                                             }`}
                                     >
                                         {profile.isFollowing ? "フォロー中" : "フォローする"}
@@ -152,7 +177,7 @@ const UserProfile: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 2. タブ切り替え */}
+                {/* タブ切り替え */}
                 <div className="flex border-b border-gray-200 mb-6 bg-white rounded-t-xl px-4 shadow-sm">
                     <button
                         className={`flex-1 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === "listings"
@@ -174,7 +199,7 @@ const UserProfile: React.FC = () => {
                     </button>
                 </div>
 
-                {/* 3. コンテンツエリア */}
+                {/* コンテンツエリア */}
                 <div className="min-h-[300px]">
                     {activeTab === "listings" ? (
                         /* --- 出品リスト --- */
@@ -253,6 +278,14 @@ const UserProfile: React.FC = () => {
                     )}
                 </div>
             </main>
+
+            {/* ★ログインモーダルを配置 (Checkout.tsxのPropsに準拠) */}
+            <LoginModal
+                isOpen={isLoginModalOpen}
+                onClose={() => setLoginModalOpen(false)}
+                onLoginSuccess={handleLoginSuccess}
+                showCloseButton={true}
+            />
         </div>
     );
 };

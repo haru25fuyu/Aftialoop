@@ -4,6 +4,7 @@ import (
 	"animaloop/function"
 	SQL "animaloop/sql"
 	"animaloop/utils"
+	"fmt"
 	"time"
 
 	"encoding/json"
@@ -98,6 +99,31 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		ExpiresIn:   3600,
 	}
 
+	// ログインメールの送信
+	go func() {
+		subject := "【Animaloop】新しいログインがありました"
+
+		// HTMLメール本文
+		// ※ `user.Name` が手元にあるなら埋め込めますが、ない場合は汎用的な文面でOK
+		htmlContent := `
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #333;">ログイン通知</h2>
+                <p>Animaloopのアカウントへの新しいログインがありました。</p>
+                <p><strong>日時:</strong> 現在</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #777;">
+                    ※お心当たりがない場合は、速やかにパスワードを変更してください。
+                </p>
+            </div>
+        `
+
+		// 既存の関数を呼び出す (h.db を渡す)
+		// ※エラーログは出しておくとデバッグしやすいです
+		if _, err := function.SendMail(query.Email, subject, htmlContent); err != nil {
+			fmt.Printf("Failed to send login notification: %v\n", err)
+		}
+	}()
+
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
 	log.Println("ログイン成功", user.Email)
@@ -179,6 +205,25 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 			TokenType:   "Bearer",
 			ExpiresIn:   3600,
 		}
+
+		go func() {
+			subject := "【Animaloop】新しいログインがありました"
+			htmlContent := `
+                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                    <h2 style="color: #333;">ログイン通知</h2>
+                    <p>Animaloopのアカウントへの新しいログインがありました。</p>
+                    <p><strong>日時:</strong> 現在</p>
+                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                    <p style="font-size: 12px; color: #777;">
+                        ※お心当たりがない場合は、速やかにパスワードを変更してください。
+                    </p>
+                </div>
+            `
+			// user変数ではなく、email変数を使えばDBから取ったuser情報がなくても送れます
+			if _, err := function.SendMail(email, subject, htmlContent); err != nil {
+				fmt.Printf("Failed to send login notification: %v\n", err)
+			}
+		}()
 
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(response)
@@ -285,6 +330,30 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 		TokenType:   "Bearer",
 		ExpiresIn:   3600,
 	}
+
+	go func() {
+		subject := "【Animaloop】新しいログインがありました"
+
+		// HTMLメール本文
+		// ※ `user.Name` が手元にあるなら埋め込めますが、ない場合は汎用的な文面でOK
+		htmlContent := `
+            <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: #333;">ログイン通知</h2>
+                <p>Animaloopのアカウントへの新しいログインがありました。</p>
+                <p><strong>日時:</strong> 現在</p>
+                <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+                <p style="font-size: 12px; color: #777;">
+                    ※お心当たりがない場合は、速やかにパスワードを変更してください。
+                </p>
+            </div>
+        `
+
+		// 既存の関数を呼び出す (h.db を渡す)
+		// ※エラーログは出しておくとデバッグしやすいです
+		if _, err := function.SendMail(user.Email, subject, htmlContent); err != nil {
+			fmt.Printf("Failed to send login notification: %v\n", err)
+		}
+	}()
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)

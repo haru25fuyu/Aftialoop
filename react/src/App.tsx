@@ -5,7 +5,7 @@ import './css/App.css'
 
 import { initAuthOnce } from "./conf/api";
 
-import RequireAuth from "./component/RequireAuth";
+import RequireAuth from "./context/RequireAuth";
 
 import Home from './page/Home'
 import SignUp from './page/SignUp';
@@ -38,6 +38,11 @@ import PaymentList from './page/PaymentList';
 import DraftListPage from './page/DraftList';
 import SellingListPage from './page/SellingList';
 import UserProfile from './page/UserProfile';
+import ActiveTransactionListPage from './page/ActiveTransactionListPage';
+import RequestListPage from './page/RequestListPage';
+import LikeListPage from './page/LikeListPage';
+import HistoryPage from './page/HistoryPage';
+import { AuthProvider } from './context/AuthContext';
 
 
 const App: React.FC = () => {
@@ -48,47 +53,55 @@ const App: React.FC = () => {
   }, []);
   return (
     <>
-      <Routes>
-        {/* public */}
-        <Route path="/" element={<Home />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<SignUp />} />
-        <Route path="/signup/complete" element={<SignUpComplete />} />
-        <Route path="/register/confirm" element={<RegisterConfirm />} />
-        <Route path="/contact" element={<Contact />} />
-        <Route path="*" element={<NotFound />} />
-        <Route path="/user/profile/:userId" element={<UserProfile />} />
+      <AuthProvider>
+        <Routes>
+          {/* public */}
+          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
+          <Route path="/signup/complete" element={<SignUpComplete />} />
+          <Route path="/register/confirm" element={<RegisterConfirm />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="*" element={<NotFound />} />
+          <Route path="/user/profile/:userId" element={<UserProfile />} />
 
-        {/* protected */}
-        <Route path="/cart" element={<RequireAuth><Cart /></RequireAuth>} />
-        <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
-        <Route path="/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
-        <Route path="/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
-        <Route path="/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
+          {/* protected */}
+          <Route path="/cart" element={<Cart />} />
 
-        <Route path="/flea-market/list" element={<RequireAuth><FleaMarketList /></RequireAuth>} />
-        <Route path="/flea-market/item/:id" element={<RequireAuth><FleaMarketItem /></RequireAuth>} />
-        <Route path="/flea-market/sell/create" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
-        <Route path="/flea-market/sell/create/:id" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
-        <Route path="/flea-market/checkout/:id" element={<RequireAuth><FleaMarketCheckout /></RequireAuth>} />
-        <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
-        <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
-        <Route path="/flea-market/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
-        <Route path="/flea-market/transactions/:id" element={<RequireAuth><FleaMarketTransactions /></RequireAuth>} />
+          <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
+          <Route path="/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
+          <Route path="/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
+          <Route path="/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
 
-        <Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />
-        <Route path="/mypage/address" element={<RequireAuth><AddressList /></RequireAuth>} />
-        <Route path="/mypage/profile" element={<RequireAuth><Profile /></RequireAuth>} />
-        <Route path="/mypage/profile/edit" element={<RequireAuth><EditProfile /></RequireAuth>} />
-        <Route path="/mypage/sales" element={<RequireAuth><SalesHistoryPage /></RequireAuth>} />
-        <Route path="/mypage/payment" element={<RequireAuth><PaymentList /></RequireAuth>} />
-        <Route path="/mypage/selling/list" element={<RequireAuth><SellingListPage /></RequireAuth>} />
-        <Route path="/mypage/drafts/list" element={<RequireAuth><DraftListPage /></RequireAuth>} />
+          <Route path="/flea-market/list" element={<FleaMarketList />} />
+          <Route path="/flea-market/item/:id" element={<FleaMarketItem />} />
+          
+          <Route path="/flea-market/sell/create" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
+          <Route path="/flea-market/sell/create/:id" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
+          <Route path="/flea-market/checkout/:id" element={<RequireAuth><FleaMarketCheckout /></RequireAuth>} />
+          <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
+          <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
+          <Route path="/flea-market/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
+          <Route path="/flea-market/transactions/:id" element={<RequireAuth><FleaMarketTransactions /></RequireAuth>} />
 
-        {/* list/item を公開にするかは方針次第 */}
-        <Route path="/list" element={<List />} />
-        <Route path="/item/:id" element={<Item />} />
-      </Routes>
+          <Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />
+          <Route path="/mypage/address" element={<RequireAuth><AddressList /></RequireAuth>} />
+          <Route path="/mypage/profile" element={<RequireAuth><Profile /></RequireAuth>} />
+          <Route path="/mypage/profile/edit" element={<RequireAuth><EditProfile /></RequireAuth>} />
+          <Route path="/mypage/sales" element={<RequireAuth><SalesHistoryPage /></RequireAuth>} />
+          <Route path="/mypage/payment" element={<RequireAuth><PaymentList /></RequireAuth>} />
+          <Route path="/mypage/selling/list" element={<RequireAuth><SellingListPage /></RequireAuth>} />
+          <Route path="/mypage/drafts/list" element={<RequireAuth><DraftListPage /></RequireAuth>} />
+          <Route path="/mypage/requests" element={<RequireAuth><RequestListPage /></RequireAuth>} />
+          <Route path="/mypage/transactions/active" element={<RequireAuth><ActiveTransactionListPage /></RequireAuth>} />
+          <Route path="/mypage/likes" element={<RequireAuth><LikeListPage /></RequireAuth>} />
+          <Route path="/mypage/transactions/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+
+          {/* list/item を公開にするかは方針次第 */}
+          <Route path="/list" element={<List />} />
+          <Route path="/item/:id" element={<Item />} />
+        </Routes>
+      </AuthProvider>
     </>
   )
 }

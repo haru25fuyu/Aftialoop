@@ -17,6 +17,7 @@ func NewFleaMarketHandler(db *SQL.Database) *FleaMarketHandler {
 func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	// 商品取得
 	r.HandleFunc("/flea-market/item/{id}", h.GetFleaMarketItem).Methods("GET")
+	r.HandleFunc("/flea-market/items/{id}/like", h.ToggleLike).Methods("POST")
 	// 一覧・新規出品
 	r.HandleFunc("/flea-market/list", h.ListFleaMarket).Methods("POST")
 	r.HandleFunc("/flea-market/selling/list", h.GetMyListings).Methods("GET")
@@ -54,6 +55,10 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	// マイページ関連
 	r.HandleFunc("/flea-market/my/sales", h.GetMySalesHistory).Methods("GET")
 	r.HandleFunc("/flea-market/my/sales/exchange", h.ExchangeSalesToPoint).Methods("POST")
+	r.HandleFunc("/mypage/transactions/active", h.ListActiveTransactions).Methods("GET")
+	r.HandleFunc("/mypage/requests", h.ListPendingRequests).Methods("GET")
+	r.HandleFunc("/mypage/likes", h.ListLikes).Methods("GET")
+	r.HandleFunc("/mypage/transactions/history", h.ListCompletedTransactions).Methods("GET")
 
 	// 取引メッセージ関係
 	r.HandleFunc("/flea-market/transactions/{id}/messages", h.GetTXMessages).Methods("GET")

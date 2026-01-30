@@ -14,26 +14,30 @@ import (
 // フリマ商品関係
 // ============================================================
 
-func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMarketListLite, error) {
+// 引数に userID を追加
+func (db *Database) ListFleaMarketItemsLite(ctx context.Context, userID string, limit, offset int) ([]utils.FleaMarketListLite, error) {
 	const q = `
-		SELECT
-		  f.id,
-		  f.name,
-		  f.price,
-		  f.seller_rate,
-		  f.type,
-		  f.main_image_url,
-		  u.name    AS seller_name,
-		  u.icon_url AS seller_icon_url
-		FROM flea_items AS f
-		LEFT JOIN users   AS u ON u.id     = f.user_id
-		WHERE f.deleted_at IS NULL
-		AND f.status = ?
-		ORDER BY f.created_at DESC
-		LIMIT ? OFFSET ?;
-	`
+        SELECT
+          f.id,
+          f.name,
+          f.price,
+          f.seller_rate,
+          f.type,
+          f.main_image_url,
+          u.name    AS seller_name,
+          u.icon_url AS seller_icon_url,
+          -- ★追加: 自分がいいねしているか判定
+          EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked
+        FROM flea_items AS f
+        LEFT JOIN users   AS u ON u.id     = f.user_id
+        WHERE f.deleted_at IS NULL
+        AND f.status = ?
+        ORDER BY f.created_at DESC
+        LIMIT ? OFFSET ?;
+    `
 
-	rows, err := db.DB.Query(q, config.FleaItemStatusActive, limit, offset)
+	// ★Queryの引数順序に注意: userID -> status -> limit -> offset
+	rows, err := db.DB.QueryContext(ctx, q, userID, config.FleaItemStatusActive, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -49,6 +53,7 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 			sellerIconURL sql.NullString
 		)
 
+		// ★Scanに &it.IsLiked を追加 (最後)
 		if err := rows.Scan(
 			&it.ID,
 			&it.Name,
@@ -58,6 +63,7 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 			&mainURL,
 			&sellerName,
 			&sellerIconURL,
+			&it.IsLiked, // ここに追加
 		); err != nil {
 			return nil, err
 		}
@@ -79,15 +85,18 @@ func (db *Database) ListFleaMarketItemsLite(limit, offset int) ([]utils.FleaMark
 	return items, rows.Err()
 }
 
-func (d *Database) GetFleaMarketItemByID(id uint64) (*utils.FleaMarketItemDetailResponse, error) {
+// 引数に userID を追加しました
+func (d *Database) GetFleaMarketItemByID(userID string, id uint64) (*utils.FleaMarketItemDetailResponse, error) {
 	var item utils.FleaMarketItemDetailResponse
-	log.Println("GetFleaMarketItemByID called with id:", id)
 
+	// SQL修正: EXISTSを使っていいね済みか判定
+	// user_id = ? (1つ目のハテナ) には閲覧者のuserIDが入ります
 	const q = `
         SELECT 
             f.*, 
             u.name AS user_name, 
-            u.icon_url AS user_icon
+            u.icon_url AS user_icon,
+            EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked
         FROM flea_items AS f
         JOIN users AS u ON u.id = f.user_id
         WHERE f.id = ? 
@@ -95,20 +104,21 @@ func (d *Database) GetFleaMarketItemByID(id uint64) (*utils.FleaMarketItemDetail
         LIMIT 1;
     `
 
-	if err := d.DB.Get(&item, q, id); err != nil {
+	// 引数の順番注意: userID, id の順
+	if err := d.DB.Get(&item, q, userID, id); err != nil {
+		log.Printf("GetFleaMarketItemByID error: %v", err)
 		return nil, err
 	}
 
 	// -----------------------------------------------------
-	// ★ 追加: レート計算ロジック
+	// レート計算ロジック (そのまま)
 	// -----------------------------------------------------
 	cfg := config.GetFleaConfig()
 	denominator := cfg.RateDen
 	if denominator == 0 {
-		denominator = 10000 // 安全策
+		denominator = 10000
 	}
 
-	// 計算
 	if item.RawSellerRate > 0 {
 		item.SellerRate = float64(item.RawSellerRate) / float64(denominator)
 	} else {
@@ -314,6 +324,120 @@ func (d *Database) GetUserListings(ctx context.Context, userID string, limit, of
 	err := d.DB.SelectContext(ctx, &items, query, userID, limit, offset)
 	if err != nil {
 		return nil, err
+	}
+	return items, nil
+}
+
+// ToggleFleaLike: いいねの切り替え (登録されていれば削除、なければ追加)
+// 戻り値: (isLiked: true=登録した, false=解除した, err)
+func (db *Database) ToggleFleaLike(ctx context.Context, userID string, itemID int64) (bool, error) {
+	if db.DB == nil {
+		return false, errors.New("db not ready")
+	}
+
+	// トランザクション開始
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
+
+	// 既にいいねしているか確認
+	var exists int
+	err = tx.QueryRowContext(ctx, `
+        SELECT COUNT(*) FROM flea_likes WHERE user_id = ? AND item_id = ?
+    `, userID, itemID).Scan(&exists)
+	if err != nil {
+		return false, err
+	}
+
+	var isLiked bool
+	if exists > 0 {
+		// 削除 (いいね解除)
+		_, err = tx.ExecContext(ctx, "DELETE FROM flea_likes WHERE user_id = ? AND item_id = ?", userID, itemID)
+		isLiked = false
+	} else {
+		// 追加 (いいね登録)
+		_, err = tx.ExecContext(ctx, "INSERT INTO flea_likes (user_id, item_id) VALUES (?, ?)", userID, itemID)
+		isLiked = true
+	}
+
+	if err != nil {
+		return false, err
+	}
+
+	// いいね数カウントの更新なども必要ならここで行う (flea_itemsテーブルにlike_countカラムがある場合など)
+
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
+
+	return isLiked, nil
+}
+
+// ListLikedFleaItems: 自分がいいねした商品一覧を取得
+func (db *Database) ListLikedFleaItems(ctx context.Context, userID string, limit, offset int) ([]utils.FleaMarketListLite, error) {
+	// flea_likes (l) を主軸にして、作成日順(いいねした順)に取得
+	const q = `
+        SELECT
+          f.id,
+          f.name,
+          f.price,
+          f.seller_rate,
+          f.type,
+          f.main_image_url,
+          u.name    AS seller_name,
+          u.icon_url AS seller_icon_url,
+          f.status -- 売り切れ判定用にステータスも必要
+        FROM flea_likes l
+        JOIN flea_items f ON f.id = l.item_id
+        LEFT JOIN users u ON u.id = f.user_id
+        WHERE l.user_id = ?
+          AND f.deleted_at IS NULL
+        ORDER BY l.created_at DESC
+        LIMIT ? OFFSET ?;
+    `
+
+	rows, err := db.DB.QueryContext(ctx, q, userID, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	items := make([]utils.FleaMarketListLite, 0, limit)
+
+	for rows.Next() {
+		var (
+			it            utils.FleaMarketListLite
+			mainURL       sql.NullString
+			sellerName    sql.NullString
+			sellerIconURL sql.NullString
+			status        string // 売り切れ表示用（構造体になければ無視でもOKですが、あると便利）
+		)
+
+		if err := rows.Scan(
+			&it.ID, &it.Name, &it.Price, &it.SellerRate, &it.Type,
+			&mainURL, &sellerName, &sellerIconURL, &status,
+		); err != nil {
+			return nil, err
+		}
+
+		if mainURL.Valid {
+			s := mainURL.String
+			it.MainImageURL = &s
+		}
+		if sellerName.Valid {
+			it.SellerName = sellerName.String
+		}
+		if sellerIconURL.Valid {
+			s := sellerIconURL.String
+			it.SellerIconURL = &s
+		}
+
+		// ★重要: ここは「いいね一覧」なので、IsLikedは無条件で true
+		it.IsLiked = true
+
+		items = append(items, it)
 	}
 	return items, nil
 }

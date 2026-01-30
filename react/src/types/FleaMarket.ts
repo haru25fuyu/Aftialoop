@@ -26,6 +26,7 @@ export interface FleaContent {
   status: number;
   type: FleaItemType;
   userId: string;
+  is_liked: boolean;
 
   seller_name: string;
   seller_icon_url: string | null;
@@ -189,8 +190,12 @@ export type UserReview = {
 
 export type Reviews = {
   id: string;
+  reviewerName: string;
+  reviewerIconUrl: string;
   rating: number;
   comment: string;
+  createdAt: number;
+  itemName?: string;
 };
 
 export type UserProfileData = {
@@ -200,9 +205,9 @@ export type UserProfileData = {
   description: string;
   ratingAverage: number;
   ratingCount: number;
-  isFollowing: boolean; // ★追加
-  followersCount: number; // ★追加
-  followingCount: number; // ★追加
+  isFollowing: boolean;
+  followersCount: number;
+  followingCount: number;
   listings: FleaContent[];
   reviews: Reviews[];
 };

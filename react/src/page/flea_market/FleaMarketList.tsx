@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Header from "../../component/Header.tsx";
 import api, { getAccessToken } from "../../conf/api.ts";
 import { CONFIG } from "../../conf/config.ts";
+import { LikeButton } from "../../component/LikeButton.tsx";
 
 type FleaListContent = {
     id: number;
@@ -13,6 +14,7 @@ type FleaListContent = {
     seller_rate?: number;
     quantity: number;
     shipping_fee_type: number;
+    is_liked: boolean;
 };
 
 type Customer = {
@@ -272,6 +274,14 @@ const FleaMarketList: React.FC = () => {
                                                         <span className="absolute top-4 left-1 -rotate-45 text-white font-bold text-sm tracking-widest">SOLD</span>
                                                     </div>
                                                 )}
+                                                {/* 右下に配置 */}
+                                                <div className="absolute bottom-2 right-2">
+                                                    <LikeButton
+                                                        itemId={item.id}
+                                                        initialLiked={item.is_liked}
+                                                        className="bg-white p-1.5 rounded-full shadow-sm bg-opacity-90"
+                                                    />
+                                                </div>
                                             </div>
 
                                             <div className="p-3 flex flex-col flex-1">

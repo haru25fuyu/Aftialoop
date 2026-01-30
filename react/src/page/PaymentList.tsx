@@ -44,7 +44,7 @@ const PaymentList: React.FC = () => {
 
             {isModalOpen && (
                 <SquarePayment
-                    setPayments={setPayments as any}
+                    setPayments={setPayments as React.Dispatch<React.SetStateAction<Payment[]>>}
                     id={selectedPaymentID}
                     isOpen={isModalOpen}
                     onClose={handleCloseModal}

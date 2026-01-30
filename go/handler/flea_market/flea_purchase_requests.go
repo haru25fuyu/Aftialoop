@@ -164,3 +164,29 @@ func (h *FleaMarketHandler) ListFleaPurchaseRequestsBySeller(w http.ResponseWrit
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
 }
+
+// ListPendingRequestsHandler: 自分宛ての購入申請一覧
+func (h *FleaMarketHandler) ListPendingRequests(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. DBから取得
+	requests, err := h.db.ListPendingFleaPurchaseRequests(r.Context(), userID)
+	if err != nil {
+		// エラーログなど
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 3. 空の場合は空配列を返す
+	if requests == nil {
+		requests = []utils.PurchaseRequestResponse{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(requests)
+}

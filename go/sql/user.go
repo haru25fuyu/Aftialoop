@@ -273,11 +273,12 @@ func (d *Database) UpdateProfile(userID string, profile utils.Profile) error {
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
 	query := `
         SELECT 
-            u.id, u.name, u.email, u.default_card, u.icon_url, -- ★修正: u.icon_url に変更
-            p.date_of_birth, p.gender, p.phone_number, p.bio   -- p.icon_url は削除
+            u.id, u.name, u.email, u.default_card, u.icon_url, u.following_count, u.followers_count,
+            p.date_of_birth, p.gender, p.phone_number, p.bio   
         FROM users u
         LEFT JOIN profile p ON u.id = p.user_id
     `
+	// WHERE句の追加
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}

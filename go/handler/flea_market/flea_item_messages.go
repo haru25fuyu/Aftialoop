@@ -71,7 +71,7 @@ func (h *FleaMarketHandler) AddFleaMarketItemMessage(w http.ResponseWriter, r *h
 	// 出品者からのメッセージなら購入希望者へ(過去にメッセージを送っている人全員に)
 	// 購入希望者からのメッセージなら出品者へ
 	//商品情報の取得
-	item, err := h.db.GetFleaMarketItemByID(itemID)
+	item, err := h.db.GetFleaMarketItemByID(user_id, itemID)
 	if err != nil {
 		log.Println("failed to get item for notification:", err)
 	} else {

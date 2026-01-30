@@ -20,6 +20,9 @@ import (
 )
 
 func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Request) {
+	// 認証チェック（未ログインでも閲覧可能）
+	userID, _ := function.CheckUser(h.db, w, r)
+
 	// クエリパラメータから item_id を取得
 	itemIDStr := mux.Vars(r)["id"]
 	log.Println("Fetching flea market item with ID:", itemIDStr)
@@ -29,7 +32,7 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	item, err := h.db.GetFleaMarketItemByID(itemID)
+	item, err := h.db.GetFleaMarketItemByID(userID, itemID)
 	if err != nil {
 		log.Println("failed to fetch flea item:", err)
 		http.Error(w, "failed to fetch item", http.StatusInternalServerError)
@@ -61,9 +64,16 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 
 // GET /flea-market/list?limit=20&offset=0 でもOK（POSTならBodyから取得）
 func (h *FleaMarketHandler) ListFleaMarket(w http.ResponseWriter, r *http.Request) {
+	userID, _ := function.CheckUser(h.db, w, r)
+
 	limit, offset := 20, 0
 
-	items, err := h.db.ListFleaMarketItemsLite(limit, offset)
+	// クエリパラメータからページング取得
+	q := r.URL.Query()
+	limit = utils.ParseInt(q.Get("limit"), 20)
+	offset = utils.ParseInt(q.Get("offset"), 0)
+
+	items, err := h.db.ListFleaMarketItemsLite(r.Context(), userID, limit, offset)
 	if err != nil {
 		log.Println("failed to fetch flea items:", err)
 		http.Error(w, "failed to fetch items", http.StatusInternalServerError)
@@ -292,4 +302,61 @@ func (h *FleaMarketHandler) GetMyListings(w http.ResponseWriter, r *http.Request
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{"items": listings})
+}
+
+// ToggleLikeHandler: POST /flea-market/items/{id}/like
+func (h *FleaMarketHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. パスパラメータから itemID 取得
+	vars := mux.Vars(r)
+	itemIDStr := vars["id"]
+	itemID, err := strconv.ParseInt(itemIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid item id", http.StatusBadRequest)
+		return
+	}
+
+	// 3. トグル実行
+	isLiked, err := h.db.ToggleFleaLike(r.Context(), userID, itemID)
+	if err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. 結果を返す
+	json.NewEncoder(w).Encode(map[string]bool{"liked": isLiked})
+}
+
+// ListLikesHandler: いいね一覧
+func (h *FleaMarketHandler) ListLikes(w http.ResponseWriter, r *http.Request) {
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	limit := 20
+	offset := 0
+	// ※ページネーションを入れるならクエリパラメータから取得
+	q := r.URL.Query()
+	limit = utils.ParseInt(q.Get("limit"), 20)
+	offset = utils.ParseInt(q.Get("offset"), 0)
+
+	items, err := h.db.ListLikedFleaItems(r.Context(), userID, limit, offset)
+	if err != nil {
+		http.Error(w, "server error", http.StatusInternalServerError)
+		return
+	}
+	if items == nil {
+		items = []utils.FleaMarketListLite{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(items)
 }

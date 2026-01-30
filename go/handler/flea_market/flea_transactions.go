@@ -64,7 +64,7 @@ func (h *FleaMarketHandler) GetFleaTransaction(w http.ResponseWriter, r *http.Re
 			role = "SELLER"
 		}
 
-		item, err := h.db.GetFleaMarketItemByID(txRow.ItemID)
+		item, err := h.db.GetFleaMarketItemByID(userID, txRow.ItemID)
 		if err != nil {
 			http.Error(w, "failed to get item detail", http.StatusInternalServerError)
 			return
@@ -111,7 +111,7 @@ func (h *FleaMarketHandler) GetFleaTransaction(w http.ResponseWriter, r *http.Re
 		role = "SELLER"
 	}
 
-	item, err := h.db.GetFleaMarketItemByID(prRow.ItemID)
+	item, err := h.db.GetFleaMarketItemByID(userID, prRow.ItemID)
 	if err != nil {
 		http.Error(w, "failed to get item detail", http.StatusInternalServerError)
 		return
@@ -303,7 +303,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	tx, err := h.db.GetFleaTransactionByID(ctx, buyerID, txID)
 	/* エラーハンドリング */
 
-	item, err := h.db.GetFleaMarketItemByID(tx.ItemID)
+	item, err := h.db.GetFleaMarketItemByID(buyerID, tx.ItemID)
 	/* エラーハンドリング */
 
 	user, err := h.db.GetUserDataWithCustomerIDByID(buyerID)
@@ -899,7 +899,7 @@ func (h *FleaMarketHandler) DownloadReceiptPDF(w http.ResponseWriter, r *http.Re
 	}
 
 	buyer, _ := h.db.GetUserDataByID(txData.BuyerID)
-	item, _ := h.db.GetFleaMarketItemByID(txData.ItemID)
+	item, _ := h.db.GetFleaMarketItemByID(userID, txData.ItemID)
 
 	// ---------------------------------------------------------
 	// 2. PDF生成開始
@@ -1080,7 +1080,7 @@ func (h *FleaMarketHandler) DownloadSalesStatementPDF(w http.ResponseWriter, r *
 
 	// 出品者情報、アイテム情報を取得
 	seller, _ := h.db.GetUserDataByID(txData.SellerID)
-	item, _ := h.db.GetFleaMarketItemByID(txData.ItemID)
+	item, _ := h.db.GetFleaMarketItemByID(userID, txData.ItemID)
 
 	// ---------------------------------------------------------
 	// 3. 手数料・利益の再計算 (表示用)
@@ -1203,5 +1203,88 @@ func (h *FleaMarketHandler) DownloadSalesStatementPDF(w http.ResponseWriter, r *
 	w.Header().Set("Content-Disposition", fmt.Sprintf("inline; filename=statement_%d.pdf", txID))
 	if _, err := pdf.WriteTo(w); err != nil {
 		http.Error(w, "pdf generation failed", http.StatusInternalServerError)
+	}
+}
+
+// ListActiveTransactionsHandler: 進行中の取引一覧を取得
+func (h *FleaMarketHandler) ListActiveTransactions(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. ページネーション（必要なら）
+	limit := 20
+	offset := 0
+	// クエリパラメータ ?page=2 などがあれば計算するロジックを入れてもOK
+
+	// 3. DBからデータ取得
+	// ※先ほど改良したSQL関数を呼び出す
+	// もし型定義が utils パッケージにあるなら h.db.ListActiveFleaTransactions(...)
+	txs, err := h.db.ListActiveFleaTransactions(r.Context(), userID, limit, offset)
+	if err != nil {
+		// エラーログを出力
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. 空配列の場合は null ではなく [] を返すようにする
+	if txs == nil {
+		txs = []utils.ActiveTransactionResponse{}
+	}
+
+	// 5. JSONで返す
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(txs); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// ListCompletedTransactions: 完了・キャンセル済みの取引履歴を取得
+func (h *FleaMarketHandler) ListCompletedTransactions(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. クエリパラメータから limit, offset を取得 (ページネーション用)
+	limit := 20
+	offset := 0
+
+	// URLクエリ ?limit=20&offset=0 などがあれば取得
+	if l := r.URL.Query().Get("limit"); l != "" {
+		if v, err := strconv.Atoi(l); err == nil && v > 0 {
+			limit = v
+		}
+	}
+	if o := r.URL.Query().Get("offset"); o != "" {
+		if v, err := strconv.Atoi(o); err == nil && v >= 0 {
+			offset = v
+		}
+	}
+
+	// 3. DBから取得 (さっき追加したSQL関数を呼ぶ)
+	txs, err := h.db.ListCompletedFleaTransactions(r.Context(), userID, limit, offset)
+	if err != nil {
+		// ログ出力など推奨
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// 4. 空の場合は null ではなく [] を返す
+	if txs == nil {
+		txs = []utils.ActiveTransactionResponse{}
+	}
+
+	// 5. JSONでレスポンス
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(txs); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
 	}
 }
