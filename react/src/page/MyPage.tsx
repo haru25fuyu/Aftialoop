@@ -109,7 +109,7 @@ export default function MyPage() {
                         </Link>
 
                         {/* ポイント */}
-                        <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-24 relative overflow-hidden group hover:shadow-md transition">
+                        <Link to="/mypage/points" className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-col justify-between h-24 relative overflow-hidden group hover:shadow-md transition">
                             {/* 装飾用の背景丸 */}
                             <div className="absolute -right-3 -top-3 bg-yellow-50 w-20 h-20 rounded-full opacity-60 group-hover:scale-110 transition-transform duration-300"></div>
 
@@ -122,7 +122,7 @@ export default function MyPage() {
                             <div className="text-xl font-bold text-gray-800 relative z-10 tracking-tight">
                                 {(user.point ?? 0).toLocaleString()} P
                             </div>
-                        </div>
+                        </Link>
                     </div>
                 </div>
 

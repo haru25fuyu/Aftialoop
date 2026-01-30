@@ -30,6 +30,7 @@ func NewPointHandler(db *SQL.Database) *pointHandler {
 // RegisterRoutes がルーティングの登録を行います
 func (h *pointHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/point/charge", h.ChargePoint).Methods("POST")
+	r.HandleFunc("/point/my/history", h.GetMyPointHistory).Methods("GET")
 }
 
 // ChargePoint はポイント決済のエンドポイントです
@@ -126,4 +127,23 @@ func (h *pointHandler) ChargePoint(w http.ResponseWriter, r *http.Request) {
 
 	// 支払い完了メール送信成功
 	log.Println("支払い完了メール送信成功")
+}
+
+// GET /point/my/history
+func (h *pointHandler) GetMyPointHistory(w http.ResponseWriter, r *http.Request) {
+	// 認証チェック
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		return // CheckUser内でエラーレスポンス済み
+	}
+
+	// DBから取得 (とりあえず最新50件とか)
+	resp, err := h.db.GetUserPointHistory(r.Context(), userID, 50, 0)
+	if err != nil {
+		http.Error(w, "Failed to fetch history", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
 }

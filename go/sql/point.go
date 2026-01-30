@@ -1,6 +1,7 @@
 package sql
 
 import (
+	"animaloop/utils"
 	"context"
 	"database/sql"
 	"errors"
@@ -178,4 +179,48 @@ func (d *Database) ExchangeSalesToPoint(ctx context.Context, userID string, amou
 	}
 
 	return tx.Commit()
+}
+
+// GetUserPointHistory: ユーザーの現在のポイントと履歴を取得
+func (d *Database) GetUserPointHistory(ctx context.Context, userID string, limit, offset int) (*utils.PointHistoryResponse, error) {
+	// 1. 現在のポイント残高を取得
+	var currentPoints int
+	// COALESCE(point, 0) でNULL対策
+	err := d.DB.QueryRowContext(ctx, "SELECT COALESCE(point, 0) FROM users WHERE id = ?", userID).Scan(&currentPoints)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user points: %w", err)
+	}
+
+	// 2. 履歴リストを取得
+	// 新しい順 (DESC) に取得
+	query := `
+        SELECT id, type, amount, COALESCE(note, '') as note, created_at
+        FROM point_histories
+        WHERE user_id = ?
+        ORDER BY created_at DESC
+        LIMIT ? OFFSET ?
+    `
+
+	rows, err := d.DB.QueryContext(ctx, query, userID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get point histories: %w", err)
+	}
+	defer rows.Close()
+
+	var histories []utils.PointHistoryItem
+	for rows.Next() {
+		var item utils.PointHistoryItem
+		if err := rows.Scan(&item.ID, &item.Type, &item.Amount, &item.Note, &item.CreatedAt); err != nil {
+			return nil, err
+		}
+		histories = append(histories, item)
+	}
+
+	// 3. レスポンス構築
+	resp := &utils.PointHistoryResponse{
+		CurrentPoints: currentPoints,
+		Histories:     histories,
+	}
+
+	return resp, nil
 }

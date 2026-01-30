@@ -43,6 +43,7 @@ import RequestListPage from './page/RequestListPage';
 import LikeListPage from './page/LikeListPage';
 import HistoryPage from './page/HistoryPage';
 import { AuthProvider } from './context/AuthContext';
+import PointHistoryPage from './page/PointHistoryPage';
 
 
 const App: React.FC = () => {
@@ -89,6 +90,7 @@ const App: React.FC = () => {
           <Route path="/mypage/profile" element={<RequireAuth><Profile /></RequireAuth>} />
           <Route path="/mypage/profile/edit" element={<RequireAuth><EditProfile /></RequireAuth>} />
           <Route path="/mypage/sales" element={<RequireAuth><SalesHistoryPage /></RequireAuth>} />
+          <Route path="/mypage/points" element={<RequireAuth><PointHistoryPage /></RequireAuth>} />
           <Route path="/mypage/payment" element={<RequireAuth><PaymentList /></RequireAuth>} />
           <Route path="/mypage/selling/list" element={<RequireAuth><SellingListPage /></RequireAuth>} />
           <Route path="/mypage/drafts/list" element={<RequireAuth><DraftListPage /></RequireAuth>} />

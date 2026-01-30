@@ -81,6 +81,25 @@ type SqlUser struct {
 	SalesBalance   int64   `db:"sales_balance" json:"sales_balance"`
 }
 
+// PointHistoryItem: 1行分の履歴
+type PointHistoryItem struct {
+	ID        int64     `json:"id" db:"id"`
+	Type      string    `json:"type" db:"type"`     // ACQUIRED, USED, EXPIRED...
+	Amount    int       `json:"amount" db:"amount"` // +100, -500
+	Note      string    `json:"note" db:"note"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+
+	// もし balance_snapshot カラムがないなら、
+	// ここはフロントで計算するか、一旦除外します
+	// BalanceSnapshot int `json:"balance_snapshot"`
+}
+
+// PointHistoryResponse: APIレスポンス全体
+type PointHistoryResponse struct {
+	CurrentPoints int                `json:"current_points"`
+	Histories     []PointHistoryItem `json:"histories"`
+}
+
 /* =========================
    プロフィール / 住所
 ========================= */
