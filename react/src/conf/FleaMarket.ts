@@ -28,7 +28,8 @@ export type TxPhase =
   | "RATED_BY_BUYER"
   | "COMPLETE"
   | "CANCELLED"
-  | "UNKNOWN";
+  | "UNKNOWN"
+  | "SELLER_SET_TERMS";
 
 export enum ShippingMethod {
   SELLER_CHOICE = "SELLER_CHOICE",

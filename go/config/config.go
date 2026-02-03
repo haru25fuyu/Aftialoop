@@ -118,40 +118,36 @@ func GetFleaConfig() FleaConfig {
 var FleaCfg atomic.Value // FleaConfig を入れる
 
 func Init() {
-	// MySQL接続
+	// 1. 先に .env を読み込む (環境変数を使うため一番上が良い)
 	var err error
-
-	if err != nil {
-		log.Fatal("MySQL接続エラー:", err)
-	}
-
 	err = godotenv.Load()
 	if err != nil {
 		log.Println("No .env file found, using system env variables")
 	}
 
+	// 環境変数のセット
 	MAILJET_API_KEY = os.Getenv("MAILJET_API_KEY")
 	MAILJET_API_SECRET = os.Getenv("MAILJET_API_SECRET")
 
 	SECRET_KEY = []byte(os.Getenv("SECRET_KEY"))
 	SECRET_REFRESH_KEY = []byte(os.Getenv("SECRET_REFRESH_KEY"))
 
+	googleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+
+	// 3. Squareの環境設定 (URLも切り替える)
+	var squareEnv string // 環境URL用変数
+
 	if IsProduction() {
 		SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_PRODUCTION_TOKEN")
+		squareEnv = square.Environments.Production // 本番用URL
 	} else {
 		SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_SANDBOX_TOKEN")
+		squareEnv = square.Environments.Sandbox // テスト用URL
 	}
-
-	googleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
 	// Squareのクライアントを初期化
 	SquareClient = client.NewClient(
-		option.WithBaseURL(
-			square.Environments.Sandbox,
-		),
-		option.WithToken(
-			SQUARE_ACCESS_TOKEN,
-		),
+		option.WithBaseURL(squareEnv), // 変数を使うように変更
+		option.WithToken(SQUARE_ACCESS_TOKEN),
 	)
-
 }

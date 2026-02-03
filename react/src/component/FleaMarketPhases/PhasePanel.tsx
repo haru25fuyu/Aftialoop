@@ -1,4 +1,3 @@
-import React from "react";
 import { FleaThreadResponse } from "../../types/FleaMarket";
 import { TxPhase } from "../../conf/FleaMarket";
 

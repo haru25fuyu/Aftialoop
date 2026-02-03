@@ -89,7 +89,7 @@ func (h *FleaMarketHandler) GetFleaTransaction(w http.ResponseWriter, r *http.Re
 		_ = json.NewEncoder(w).Encode(resp)
 		return
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		http.Error(w, "failed", http.StatusInternalServerError)
 		return
 	}
@@ -966,9 +966,6 @@ func (h *FleaMarketHandler) DownloadReceiptPDF(w http.ResponseWriter, r *http.Re
 
 	payPoint = float64(txData.UsePoint) * (float64(txData.PointRate) / float64(cfg.RateDen))
 	finalAmount := txData.PriceItem - uint32(payPoint)
-	if finalAmount < 0 {
-		finalAmount = 0
-	} // 念の為
 
 	drawText(220, 175, 24, fmt.Sprintf("￥%d", finalAmount), "") // ここは支払い総額を表示
 	drawText(40, 190, 10, "但 商品代金として", "")
@@ -997,7 +994,7 @@ func (h *FleaMarketHandler) DownloadReceiptPDF(w http.ResponseWriter, r *http.Re
 
 	currentY := 280.0
 
-	// --- ★追加: ポイント利用行 (利用がある場合のみ) ---
+	// --- ポイント利用行 (利用がある場合のみ) ---
 	if txData.UsePoint > 0 {
 		// 小計
 		drawText(40, currentY+5, 10, "小計", "")
@@ -1346,7 +1343,7 @@ func (h *FleaMarketHandler) CancelTransaction(w http.ResponseWriter, r *http.Req
 		if *txData.PaymentProvider == "SQUARE" && *txData.PaymentID != "" {
 			// function.RefundPayment などの実装が必要
 			// ここでは簡易的にログ出力のみとし、実運用ではSquare APIを叩く
-			log.Printf("TODO: Refund Square Payment: %s", txData.PaymentID)
+			log.Printf("TODO: Refund Square Payment: %v", txData.PaymentID)
 		}
 
 		// B. ポイント返還 (UsePoint > 0 の場合)
