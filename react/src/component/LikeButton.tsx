@@ -28,7 +28,7 @@ export const LikeButton: React.FC<Props> = ({ itemId, initialLiked, initialCount
         setCount(prev => nextState ? prev + 1 : prev - 1);
 
         try {
-            await api.post(`/flea-market/items/${itemId}/like`);
+            await api.post(`/flea-market/item/${itemId}/like`);
             // 成功時は何もしない (既に見た目は変わっている)
         } catch (error) {
             console.error(error);

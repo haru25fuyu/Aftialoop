@@ -9,6 +9,7 @@ import LoginModal from "../modal/Login";
 import api from "../conf/api";
 import { CONFIG } from "../conf/config";
 import { UserProfileData } from "../types/FleaMarket";
+import { FleaItemStatus } from "../conf/FleaMarket";
 
 const UserProfile: React.FC = () => {
     const { userId } = useParams<{ userId: string }>();
@@ -215,9 +216,9 @@ const UserProfile: React.FC = () => {
                                             <img
                                                 src={item.main_image_url ? CONFIG.BASE_URL + item.main_image_url : "/data/noimage.png"}
                                                 alt={item.name}
-                                                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.quantity <= 0 ? "opacity-60 grayscale" : ""}`}
+                                                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.status >= FleaItemStatus.Trading ? "opacity-60 grayscale" : ""}`}
                                             />
-                                            {item.quantity <= 0 && (
+                                            {item.status >= FleaItemStatus.Trading  && (
                                                 <div className="absolute top-0 left-0 z-20">
                                                     <div className="w-0 h-0 border-t-[60px] border-t-red-600 border-r-[60px] border-r-transparent"></div>
                                                     <span className="absolute top-2 left-1 -rotate-45 text-white font-bold text-xs tracking-widest">SOLD</span>

@@ -11,6 +11,14 @@ export async function fetchFleaTransactionDetail(id: string | number) {
   return res.data as FleaThreadResponse;
 }
 
+export const FleaItemStatus = {
+	Draft: 0, // 下書き
+	Active: 1, // 出品中
+	Trading: 2, // 取引中
+	Sold: 3, // 売却済み
+	Cancelled: 4, // 出品取消
+};
+
 export type TxPhase =
   | "WAIT_PAYMENT"
   | "BUYER_CONFIRM"

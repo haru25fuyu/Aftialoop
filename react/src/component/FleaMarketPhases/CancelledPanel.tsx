@@ -57,7 +57,7 @@ export default function CancelledPanel({ data }: { data: FleaThreadResponse }) {
 
                             {/* 再出品ボタン */}
                             <button
-                                onClick={() => navigate(`/flea-market/items/${transaction.item_id}/edit`)}
+                                onClick={() => navigate(`/flea-market/item/${transaction.item_id}/edit`)}
                                 className="mt-4 w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition shadow-sm"
                             >
                                 <RefreshCw size={18} />

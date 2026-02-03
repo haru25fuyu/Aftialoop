@@ -334,7 +334,7 @@ func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request)
 	// 2. 出品リスト (失敗しても空リストでOKとする)
 	eg.Go(func() error {
 		var err error
-		listings, err = h.db.GetUserListings(ctx, targetUserID, 20, 0)
+		listings, err = h.db.GetUserListings(ctx, targetUserID, false, 20, 0)
 		if err != nil {
 			listings = []utils.FleaMarketItemResponse{} // 空にする
 			// エラーを返さない (nil) = 全体の処理は止めない

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 )
 
 // ============================================================
@@ -26,7 +27,6 @@ func (db *Database) ListFleaMarketItemsLite(ctx context.Context, userID string, 
           f.main_image_url,
           u.name    AS seller_name,
           u.icon_url AS seller_icon_url,
-          -- ★追加: 自分がいいねしているか判定
           EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked
         FROM flea_items AS f
         LEFT JOIN users   AS u ON u.id     = f.user_id
@@ -209,6 +209,78 @@ func (db *Database) CreateFleaMarketItem(userID string, p utils.CreateFleaMarket
 	return itemID, nil
 }
 
+// UpdateFleaItem: 商品テキスト情報の更新
+func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, method, fee string, from, days, status int) error {
+	_, err := d.DB.Exec(`
+        UPDATE flea_items
+        SET name = ?, 
+            description = ?, 
+            price = ?, 
+            shipping_method = ?,
+            shipping_fee_type = ?,
+            ship_from = ?, 
+            ships_within_days = ?,
+            status = ?,
+            updated_at = UTC_TIMESTAMP()
+        WHERE id = ?
+    `, name, desc, price, method, fee, from, days, status, itemID) // 引数追加
+	return err
+}
+
+// SyncFleaItemImages: 指定されたID以外の画像を削除する
+func (d *Database) SyncFleaItemImages(itemID uint64, keptIDs []uint64) error {
+	if len(keptIDs) == 0 {
+		// 全削除の場合
+		_, err := d.DB.Exec("DELETE FROM flea_item_images WHERE item_id = ?", itemID)
+		return err
+	}
+
+	// 文字列組み立て (IN句を作る: ?,?,?)
+	query := "DELETE FROM flea_item_images WHERE item_id = ? AND id NOT IN (?" + strings.Repeat(",?", len(keptIDs)-1) + ")"
+
+	args := make([]interface{}, len(keptIDs)+1)
+	args[0] = itemID
+	for i, id := range keptIDs {
+		args[i+1] = id
+	}
+
+	_, err := d.DB.Exec(query, args...)
+	return err
+}
+
+// UpdateFleaImageSortNum: 既存画像の並び順を更新
+func (d *Database) UpdateFleaImageSortNum(imageID uint64, sortNum int) error {
+	_, err := d.DB.Exec("UPDATE flea_item_images SET sort_num = ? WHERE id = ?", sortNum, imageID)
+	return err
+}
+
+// AddFleaItemImageWithSort: sort_numを指定して画像を追加
+func (d *Database) AddFleaItemImageWithSort(itemID uint64, url string, sortNum int) error {
+	_, err := d.DB.Exec("INSERT INTO flea_item_images (item_id, url, sort_num) VALUES (?, ?, ?)", itemID, url, sortNum)
+	return err
+}
+
+// UpdateFleaMainImage: sort_num が一番小さい画像をメイン画像にする
+func (d *Database) UpdateFleaMainImage(itemID uint64) error {
+	// 1. 一番 sort_num が小さい (＝先頭の) 画像を取得
+	var mainURL string
+	err := d.DB.QueryRow(`
+        SELECT url FROM flea_item_images 
+        WHERE item_id = ? 
+        ORDER BY sort_num ASC, id ASC 
+        LIMIT 1
+    `, itemID).Scan(&mainURL)
+
+	if err != nil {
+		// 画像がない場合などは何もしない、あるいはNULLにする
+		return nil
+	}
+
+	// 2. 親テーブルを更新
+	_, err = d.DB.Exec("UPDATE flea_items SET main_image_url = ? WHERE id = ?", mainURL, itemID)
+	return err
+}
+
 func (d *Database) SoftDeleteFleaMarketItem(id int64, userID string) error {
 	res, err := d.DB.Exec(`
 		UPDATE flea_items
@@ -303,20 +375,26 @@ func (d *Database) CountUserListings(userID string) (int, error) {
 }
 
 // ---------------------------------------------------------
-// マイページ用: 出品した商品一覧 (status > 0)
+// マイページ用: 出品した商品一覧 (下書きを表示するかフラグメント付きで)
 // ---------------------------------------------------------
-func (d *Database) GetUserListings(ctx context.Context, userID string, limit, offset int) ([]utils.FleaMarketItemResponse, error) {
+func (d *Database) GetUserListings(ctx context.Context, userID string, includeDrafts bool, limit, offset int) ([]utils.FleaMarketItemResponse, error) {
 	if d.DB == nil {
 		return nil, errors.New("db not ready")
 	}
 
-	// status > 0 (1:出品中, 2:取引中, 3:売却済み) のものを取得
-	// 下書きは別テーブルにあるので、ここでは status=0 は除外される（または存在しない）前提
 	query := `
         SELECT id, name, price, main_image_url, status, created_at, updated_at
         FROM flea_items 
-        WHERE user_id = ? AND status > 0 AND deleted_at IS NULL
-        ORDER BY created_at DESC
+        WHERE user_id = ? `
+
+	if includeDrafts {
+		query += "AND status IN (0, 1, 2, 3, 4) "
+	} else {
+		query += "AND status IN (1, 2, 3, 4) "
+	}
+
+	query += `AND deleted_at IS NULL
+        ORDER BY status ASC, created_at DESC
         LIMIT ? OFFSET ?
     `
 

@@ -288,7 +288,7 @@ func (h *FleaMarketHandler) GetMyListings(w http.ResponseWriter, r *http.Request
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 
-	listings, err := h.db.GetUserListings(ctx, userID, limit, offset)
+	listings, err := h.db.GetUserListings(ctx, userID, true, limit, offset)
 	if err != nil {
 		log.Println("Error fetching listings:", err)
 		http.Error(w, "failed to fetch listings", http.StatusInternalServerError)
@@ -359,4 +359,143 @@ func (h *FleaMarketHandler) ListLikes(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(items)
+}
+
+type ImageSortItem struct {
+	Type  string `json:"type"`  // "existing" or "new"
+	ID    uint64 `json:"id"`    // existingの場合のID
+	Index int    `json:"index"` // newの場合のファイル配列インデックス
+}
+
+// UpdateFleaItem: 商品情報の更新
+func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		return
+	}
+
+	// 2. パスパラメータ取得
+	vars := mux.Vars(r)
+	itemID, _ := strconv.ParseUint(vars["id"], 10, 64)
+
+	// 3. 所有者チェック & ステータスチェック
+	item, err := h.db.GetFleaMarketItemByID(userID, itemID)
+	if err != nil {
+		http.Error(w, "item not found", http.StatusNotFound)
+		return
+	}
+	if item.UserID != userID {
+		http.Error(w, "forbidden", http.StatusForbidden)
+		return
+	}
+	// 取引中や売却済みの場合は編集できないようにするのが一般的
+	canUpdate := item.Status == config.FleaItemStatusActive || item.Status == config.FleaItemStatusDraft
+	if !canUpdate {
+		http.Error(w, "cannot edit sold item", http.StatusBadRequest)
+		return
+	}
+
+	// 4. マルチパートフォーム解析 (最大20MB)
+	if err := r.ParseMultipartForm(20 << 20); err != nil {
+		http.Error(w, "failed to parse form", http.StatusBadRequest)
+		return
+	}
+
+	// 5. テキストデータの取得
+	name := r.FormValue("name")
+	desc := r.FormValue("description")
+	price, _ := strconv.Atoi(r.FormValue("price"))
+	shippingMethod := r.FormValue("shipping_method")
+	shippingFeeType := r.FormValue("shipping_fee_type")
+	shipFrom, _ := strconv.Atoi(r.FormValue("ship_from"))
+	daysToShip, _ := strconv.Atoi(r.FormValue("days_to_ship"))
+	status, _ := strconv.Atoi(r.FormValue("status"))
+
+	// 6. 画像の更新処理
+	// 6-A. 不要な画像の削除 (kept_image_ids を使う既存ロジックはそのまま利用)
+	keptIDsJSON := r.FormValue("kept_image_ids")
+	var keptImageIDs []uint64
+	if keptIDsJSON != "" {
+		json.Unmarshal([]byte(keptIDsJSON), &keptImageIDs)
+	}
+	if err := h.db.SyncFleaItemImages(itemID, keptImageIDs); err != nil {
+		log.Println("Failed to sync images:", err)
+	}
+
+	// 6-B. 並び順情報のパース
+	sortOrderJSON := r.FormValue("sort_order")
+	var sortList []ImageSortItem
+	if sortOrderJSON != "" {
+		json.Unmarshal([]byte(sortOrderJSON), &sortList)
+	}
+
+	// 6-C. 新規ファイル群の取得
+	newFiles := r.MultipartForm.File["new_images"] // []*multipart.FileHeader
+
+	// 6-D. 並び順に従って処理 (sort_numを更新・登録)
+	for i, item := range sortList {
+		sortNum := i + 1 // 1始まりの番号
+
+		switch item.Type {
+		case "existing":
+			// 既存画像: DBの sort_num を更新
+			if err := h.db.UpdateFleaImageSortNum(item.ID, sortNum); err != nil {
+				log.Println("Failed to update sort num:", err)
+			}
+		case "new":
+			// 新規画像: アップロードして保存
+			if item.Index < len(newFiles) {
+				fileHeader := newFiles[item.Index]
+				file, err := fileHeader.Open()
+				if err == nil {
+					// 保存処理 (function.SaveImageは前回作ったもの)
+					imageURL, err := function.SaveImage(file, fileHeader.Filename)
+					file.Close()
+					if err == nil {
+						// DBに追加 (sort_num 指定付き)
+						h.db.AddFleaItemImageWithSort(itemID, imageURL, sortNum)
+					}
+				}
+			}
+		}
+	}
+
+	// 6-E. メイン画像の更新 (sort_num=1 の画像をmainにする)
+	if err := h.db.UpdateFleaMainImage(itemID); err != nil {
+		log.Println("Failed to update main image:", err)
+	}
+
+	// 7. アイテム情報の更新
+	if err := h.db.UpdateFleaItem(itemID, name, desc, price, shippingMethod, shippingFeeType, shipFrom, daysToShip, status); err != nil {
+		log.Println("Failed to update flea item:", err)
+		http.Error(w, "failed to update item", http.StatusInternalServerError)
+		return
+	}
+
+	// type は item 変数（GetFleaItemByIDの結果）から判定します
+	switch item.Type {
+	case "ANIMAL":
+		locality := r.FormValue("locality")
+		hatchDate := r.FormValue("hatch_date")
+		size := r.FormValue("size")
+		generation := r.FormValue("generation")
+		sex := r.FormValue("sex")
+
+		if err := h.db.UpdateAnimalDetails(itemID, locality, hatchDate, size, generation, sex); err != nil {
+			log.Printf("Failed to update animal details: %v", err)
+		}
+
+	case "SUPPLY":
+		brand := r.FormValue("brand")
+		sku := r.FormValue("sku")
+		netWeight, _ := strconv.Atoi(r.FormValue("net_weight"))
+
+		if err := h.db.UpdateSupplyDetails(itemID, brand, sku, netWeight); err != nil {
+			log.Printf("Failed to update supply details: %v", err)
+		}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

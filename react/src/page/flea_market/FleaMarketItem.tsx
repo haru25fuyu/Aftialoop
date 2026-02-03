@@ -179,7 +179,7 @@ const Item: React.FC = () => {
                 質問・コメント
             </button>
             {isSeller ? (
-                <button className="flex-[2] bg-gray-800 text-white rounded-xl font-bold py-3 hover:bg-gray-700 transition-colors shadow-lg shadow-gray-200" onClick={() => navigate(`/flea-market/${item!.id}/edit`)}>
+                <button className="flex-[2] bg-gray-800 text-white rounded-xl font-bold py-3 hover:bg-gray-700 transition-colors shadow-lg shadow-gray-200" onClick={() => navigate(`/flea-market/item/edit/${item!.id}`)}>
                     商品を編集する
                 </button>
             ) : (

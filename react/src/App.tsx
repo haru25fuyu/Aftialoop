@@ -29,10 +29,13 @@ import Checkout from './page/Checkout';
 import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
 import CheckoutComplete from "./page/CheckoutComplete";
+
 import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
 import FleaMarketList from './page/flea_market/FleaMarketList';
 import FleaMarketCheckout from './page/flea_market/FleaMarketCheckout';
 import FleaMarketTransactions from './page/flea_market/FleaMarketTransactions';
+import FleaItemEditWrapper from './page/flea_market/FleaItemEdit';
+
 import SalesHistoryPage from './page/mypage/SalesHistory';
 import PaymentList from './page/mypage/PaymentList';
 import DraftListPage from './page/DraftList';
@@ -44,6 +47,8 @@ import LikeListPage from './page/mypage/LikeListPage';
 import HistoryPage from './page/mypage/HistoryPage';
 import { AuthProvider } from './context/AuthContext';
 import PointHistoryPage from './page/mypage/PointHistoryPage';
+import BankAccount from './page/mypage/BankAccount';
+
 
 
 const App: React.FC = () => {
@@ -76,7 +81,7 @@ const App: React.FC = () => {
 
           <Route path="/flea-market/list" element={<FleaMarketList />} />
           <Route path="/flea-market/item/:id" element={<FleaMarketItem />} />
-          
+          <Route path="/flea-market/item/edit/:id" element={<RequireAuth><FleaItemEditWrapper /></RequireAuth>} />
           <Route path="/flea-market/sell/create" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
           <Route path="/flea-market/sell/create/:id" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
           <Route path="/flea-market/checkout/:id" element={<RequireAuth><FleaMarketCheckout /></RequireAuth>} />
@@ -98,6 +103,7 @@ const App: React.FC = () => {
           <Route path="/mypage/transactions/active" element={<RequireAuth><ActiveTransactionListPage /></RequireAuth>} />
           <Route path="/mypage/likes" element={<RequireAuth><LikeListPage /></RequireAuth>} />
           <Route path="/mypage/transactions/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
+          <Route path="/mypage/bank-account" element={<RequireAuth><BankAccount /></RequireAuth>} />
 
           {/* list/item を公開にするかは方針次第 */}
           <Route path="/list" element={<List />} />

@@ -63,8 +63,9 @@ export default function InlineSortableImages({ files, onChange, onOpenAdd }: Pro
                     {items.map((it, i) => (
                         <div key={it.id} className={i === 0 ? "col-span-4 aspect-[4/3]" : "col-span-1 aspect-square"}>
                             <Thumb
-                                id={it.id}
-                                url={CONFIG.BASE_URL + it.url} // ★変更: ImageAsset内のurlを使う
+                                id={it.id}// 修正後
+                                url={it.url?.startsWith("blob:") ? it.url : CONFIG.BASE_URL + it.url}
+                                // ★変更: ImageAsset内のurlを使う
                                 isMain={i === 0}
                                 onRemove={() => removeAt(i)}
                                 onMakeMain={() => makeMain(i)}

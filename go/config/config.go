@@ -62,11 +62,11 @@ const (
 
 // フリマのアイテムステータス
 const (
-	FleaItemStatusActive    = 0 // 出品中
-	FleaItemStatusSold      = 1 // 売却済み
+	FleaItemStatusDraft     = 0 // 下書き
+	FleaItemStatusActive    = 1 // 出品中
 	FleaItemStatusTrading   = 2 // 取引中
-	FleaItemStatusCancelled = 3 // 出品取消
-	FleaItemStatusDraft     = 4 // 公開停止(下書き)
+	FleaItemStatusSold      = 3 // 売却済み
+	FleaItemStatusCancelled = 4 // 出品取消
 )
 
 const (

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Tag } from "lucide-react";
-import { Header } from "../component/Header"; // パスは環境に合わせて調整してください
-import api from "../conf/api";
-import { ListingItem } from "../types/FleaMarket";
-import { CONFIG } from "../conf/config";
+import { Header } from "../../component/Header"; // パスは環境に合わせて調整してください
+import api from "../../conf/api";
+import { ListingItem } from "../../types/FleaMarket";
+import { CONFIG } from "../../conf/config";
 
 export default function SellingListPage() {
     const navigate = useNavigate();
@@ -21,9 +21,11 @@ export default function SellingListPage() {
     // ステータスバッジの表示ロジック
     const getStatusBadge = (status: number) => {
         switch (status) {
+            case 0: return <span className="bg-purple-100 text-purple-600 text-xs font-bold px-2 py-1 rounded">下書き(非公開)</span>;
             case 1: return <span className="bg-blue-100 text-blue-600 text-xs font-bold px-2 py-1 rounded">出品中</span>;
             case 2: return <span className="bg-yellow-100 text-yellow-700 text-xs font-bold px-2 py-1 rounded">取引中</span>;
             case 3: return <span className="bg-gray-100 text-gray-500 text-xs font-bold px-2 py-1 rounded">売却済</span>;
+            case 4: return <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-1 rounded">出品取り消し</span>;
             default: return null;
         }
     };

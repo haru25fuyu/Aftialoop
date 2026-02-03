@@ -312,6 +312,7 @@ type FleaMarketItemResponse struct {
 	MainImageURL       string     `db:"main_image_url" json:"main_image_url"`
 	Status             int        `db:"status" json:"status"`
 	ShipFrom           *int       `db:"ship_from" json:"shipFrom,omitempty"`
+	ShippingMethod     string     `db:"shipping_method" json:"shippingMethod"`
 	ShippingFeeType    int        `db:"shipping_fee_type" json:"shippingFeeType"`
 	ShipsWithinDays    *int       `db:"ships_within_days" json:"shipsWithinDays,omitempty"`
 	CreatedAt          time.Time  `db:"created_at" json:"createdAt"`

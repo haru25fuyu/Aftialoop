@@ -4,6 +4,10 @@ import (
 	"animaloop/config"
 	db "animaloop/sql"
 	"animaloop/utils"
+	"io"
+	"mime/multipart"
+	"os"
+	"path/filepath"
 
 	"context"
 	"crypto/rand"
@@ -513,4 +517,33 @@ func IsCancellable(status string) bool {
 		// SHIPPED, COMPLETED, CANCELLED などはキャンセル不可
 		return false
 	}
+}
+
+// SaveImage: 画像を static/flea に保存し、Web用のパスを返す
+func SaveImage(file multipart.File, originalFilename string) (string, error) {
+	// 1. 保存先ディレクトリの確保
+	uploadDir := "./static/flea/"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		return "", err
+	}
+
+	// 2. ユニークなファイル名を生成 (タイムスタンプ + 元の拡張子)
+	ext := filepath.Ext(originalFilename)
+	newFilename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
+	dstPath := filepath.Join(uploadDir, newFilename)
+
+	// 3. 空のファイルを作成
+	dst, err := os.Create(dstPath)
+	if err != nil {
+		return "", err
+	}
+	defer dst.Close()
+
+	// 4. 中身をコピー
+	if _, err := io.Copy(dst, file); err != nil {
+		return "", err
+	}
+
+	// 5. アクセス用のURLパスを返す (/static/flea/...)
+	return uploadDir + newFilename, nil
 }

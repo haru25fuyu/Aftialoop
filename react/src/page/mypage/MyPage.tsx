@@ -5,9 +5,9 @@ import {
     ShoppingBag, Package, List, Heart, LogOut, MapPin, CreditCard,
     Truck, ClipboardCheck
 } from "lucide-react";
-import { Header } from "../component/Header";
-import api from "../conf/api";
-import { CONFIG } from "../conf/config";
+import { Header } from "../../component/Header";
+import api from "../../conf/api";
+import { CONFIG } from "../../conf/config";
 
 // ユーザー情報の型定義
 interface UserProfile {

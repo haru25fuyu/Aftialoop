@@ -125,3 +125,48 @@ func (d *Database) GetFleaMarketItemDetail(id int64, itemType string) (*utils.Fl
 
 	return detail, nil
 }
+
+// sql/flea_market.go に追加
+
+// UpdateAnimalDetails: 生体詳細の更新 (UPSERT)
+func (d *Database) UpdateAnimalDetails(itemID uint64, locality, hatchDate, size, generation, sex string) error {
+	// hatchDate が空文字("")のままだとDATE型に入らないため、NULL(nil)に変換する
+	var hDate interface{}
+	if hatchDate == "" {
+		hDate = nil
+	} else {
+		hDate = hatchDate
+	}
+
+	// テーブル名: flea_item_animal_details
+	query := `
+        INSERT INTO flea_item_animal_details (item_id, locality, hatch_date, size, generation, sex)
+        VALUES (?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            locality = VALUES(locality),
+            hatch_date = VALUES(hatch_date),
+            size = VALUES(size),
+            generation = VALUES(generation),
+            sex = VALUES(sex),
+            updated_at = UTC_TIMESTAMP()
+    `
+	_, err := d.DB.Exec(query, itemID, locality, hDate, size, generation, sex)
+	return err
+}
+
+// UpdateSupplyDetails: 用品詳細の更新 (UPSERT)
+func (d *Database) UpdateSupplyDetails(itemID uint64, brand, sku string, netWeight int) error {
+	// テーブル名: flea_item_supply_details
+	// net_weight_g カラムに注意
+	query := `
+        INSERT INTO flea_item_supply_details (item_id, brand, sku, net_weight_g)
+        VALUES (?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            brand = VALUES(brand),
+            sku = VALUES(sku),
+            net_weight_g = VALUES(net_weight_g),
+            updated_at = UTC_TIMESTAMP()
+    `
+	_, err := d.DB.Exec(query, itemID, brand, sku, netWeight)
+	return err
+}
