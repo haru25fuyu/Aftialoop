@@ -664,3 +664,30 @@ type UserReviewResponse struct {
 	ReviewerIconURL *string   `db:"reviewer_icon_url" json:"reviewerIconUrl"`
 	ItemName        *string   `db:"item_name" json:"itemName"`
 }
+
+type UserBankAccount struct {
+	UserID            string `json:"user_id"`
+	BankName          string `json:"bank_name"`
+	BankCode          string `json:"bank_code"`
+	BranchName        string `json:"branch_name"`
+	BranchCode        string `json:"branch_code"`
+	AccountType       int    `json:"account_type"`
+	AccountNumber     string `json:"account_number"`
+	AccountHolderName string `json:"account_holder_name"`
+}
+
+type UserBankAccountResponse struct {
+	ID uint64 `db:"id"                  json:"id"`
+
+	UserID            string `db:"user_id"             json:"user_id"`
+	BankName          string `db:"bank_name"           json:"bank_name"`   // bankName -> bank_name
+	BankCode          string `db:"bank_code"           json:"bank_code"`   // bankCode -> bank_code
+	BranchName        string `db:"branch_name"         json:"branch_name"` // ...
+	BranchCode        string `db:"branch_code"         json:"branch_code"`
+	AccountType       int    `db:"account_type"        json:"account_type"`
+	AccountNumber     string `db:"account_number"      json:"account_number"`
+	AccountHolderName string `db:"account_holder_name" json:"account_holder_name"`
+
+	CreatedAt time.Time `db:"created_at"          json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"          json:"updated_at"`
+}
