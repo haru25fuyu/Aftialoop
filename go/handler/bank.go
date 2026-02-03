@@ -53,7 +53,6 @@ func (h *BankHandler) GetBankAccount(w http.ResponseWriter, r *http.Request) {
 }
 
 // UpdateBankAccount: 口座情報の保存
-// UpdateBankAccount: 口座情報の保存
 func (h *BankHandler) UpdateBankAccount(w http.ResponseWriter, r *http.Request) {
 	// 1. 本物のユーザーIDを取得 (トークン認証から)
 	userID, err := function.CheckUser(h.db, w, r)

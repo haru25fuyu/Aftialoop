@@ -67,4 +67,6 @@ func (h *FleaMarketHandler) RegisterRoutes(r *mux.Router) {
 	// 取引メッセージ関係
 	r.HandleFunc("/flea-market/transactions/{id}/messages", h.GetTXMessages).Methods("GET")
 	r.HandleFunc("/flea-market/transactions/{id}/messages", h.SendTXMessage).Methods("POST")
+
+	r.HandleFunc("/flea-market/payout", h.CreatePayoutRequest).Methods("POST")
 }

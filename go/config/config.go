@@ -87,11 +87,13 @@ const (
 )
 
 type FleaConfig struct {
-	BaseRate       int64
-	MaxRate        int64
-	RateDen        int64
-	CommissionRate int64
-	UpdatedAt      time.Time
+	BaseRate        int64
+	MaxRate         int64
+	RateDen         int64
+	CommissionRate  int64
+	TransferFee     int64
+	MinPayoutAmount int64
+	UpdatedAt       time.Time
 }
 
 func IsProduction() bool {
@@ -101,7 +103,14 @@ func IsProduction() bool {
 func GetFleaConfig() FleaConfig {
 	v := FleaCfg.Load()
 	if v == nil {
-		return FleaConfig{BaseRate: 10200, MaxRate: 11000, RateDen: 10000, CommissionRate: 1000} // 最低限のフォールバック
+		return FleaConfig{
+			BaseRate:        10200,
+			MaxRate:         11000,
+			RateDen:         10000,
+			CommissionRate:  1000,
+			TransferFee:     200,
+			MinPayoutAmount: 201,
+		}
 	}
 	return *v.(*FleaConfig)
 }

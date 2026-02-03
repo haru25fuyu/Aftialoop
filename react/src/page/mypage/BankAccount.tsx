@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, Building2, ChevronDown, Pencil, X } from "lucide-react";
+import { AxiosError } from "axios";
 
 import api from "../../conf/api";
 import { useToast } from "../../conf/function";
@@ -34,7 +35,7 @@ function BankAccountContent() {
 
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    
+
     // ★ モード管理フラグ
     const [isEditing, setIsEditing] = useState(false); // 編集中かどうか
     const [hasAccount, setHasAccount] = useState(false); // 登録済みかどうか
@@ -45,7 +46,7 @@ function BankAccountContent() {
 
     const [showBankSuggest, setShowBankSuggest] = useState(false);
     const [showBranchSuggest, setShowBranchSuggest] = useState(false);
-    
+
     const [filteredBanks, setFilteredBanks] = useState<ZenginBank[]>([]);
     const [filteredBranches, setFilteredBranches] = useState<ZenginBranch[]>([]);
 
@@ -60,7 +61,7 @@ function BankAccountContent() {
     });
 
     const [errors, setErrors] = useState<Record<string, string>>({});
-    
+
     const bankRef = useRef<HTMLDivElement>(null);
     const branchRef = useRef<HTMLDivElement>(null);
 
@@ -91,9 +92,10 @@ function BankAccountContent() {
                         setHasAccount(true);   // データあり
                         setIsEditing(false);   // 閲覧モード
                     }
-                } catch (e: any) {
+                } catch (e) {
+                    const error = e as AxiosError;
                     // 404なら未登録 -> 編集モードで開始
-                    if (e.response?.status === 404) {
+                    if (error.response?.status === 404) {
                         setHasAccount(false);
                         setIsEditing(true);
                     } else {
@@ -114,7 +116,7 @@ function BankAccountContent() {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, []);
 
-    const handleChange = (key: keyof BankAccount, value: any) => {
+    const handleChange = (key: keyof BankAccount, value: string | number) => {
         setForm(prev => ({ ...prev, [key]: value }));
         if (errors[key]) setErrors(prev => ({ ...prev, [key]: "" }));
     };
@@ -175,8 +177,9 @@ function BankAccountContent() {
         if (!form.account_number) e.account_number = "口座番号を入力してください";
         if (!/^\d{7}$/.test(form.account_number)) e.account_number = "口座番号は通常7桁の半角数字です";
         if (!form.account_holder_name) e.account_holder_name = "口座名義を入力してください";
-        if (!/^[ァ-ンヴー\s　]+$/.test(form.account_holder_name)) e.account_holder_name = "全角カタカナで入力してください";
-        setErrors(e);
+        if (!/^[ァ-ンヴー\s\u3000]+$/.test(form.account_holder_name)) {
+            e.account_holder_name = "全角カタカナで入力してください";
+        }
         return Object.keys(e).length === 0;
     };
 
@@ -254,7 +257,7 @@ function BankAccountContent() {
                                     {form.branch_name} <span className="text-xs text-gray-400">({form.branch_code})</span>
                                 </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <h3 className="text-xs font-bold text-gray-400 mb-1">口座種別</h3>
@@ -273,7 +276,7 @@ function BankAccountContent() {
                         </div>
 
                         <div className="bg-gray-50 px-5 py-4 border-t border-gray-100">
-                            <button 
+                            <button
                                 onClick={() => setIsEditing(true)}
                                 className="w-full flex items-center justify-center gap-2 bg-white border border-gray-300 text-gray-700 font-bold py-3 rounded-lg hover:bg-gray-100 transition-colors shadow-sm"
                             >
@@ -298,19 +301,19 @@ function BankAccountContent() {
                                     </button>
                                 )}
                             </div>
-                            
+
                             {/* 銀行入力 */}
                             <div className="relative" ref={bankRef}>
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="col-span-2">
                                         <label className={labelClass}>銀行名</label>
                                         <div className="relative">
-                                            <input 
-                                                className={inputClass} 
-                                                placeholder="例：三菱 (入力で候補表示)" 
-                                                value={form.bank_name} 
+                                            <input
+                                                className={inputClass}
+                                                placeholder="例：三菱 (入力で候補表示)"
+                                                value={form.bank_name}
                                                 onChange={handleBankNameChange}
-                                                onFocus={() => { if(form.bank_name && filteredBanks.length > 0) setShowBankSuggest(true); }}
+                                                onFocus={() => { if (form.bank_name && filteredBanks.length > 0) setShowBankSuggest(true); }}
                                                 autoComplete="off"
                                             />
                                             {filteredBanks.length > 0 && showBankSuggest && <ChevronDown className="absolute right-2 top-3 text-gray-400 pointer-events-none" size={16} />}
@@ -340,12 +343,12 @@ function BankAccountContent() {
                                 <div className="grid grid-cols-3 gap-3">
                                     <div className="col-span-2">
                                         <label className={labelClass}>支店名</label>
-                                        <input 
-                                            className={inputClass} 
-                                            placeholder={form.bank_code ? "例：本店 (入力で候補表示)" : "先に銀行を選択"} 
-                                            value={form.branch_name} 
+                                        <input
+                                            className={inputClass}
+                                            placeholder={form.bank_code ? "例：本店 (入力で候補表示)" : "先に銀行を選択"}
+                                            value={form.branch_name}
                                             onChange={handleBranchNameChange}
-                                            onFocus={() => { if(form.branch_name && filteredBranches.length > 0) setShowBranchSuggest(true); }}
+                                            onFocus={() => { if (form.branch_name && filteredBranches.length > 0) setShowBranchSuggest(true); }}
                                             disabled={!form.bank_code}
                                             autoComplete="off"
                                         />
@@ -400,7 +403,7 @@ function BankAccountContent() {
                             <button onClick={handleSubmit} disabled={submitting} className="w-full bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-red-600 disabled:opacity-50 transition-colors">
                                 {submitting ? <Loader2 className="animate-spin mx-auto" /> : "保存する"}
                             </button>
-                            
+
                             {/* データがある時だけキャンセルボタンを表示 */}
                             {hasAccount && (
                                 <button onClick={handleCancel} className="w-full bg-white border border-gray-300 text-gray-700 font-bold py-3.5 rounded-xl hover:bg-gray-50 transition-colors">

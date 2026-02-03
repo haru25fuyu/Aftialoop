@@ -2,9 +2,13 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../conf/api";
 import { Loader2, ArrowUpCircle, ArrowDownCircle, Wallet, History, ChevronLeft } from "lucide-react";
+
 import { Header } from "../../component/Header";
+import ToastProvider from "../../component/ToastProvider"
+
 import ExchangePointModal from "../../modal/ExchangePointModal";
-import LoginModal from "../../modal/Login"; // ★追加: ログインモーダル
+import LoginModal from "../../modal/Login";
+import PayoutModal from "../../modal/PayoutModal"
 
 // 型定義
 interface SalesHistoryItem {
@@ -41,20 +45,28 @@ function formatType(type: string) {
     }
 }
 
-export default function SalesHistoryPage() {
+function SalesHistoryContent() {
     const navigate = useNavigate();
     const [data, setData] = useState<SalesResponse | null>(null);
     const [loading, setLoading] = useState(true);
 
-    // ★追加: モーダル管理とリロード用トリガー
+    // モーダル管理とリロード用トリガー
     const [isExchangeModalOpen, setExchangeModalOpen] = useState(false);
     const [isLoginModalOpen, setLoginModalOpen] = useState(false);
     const [reloadTrigger, setReloadTrigger] = useState(0);
+    const [isPayoutModalOpen, setIsPayoutModalOpen] = useState(false);
 
-    // ★追加: ログイン成功時の処理
+
+    // ログイン成功時の処理
     const handleLoginSuccess = () => {
         setLoginModalOpen(false);
         setReloadTrigger(prev => prev + 1); // useEffectを再発火させる
+    };
+
+    // 申請完了時の処理（データを再取得するなど）
+    const handlePayoutSuccess = () => {
+        fetchSales();
+        console.log("Reloading data...");
     };
 
     // 売上データ取得関数
@@ -69,7 +81,7 @@ export default function SalesHistoryPage() {
             .finally(() => setLoading(false));
     };
 
-    // ★変更: 初回ロード時にまずユーザー認証を確認する
+    // 初回ロード時にまずユーザー認証を確認する
     useEffect(() => {
         // Checkout.tsx と同じロジックでユーザー確認
         api.post("customer")
@@ -127,7 +139,10 @@ export default function SalesHistoryPage() {
                         <div className="text-4xl font-bold tracking-tight">¥{data.balance.toLocaleString()}</div>
 
                         <div className="mt-6 flex gap-3">
-                            <button className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex-1">
+                            <button
+                                onClick={() => setIsPayoutModalOpen(true)}
+                                className="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-bold transition flex-1"
+                            >
                                 振込申請する
                             </button>
                             <button
@@ -177,15 +192,24 @@ export default function SalesHistoryPage() {
 
             {/* ポイント交換モーダル */}
             {data && (
-                <ExchangePointModal
-                    isOpen={isExchangeModalOpen}
-                    onClose={() => setExchangeModalOpen(false)}
-                    maxAmount={data.balance}
-                    onConfirm={handleExchangeConfirm}
-                />
+                <>
+                    <ExchangePointModal
+                        isOpen={isExchangeModalOpen}
+                        onClose={() => setExchangeModalOpen(false)}
+                        maxAmount={data.balance}
+                        onConfirm={handleExchangeConfirm}
+                    />
+
+                    <PayoutModal
+                        isOpen={isPayoutModalOpen}
+                        onClose={() => setIsPayoutModalOpen(false)}
+                        onSuccess={handlePayoutSuccess}
+                        currentBalance={data.balance}
+                    />
+                </>
             )}
 
-            {/* ★追加: ログインモーダル */}
+            {/* ログインモーダル */}
             <LoginModal
                 isOpen={isLoginModalOpen}
                 onClose={() => setLoginModalOpen(false)}
@@ -194,4 +218,13 @@ export default function SalesHistoryPage() {
             />
         </>
     );
+}
+
+export default function SeleshistoryPage() {
+    return (
+        <ToastProvider>
+            <SalesHistoryContent />
+        </ToastProvider>
+    );
+
 }

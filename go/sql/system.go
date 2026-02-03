@@ -16,10 +16,17 @@ import (
 
 func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 	rows, err := d.DB.Query(`
-		SELECT ` + "`key`, `value`, `updated_at`" + `
-		FROM system_settings
-		WHERE ` + "`key`" + ` IN ('flea.base_rate', 'flea.max_rate','flea.rate_den','flea.commission_rate')
-	`)
+        SELECT ` + "`key`, `value`, `updated_at`" + `
+        FROM system_settings
+        WHERE ` + "`key`" + ` IN (
+            'flea.base_rate', 
+            'flea.max_rate', 
+            'flea.rate_den', 
+            'flea.commission_rate',
+            'payout.transfer_fee' ,
+			'payout.min_amount'
+        )
+    `)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +34,9 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 
 	cfg := &config.FleaConfig{}
 	var updatedAt time.Time
-	var rateDenominator int64 = 10000 // デフォルト値を設定
+	var rateDenominator int64 = 10000
+	var transferFee int64 = 200
+	var minPayout int64 = 201
 
 	for rows.Next() {
 		var k, v string
@@ -66,12 +75,28 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 			}
 			cfg.CommissionRate = f
 			updatedAt = ua
+		case "payout.transfer_fee":
+			transferFee, err = strconv.ParseInt(v, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("invalid transfer_fee: %w", err)
+			}
+			cfg.TransferFee = transferFee
+			updatedAt = ua
+		case "payout.min_amount":
+			minPayout, err = strconv.ParseInt(v, 10, 64)
+
+			if err != nil {
+				return nil, fmt.Errorf("invalid min_amout: %w", err)
+			}
+
+			cfg.MinPayoutAmount = minPayout
+			updatedAt = ua
 		default:
 			log.Println("Unknown flea config key:", k)
 		}
 	}
 
-	if cfg.BaseRate <= 0 || cfg.MaxRate <= 0 || cfg.CommissionRate <= 0 {
+	if cfg.BaseRate <= 0 || cfg.MaxRate <= 0 || cfg.CommissionRate <= 0 || cfg.TransferFee <= 0 {
 		return nil, errors.New("flea config is incomplete")
 	}
 	if cfg.BaseRate > cfg.MaxRate {
@@ -94,6 +119,9 @@ func (d *Database) SaveFleaConfig(ctx context.Context, cfg config.FleaConfig) er
 	}
 	if cfg.BaseRate > cfg.MaxRate {
 		return errors.New("base_rate > max_rate")
+	}
+	if cfg.TransferFee <= 0 {
+		return errors.New("transfer_fee must be > 0")
 	}
 
 	tx, err := d.DB.BeginTx(ctx, nil)
@@ -120,6 +148,13 @@ func (d *Database) SaveFleaConfig(ctx context.Context, cfg config.FleaConfig) er
 	if _, err := tx.ExecContext(ctx, upsert,
 		"flea.max_rate",
 		strconv.FormatInt(cfg.MaxRate, 10),
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, upsert,
+		"payout.transfer_fee",
+		strconv.FormatInt(cfg.TransferFee, 10),
 	); err != nil {
 		return err
 	}
