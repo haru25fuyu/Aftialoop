@@ -24,6 +24,19 @@ func (h *FleaMarketHandler) CreatePayoutRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
+	user, err := h.db.GetUserDataByID(userID)
+	if err != nil {
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	// ※ user構造体に IsIdentityVerified (bool) がある前提です
+	if !user.IsIdentityVerified {
+		// 専用のエラーメッセージを返す
+		http.Error(w, "identity_verification_required", http.StatusForbidden)
+		return
+	}
+
 	// 2. 入力受け取り
 	var req PayoutRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

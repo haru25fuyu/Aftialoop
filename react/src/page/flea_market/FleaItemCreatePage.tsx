@@ -4,7 +4,6 @@ import { useSearchParams } from "react-router-dom";
 import axios from "axios";
 
 import InlineSortableImages from "../../component/InlineSortableImages";
-import ToastProvider from "../../component/ToastProvider";
 import TinySavedPopup from "../../component/TinySavedPopup";
 import ShipFromSelect from "../../component/ShipFromSelect";
 
@@ -24,14 +23,6 @@ const FEE_BASE = 0.10;
 const FEE_PER_PLUS_PCT = 0.01;
 const FEE_MAX = 0.25;
 
-// ---------- Wrapper ----------
-export default function FleaItemCreatePageWrapper() {
-    return (
-        <ToastProvider>
-            <FleaItemCreatePage />
-        </ToastProvider>
-    );
-}
 
 //★修正: APIエラーの型を定義
 type ApiErrorResponse = {
@@ -45,7 +36,7 @@ type SexType = "male" | "female" | "unknown" | "pair";
 type StepKey = "main" | "details";
 
 // ---------- Main Component ----------
-function FleaItemCreatePage() {
+export default function FleaItemCreatePage() {
     const toast = useToast();
     const navigate = useNavigate();
 

@@ -33,6 +33,9 @@ func (h *userDataHandler) RegisterRoutes(r *mux.Router) {
 
 	// 他人のプロフィール取得
 	r.HandleFunc("/users/{id}/profile", h.GetUserProfile).Methods("GET")
+
+	r.HandleFunc("/identity/submit", h.SubmitIdentityVerification).Methods("POST")
+	r.HandleFunc("/identity/image", h.GetIdentityImage).Methods("GET")
 }
 
 // マイページの取得 (ダッシュボード用: 基本情報 + カウンターのみ)

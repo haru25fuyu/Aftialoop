@@ -5,7 +5,6 @@ import { AxiosError } from "axios";
 
 import api from "../../conf/api";
 import { useToast } from "../../conf/function";
-import ToastProvider from "../../component/ToastProvider";
 import Header from "../../component/Header";
 
 // 型定義
@@ -30,7 +29,7 @@ interface ZenginBranch {
     kana: string;
 }
 
-function BankAccountContent() {
+export default function BankAccount() {
     const navigate = useNavigate();
     const toast = useToast();
 
@@ -419,13 +418,5 @@ function BankAccountContent() {
                 </main>
             </div>
         </>
-    );
-}
-
-export default function BankAccount() {
-    return (
-        <ToastProvider>
-            <BankAccountContent />
-        </ToastProvider>
     );
 }

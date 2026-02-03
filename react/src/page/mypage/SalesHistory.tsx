@@ -1,10 +1,9 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../conf/api";
 import { Loader2, ArrowUpCircle, ArrowDownCircle, Wallet, History, ChevronLeft } from "lucide-react";
 
 import { Header } from "../../component/Header";
-import ToastProvider from "../../component/ToastProvider"
 
 import ExchangePointModal from "../../modal/ExchangePointModal";
 import LoginModal from "../../modal/Login";
@@ -45,7 +44,7 @@ function formatType(type: string) {
     }
 }
 
-function SalesHistoryContent() {
+export default function SalesHistoryPage() {
     const navigate = useNavigate();
     const [data, setData] = useState<SalesResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -218,13 +217,4 @@ function SalesHistoryContent() {
             />
         </>
     );
-}
-
-export default function SeleshistoryPage() {
-    return (
-        <ToastProvider>
-            <SalesHistoryContent />
-        </ToastProvider>
-    );
-
 }

@@ -547,3 +547,42 @@ func SaveImage(file multipart.File, originalFilename string) (string, error) {
 	// 5. アクセス用のURLパスを返す (/static/flea/...)
 	return uploadDir + newFilename, nil
 }
+
+// SendIdentityVerificationNotification 本人確認申請の通知メールを送る
+func SendIdentityVerificationNotification(userName, userID string) {
+	// 送信先（管理者）のメールアドレス
+	// configで管理するか、定数として定義してください
+	adminEmail := config.FromEmail
+
+	subject := "【本人確認】新規の申請が届きました"
+
+	// HTMLメール本文
+	htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<body>
+	<h2>新規本人確認申請のお知らせ</h2>
+	<p>運営担当者 様</p>
+	<p>以下のユーザーから本人確認書類の提出がありました。<br>
+	管理画面から内容を確認し、承認または却下を行ってください。</p>
+	
+	<div style="background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin: 20px 0;">
+		<p><strong>ユーザー名:</strong> %s</p>
+		<p><strong>ユーザーID:</strong> %s</p>
+	</div>
+
+	<p><a href="https://admin.aftialoop.com/identity" style="background-color: #007bff; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">管理画面を開く</a></p>
+</body>
+</html>
+`, userName, userID)
+
+	// あなたが用意した SendMail 関数を呼び出す
+	_, err := SendMail(adminEmail, subject, htmlContent)
+
+	if err != nil {
+		// ログだけ出して処理は止めない
+		fmt.Printf("Failed to send admin notification: %v\n", err)
+	} else {
+		fmt.Println("Admin notification email sent.")
+	}
+}

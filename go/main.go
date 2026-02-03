@@ -151,8 +151,8 @@ func main() {
 	corsOptions := cors.New(cors.Options{
 		AllowedOrigins:       config.AllowedOrigins, // 例: []string{"https://dev.aftialoop.com"}
 		AllowedMethods:       []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
-		AllowedHeaders:       []string{"Content-Type", "Authorization"},
-		ExposedHeaders:       []string{"x-new-access-token"}, // ★ 追加
+		AllowedHeaders:       []string{"*"},
+		ExposedHeaders:       []string{"x-new-access-token"},
 		AllowCredentials:     true,
 		OptionsSuccessStatus: http.StatusOK,
 	})

@@ -34,7 +34,7 @@ import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
 import FleaMarketList from './page/flea_market/FleaMarketList';
 import FleaMarketCheckout from './page/flea_market/FleaMarketCheckout';
 import FleaMarketTransactions from './page/flea_market/FleaMarketTransactions';
-import FleaItemEditWrapper from './page/flea_market/FleaItemEdit';
+import FleaItemEdit from './page/flea_market/FleaItemEdit';
 
 import SalesHistoryPage from './page/mypage/SalesHistory';
 import PaymentList from './page/mypage/PaymentList';
@@ -48,6 +48,9 @@ import HistoryPage from './page/mypage/HistoryPage';
 import { AuthProvider } from './context/AuthContext';
 import PointHistoryPage from './page/mypage/PointHistoryPage';
 import BankAccount from './page/mypage/BankAccount';
+import Settings from './page/mypage/Settings';
+import IdentityVerificationPage from './page/IdentityVerification';
+import ToastProvider from './component/ToastProvider';
 
 
 
@@ -81,9 +84,9 @@ const App: React.FC = () => {
 
           <Route path="/flea-market/list" element={<FleaMarketList />} />
           <Route path="/flea-market/item/:id" element={<FleaMarketItem />} />
-          <Route path="/flea-market/item/edit/:id" element={<RequireAuth><FleaItemEditWrapper /></RequireAuth>} />
-          <Route path="/flea-market/sell/create" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
-          <Route path="/flea-market/sell/create/:id" element={<RequireAuth><FleaItemCreatePage /></RequireAuth>} />
+          <Route path="/flea-market/item/edit/:id" element={<RequireAuth><ToastProvider><FleaItemEdit /></ToastProvider></RequireAuth>} />
+          <Route path="/flea-market/sell/create" element={<RequireAuth><ToastProvider><FleaItemCreatePage /></ToastProvider></RequireAuth>} />
+          <Route path="/flea-market/sell/create/:id" element={<RequireAuth><ToastProvider><FleaItemCreatePage /></ToastProvider></RequireAuth>} />
           <Route path="/flea-market/checkout/:id" element={<RequireAuth><FleaMarketCheckout /></RequireAuth>} />
           <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
           <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
@@ -94,16 +97,18 @@ const App: React.FC = () => {
           <Route path="/mypage/address" element={<RequireAuth><AddressList /></RequireAuth>} />
           <Route path="/mypage/profile" element={<RequireAuth><Profile /></RequireAuth>} />
           <Route path="/mypage/profile/edit" element={<RequireAuth><EditProfile /></RequireAuth>} />
-          <Route path="/mypage/sales" element={<RequireAuth><SalesHistoryPage /></RequireAuth>} />
+          <Route path="/mypage/sales" element={<RequireAuth><ToastProvider><SalesHistoryPage /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/points" element={<RequireAuth><PointHistoryPage /></RequireAuth>} />
           <Route path="/mypage/payment" element={<RequireAuth><PaymentList /></RequireAuth>} />
-          <Route path="/mypage/selling/list" element={<RequireAuth><SellingListPage /></RequireAuth>} />
+          <Route path="/mypage/selling/list" element={<RequireAuth><ToastProvider><SellingListPage /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/drafts/list" element={<RequireAuth><DraftListPage /></RequireAuth>} />
           <Route path="/mypage/requests" element={<RequireAuth><RequestListPage /></RequireAuth>} />
           <Route path="/mypage/transactions/active" element={<RequireAuth><ActiveTransactionListPage /></RequireAuth>} />
           <Route path="/mypage/likes" element={<RequireAuth><LikeListPage /></RequireAuth>} />
           <Route path="/mypage/transactions/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
-          <Route path="/mypage/bank-account" element={<RequireAuth><BankAccount /></RequireAuth>} />
+          <Route path="/mypage/bank-account" element={<RequireAuth><ToastProvider><BankAccount /></ToastProvider></RequireAuth>} />
+          <Route path="/mypage/settings" element={<RequireAuth><Settings /></RequireAuth>} />
+          <Route path="/mypage/settings/identity" element={<RequireAuth><ToastProvider><IdentityVerificationPage /></ToastProvider></RequireAuth>} />
 
           {/* list/item を公開にするかは方針次第 */}
           <Route path="/list" element={<List />} />

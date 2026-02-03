@@ -8,7 +8,6 @@ import { CATEGORY_OPTIONS, SHIPPING_FEE_TYPES_MAP, FleaItemStatus } from "../../
 
 import { ImageAsset, FleaItemType } from "../../types/FleaMarket";
 
-import ToastProvider from "../../component/ToastProvider";
 import InlineSortableImages from "../../component/InlineSortableImages";
 import ShipFromSelect from "../../component/ShipFromSelect";
 
@@ -18,7 +17,7 @@ import AddImagesModal from "../../modal/AddImagesModal";
 type SexType = "male" | "female" | "unknown" | "pair";
 type StepKey = "main" | "details";
 
-const FleaItemEditContent: React.FC = () => {
+ const FleaItemEdit: React.FC = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
@@ -564,11 +563,4 @@ const FleaItemEditContent: React.FC = () => {
     );
 };
 
-// Wrapper for Toast
-export default function FleaItemEditWrapper() {
-    return (
-        <ToastProvider>
-            <FleaItemEditContent />
-        </ToastProvider>
-    );
-}
+export default FleaItemEdit;
