@@ -20,7 +20,7 @@ import { SHIPPING_FEE_TYPES_MAP } from "../../conf/FleaMarket";
 import { getPrefName } from "../../conf/function";
 import { LikeButton } from "../../component/LikeButton";
 
-// ★追加: 計算用ヘルパー (一覧画面と同じもの)
+// 計算用ヘルパー (一覧画面と同じもの)
 const DEFAULT_RATE = 1.00;
 const DEFAULT_DEN = 10000; // APIから取れない場合のフォールバック
 
@@ -46,13 +46,13 @@ function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, 
 
     if (scaledRate <= den) return { discountYen: 0 };
 
-    // ★修正1: Math.ceil (切り上げ) → Math.floor (切り捨て)
+    //  Math.ceil (切り上げ) → Math.floor (切り捨て)
     // 2000円 ÷ 1.02 = 1960.7... → 1960pt でOKにする
     const needPt = Math.floor((price * den) / scaledRate);
 
     const usePt = Math.min(point, needPt);
 
-    // ★修正2: 全額払い判定
+    //  全額払い判定
     let coveredYen;
     if (usePt >= needPt) {
         // 必要ポイント（1960pt）払いきれるなら、計算上0.8円足りなくても「2000円全額OK」とみなす

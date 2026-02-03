@@ -3,10 +3,10 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { Camera, UserRound } from "lucide-react";
 
-import { Header } from '../component/Header';
+import { Header } from '../../component/Header';
 
-import api from '../conf/api';
-import { CONFIG } from '../conf/config';
+import api from '../../conf/api';
+import { CONFIG } from '../../conf/config';
 
 type Inputs = {
     id: string,

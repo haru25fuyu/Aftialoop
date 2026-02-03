@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, Heart, Package } from "lucide-react";
-import { Header } from "../component/Header";
-import { LikeButton } from "../component/LikeButton"; // さっき作ったやつ！
-import api from "../conf/api";
-import { CONFIG } from "../conf/config";
+import { Header } from "../../component/Header";
+import { LikeButton } from "../../component/LikeButton"; // さっき作ったやつ！
+import api from "../../conf/api";
+import { CONFIG } from "../../conf/config";
 
 // 型定義 (FleaMarketListLiteに対応)
 interface LikedItem {

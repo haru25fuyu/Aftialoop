@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../conf/api";
+import api from "../../conf/api";
 import { Loader2, ArrowUpCircle, ArrowDownCircle, Wallet, History, ChevronLeft } from "lucide-react";
-import { Header } from "../component/Header";
-import ExchangePointModal from "../modal/ExchangePointModal";
-import LoginModal from "../modal/Login"; // ★追加: ログインモーダル
+import { Header } from "../../component/Header";
+import ExchangePointModal from "../../modal/ExchangePointModal";
+import LoginModal from "../../modal/Login"; // ★追加: ログインモーダル
 
 // 型定義
 interface SalesHistoryItem {

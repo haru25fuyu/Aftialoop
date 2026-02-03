@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, ClipboardCheck, Package } from "lucide-react";
-import { Header } from "../component/Header"; // ヘッダーは共通
-import api from "../conf/api";
-import { CONFIG } from "../conf/config";
+import { Header } from "../../component/Header"; // ヘッダーは共通
+import api from "../../conf/api";
+import { CONFIG } from "../../conf/config";
 
 // 申請データの型（APIのレスポンスに合わせて調整してください）
 interface PurchaseRequestItem {

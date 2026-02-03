@@ -107,6 +107,7 @@ export type FleaTransactionRow = {
   payment_id?: string | null;
   payment_status: "NONE" | "PENDING" | "PAID" | "FAILED" | "CANCELLED";
 
+  cancellation_reason?: string;
   status:
     | "ACCEPTED"
     | "NEED_BUYER_CONFIRM"
@@ -136,7 +137,10 @@ export type FleaPurchaseRequestRow = {
   shipping_fee_pref: string;
   note?: string | null;
 
-  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED";
+  withdrawal_reason?: string;
+  rejection_reason?: string;  
+
+  status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "WITHDRAWN";
 
   created_at: string;
   updated_at: string;

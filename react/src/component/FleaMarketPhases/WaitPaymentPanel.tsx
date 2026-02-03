@@ -1,9 +1,11 @@
 import React from "react";
 import { FleaThreadResponse } from "../../types/FleaMarket";
-import { Clock, AlertTriangle, ChevronRight, Package, CreditCard } from "lucide-react"; // アイコン用
+import { Clock, AlertTriangle, CreditCard } from "lucide-react"; // アイコン用
 import { TransactionChat } from "../TransactionChat";
 
-const cn = (...xs: Array<string | false | undefined | null>) => xs.filter(Boolean).join(" ");
+import { CancelTransactionButton } from "../CancelTransactionButton";
+
+//const cn = (...xs: Array<string | false | undefined | null>) => xs.filter(Boolean).join(" ");
 
 export default function WaitPaymentPanel({
     data,
@@ -15,6 +17,8 @@ export default function WaitPaymentPanel({
     onChanged: () => void;
 }) {
     const { transaction } = data;
+
+    console.log(data)
 
     // 金額計算
     const itemPrice = transaction?.price_item ?? 0;
@@ -99,9 +103,11 @@ export default function WaitPaymentPanel({
 
             {/* おまけ: 取引キャンセルなどの動線が必要ならここに置く */}
             <div className="text-center">
-                <button className="text-xs text-gray-400 hover:text-gray-600 underline">
-                    取引に問題がありますか？
-                </button>
+                <CancelTransactionButton
+                    transactionId={transaction?.id || 0}
+                    onSuccess={onChanged}
+                    className="w-full" // 幅いっぱいにしたい場合
+                />
             </div>
         </div>
     );

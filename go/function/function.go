@@ -504,3 +504,13 @@ func GetFrontendURL() string {
 		return "http://dev.aftialoop.com"
 	}
 }
+
+func IsCancellable(status string) bool {
+	switch status {
+	case config.TxStatusRequested, config.TxStatusAccepted, config.TxStatusPending, config.TxStatusPaid:
+		return true
+	default:
+		// SHIPPED, COMPLETED, CANCELLED などはキャンセル不可
+		return false
+	}
+}

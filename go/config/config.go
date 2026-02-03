@@ -66,6 +66,18 @@ const (
 	FleaItemStatusSold      = 1 // 売却済み
 	FleaItemStatusTrading   = 2 // 取引中
 	FleaItemStatusCancelled = 3 // 出品取消
+	FleaItemStatusDraft     = 4 // 公開停止(下書き)
+)
+
+const (
+	TxStatusRequested    = "REQUESTED"      // 購入申請中
+	TxStatusAccepted     = "ACCEPTED"       // 承認済み（支払い待ち）
+	TxStatusPending      = "PENDING"        // 支払い待ち（即時決済待ちなど）
+	TxStatusPaid         = "PAID"           // 支払い完了（発送待ち）
+	TxStatusShipped      = "SHIPPED"        // 発送済み
+	TxStatusRatedByBuyer = "RATED_BY_BUYER" // 購入者評価済み
+	TxStatusCompleted    = "COMPLETED"      // 取引完了
+	TxStatusCancelled    = "CANCELLED"      // キャンセル済み
 )
 
 const (

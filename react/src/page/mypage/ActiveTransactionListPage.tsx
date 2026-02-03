@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, Package, MessageCircle, ShoppingCart, Store } from "lucide-react";
-import { Header } from "../component/Header";
-import api from "../conf/api";
-import { CONFIG } from "../conf/config";
+import { Header } from "../../component/Header";
+import api from "../../conf/api";
+import { CONFIG } from "../../conf/config";
 
 interface TransactionItem {
     id: number;

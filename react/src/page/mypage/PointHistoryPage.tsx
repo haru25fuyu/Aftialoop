@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import api from "../conf/api";
+import api from "../../conf/api";
 import { Loader2, ArrowUpCircle, ArrowDownCircle, Coins, History, ChevronLeft } from "lucide-react"; // Walletの代わりにCoins
-import { Header } from "../component/Header";
-import LoginModal from "../modal/Login";
+import { Header } from "../../component/Header";
+import LoginModal from "../../modal/Login";
 
 // 型定義 (ポイント用)
 interface PointHistoryItem {

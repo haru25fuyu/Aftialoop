@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -97,6 +98,110 @@ func (db *Database) CreateFleaPurchaseRequest(
 	return uint64(lastID), nil
 }
 
+// ListFleaTransactionsBySeller: 販売者側の取引一覧（status 絞り込み可、totalも返す）
+func (db *Database) ListFleaPurchaseRequestsBySeller(
+	ctx context.Context,
+	sellerID string,
+	status *string,
+	limit, offset int,
+) ([]utils.FleaPurchaseRequestListItem, int, error) {
+
+	if db.DB == nil {
+		return nil, 0, errors.New("db not ready")
+	}
+	sellerID = strings.TrimSpace(sellerID)
+	if sellerID == "" {
+		return nil, 0, errors.New("bad input")
+	}
+	if limit <= 0 {
+		limit = 20
+	}
+	if limit > 100 {
+		limit = 100
+	}
+	if offset < 0 {
+		offset = 0
+	}
+
+	where := "pr.seller_id = ?"
+	args := []any{sellerID}
+
+	if status != nil && strings.TrimSpace(*status) != "" {
+		st := utils.NormalizeEnum(*status)
+		where += " AND pr.status = ?"
+		args = append(args, st)
+	}
+
+	// total
+	var total int
+	if err := db.DB.QueryRowContext(ctx, `
+		SELECT COUNT(*)
+		  FROM flea_purchase_requests pr
+		 WHERE `+where+`
+	`, args...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	// list
+	args2 := append(append([]any{}, args...), limit, offset)
+
+	rows, err := db.DB.QueryContext(ctx, `
+		SELECT
+			pr.id, pr.item_id,
+			COALESCE(fi.name, '') AS item_name,
+			fi.main_image_url,
+			pr.buyer_id, pr.seller_id, pr.address_id,
+			pr.shipping_method_pref, pr.shipping_fee_pref,
+			pr.note, pr.status,
+			pr.created_at, pr.updated_at
+		FROM flea_purchase_requests pr
+		JOIN flea_items fi ON fi.id = pr.item_id
+		WHERE `+where+`
+		ORDER BY pr.created_at DESC
+		LIMIT ? OFFSET ?
+	`, args2...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	list := make([]utils.FleaPurchaseRequestListItem, 0, limit)
+	for rows.Next() {
+		var it utils.FleaPurchaseRequestListItem
+		var note sql.NullString
+		var mainURL sql.NullString
+		var created, updated time.Time
+
+		if err := rows.Scan(
+			&it.ID, &it.ItemID,
+			&it.ItemName,
+			&mainURL,
+			&it.BuyerID, &it.SellerID, &it.AddressID,
+			&it.ShippingMethodPref, &it.ShippingFeePref,
+			&note, &it.Status,
+			&created, &updated,
+		); err != nil {
+			return nil, 0, err
+		}
+
+		if mainURL.Valid {
+			s := mainURL.String
+			it.ItemMainImageURL = &s
+		}
+		if note.Valid {
+			s := note.String
+			it.Note = &s
+		}
+
+		it.CreatedAt = created.UTC().Format(time.RFC3339)
+		it.UpdatedAt = updated.UTC().Format(time.RFC3339)
+
+		list = append(list, it)
+	}
+
+	return list, total, rows.Err()
+}
+
 // GetFleaPurchaseRequestByID: 購入申請詳細（購入者 or 出品者のみ閲覧可）
 func (db *Database) GetFleaPurchaseRequestByID(ctx context.Context, userID string, reqID uint64) (utils.FleaPurchaseRequestRow, error) {
 	var out utils.FleaPurchaseRequestRow
@@ -109,28 +214,44 @@ func (db *Database) GetFleaPurchaseRequestByID(ctx context.Context, userID strin
 	}
 
 	var created, updated time.Time
-	var note sql.NullString
+	// NULL対応用の変数を用意
+	var note, rejReason, withReason sql.NullString
 
 	err := db.DB.QueryRowContext(ctx, `
-		SELECT id, item_id, buyer_id, seller_id, address_id,
-		       shipping_method_pref, shipping_fee_pref, note, status,
-		       created_at, updated_at
-		  FROM flea_purchase_requests
-		 WHERE id = ?
-		   AND (buyer_id = ? OR seller_id = ?)
-		 LIMIT 1
-	`, reqID, userID, userID).Scan(
+        SELECT id, item_id, buyer_id, seller_id, address_id,
+               shipping_method_pref, shipping_fee_pref, note, status,
+               rejection_reason, withdrawal_reason,
+               created_at, updated_at
+          FROM flea_purchase_requests
+         WHERE id = ?
+           AND (buyer_id = ? OR seller_id = ?)
+         LIMIT 1
+    `, reqID, userID, userID).Scan(
 		&out.ID, &out.ItemID, &out.BuyerID, &out.SellerID, &out.AddressID,
 		&out.ShippingMethodPref, &out.ShippingFeePref, &note, &out.Status,
+		&rejReason, &withReason, // ★Scanにも変数を追加
 		&created, &updated,
 	)
 	if err != nil {
 		return out, err
 	}
 
+	// NULLチェックして構造体にセット
 	if note.Valid {
 		s := note.String
 		out.Note = &s
+	}
+
+	// ★追加: 却下理由の詰め込み
+	if rejReason.Valid {
+		s := rejReason.String
+		out.RejectionReason = &s
+	}
+
+	// ★追加: 取り下げ理由の詰め込み
+	if withReason.Valid {
+		s := withReason.String
+		out.WithdrawalReason = &s
 	}
 
 	out.CreatedAt = created.UTC().Format(time.RFC3339)
@@ -193,31 +314,6 @@ func (db *Database) ListPendingFleaPurchaseRequests(ctx context.Context, sellerI
 	}
 
 	return list, nil
-}
-
-// CancelFleaPurchaseRequest: 購入者が REQUESTED の間だけキャンセル
-func (db *Database) CancelFleaPurchaseRequest(ctx context.Context, buyerID string, reqID uint64) error {
-	if db.DB == nil {
-		return errors.New("db not ready")
-	}
-	buyerID = strings.TrimSpace(buyerID)
-	if buyerID == "" || reqID == 0 {
-		return errors.New("bad input")
-	}
-
-	res, err := db.DB.ExecContext(ctx, `
-		UPDATE flea_purchase_requests
-		   SET status = 'CANCELLED'
-		 WHERE id = ? AND buyer_id = ? AND status = 'REQUESTED'
-	`, reqID, buyerID)
-	if err != nil {
-		return err
-	}
-	aff, _ := res.RowsAffected()
-	if aff == 0 {
-		return errors.New("invalid state")
-	}
-	return nil
 }
 
 // ------------------------------
@@ -390,4 +486,85 @@ func (db *Database) GetFleaTransactionByID(ctx context.Context, userID string, t
 	out.CreatedAt = created.UTC().Format(time.RFC3339)
 	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
 	return out, nil
+}
+
+// RejectFleaPurchaseRequest: 購入申請を却下し、理由をチャットに残す
+func (d *Database) RejectFleaPurchaseRequest(reqID uint64, userID, reason string) error {
+	tx, err := d.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. ステータスを REJECTED に更新
+	res, err := tx.Exec(`
+        UPDATE flea_purchase_requests 
+        SET 
+            status = 'REJECTED', 
+            rejection_reason = ?,
+            updated_at = UTC_TIMESTAMP()
+        WHERE id = ? AND status = 'REQUESTED'
+    `, reason, reqID)
+	if err != nil {
+		return err
+	}
+
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("request not found or not in requested status")
+	}
+
+	// 2. チャットに理由をシステムメッセージとして保存
+	msg := fmt.Sprintf("購入申請が却下されました。\n理由: %s", reason)
+
+	_, err = tx.Exec(`
+        INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message, is_system, created_at)
+        VALUES (?, ?, ?, true, UTC_TIMESTAMP())
+    `, reqID, userID, msg)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
+}
+
+// WithdrawFleaPurchaseRequest: 購入申請を取り下げ、理由をチャットに残す
+func (d *Database) WithdrawFleaPurchaseRequest(reqID uint64, userID, reason string) error {
+	tx, err := d.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. ステータスを WITHDRAWN に更新
+	// (管理用カラムがあればここで withdrawal_reason = ? も追加)
+	res, err := tx.Exec(`
+        UPDATE flea_purchase_requests 
+        SET 
+            status = 'WITHDRAWN', 
+            withdrawal_reason = ?,
+            updated_at = UTC_TIMESTAMP()
+        WHERE id = ? AND status = 'REQUESTED'
+    `, reason, reqID)
+	if err != nil {
+		return err
+	}
+
+	if n, _ := res.RowsAffected(); n == 0 {
+		return fmt.Errorf("request not found or not in requested status")
+	}
+
+	// 2. チャットに理由をシステムメッセージとして保存
+	msg := fmt.Sprintf("購入申請が取り下げられました。\n理由: %s", reason)
+
+	_, err = tx.Exec(`
+        INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message, is_system, created_at)
+        VALUES (?, ?, ?, true, UTC_TIMESTAMP())
+    `, reqID, userID, msg)
+
+	if err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }

@@ -1288,3 +1288,123 @@ func (h *FleaMarketHandler) ListCompletedTransactions(w http.ResponseWriter, r *
 		return
 	}
 }
+
+// ---------------------------------------------------------
+// ハンドラ関数: 取引をキャンセルする
+// POST /flea/transactions/{id}/cancel
+// ---------------------------------------------------------
+func (h *FleaMarketHandler) CancelTransaction(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// 2. 取引ID取得
+	vars := mux.Vars(r)
+	txIDStr := vars["id"]
+	txID, err := strconv.ParseUint(txIDStr, 10, 64)
+	if err != nil || txID == 0 {
+		http.Error(w, "bad transaction id", http.StatusBadRequest)
+		return
+	}
+
+	var input struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&input)
+
+	// 理由がない場合エラーを返す(理由は必須項目だとメッセージ)
+	if input.Reason == "" {
+		http.Error(w, "キャンセルの理由は必須です。", http.StatusBadRequest)
+	}
+
+	ctx := r.Context()
+
+	// 3. 取引データの確認 (キャンセル可能かチェック)
+	txData, err := h.db.GetFleaTransactionByID(ctx, userID, txID)
+	if err != nil {
+		http.Error(w, "transaction not found", http.StatusNotFound)
+		return
+	}
+
+	// 4. キャンセル条件のチェック
+	// ・当事者であること
+	// ・ステータスが「発送前 (PAID)」または「支払い前 (PENDING)」であること
+	// 　※「発送済み(SHIPPED)」以降は原則キャンセル不可にするのが安全
+	if !function.IsCancellable(txData.Status) {
+		http.Error(w, "cannot cancel: transaction status is "+txData.Status, http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "発送済み、または完了・キャンセル済みの取引はキャンセルできません"})
+		return
+	}
+
+	// 5. 返金処理 (PAIDの場合)
+	// Square決済やポイント払いの返金が必要
+	if txData.Status == "PAID" {
+		// A. Square決済の返金 (PaymentIDがある場合)
+		if *txData.PaymentProvider == "SQUARE" && *txData.PaymentID != "" {
+			// function.RefundPayment などの実装が必要
+			// ここでは簡易的にログ出力のみとし、実運用ではSquare APIを叩く
+			log.Printf("TODO: Refund Square Payment: %s", txData.PaymentID)
+		}
+
+		// B. ポイント返還 (UsePoint > 0 の場合)
+		if txData.UsePoint > 0 {
+			// ポイントをユーザーに戻す (履歴タイプ: CANCEL_REFUND など)
+			err := h.db.AddPoint(ctx, txData.BuyerID, int64(txData.UsePoint), "取引キャンセルによる返還")
+			if err != nil {
+				log.Println("Error refunding points:", err)
+				http.Error(w, "failed to refund points", http.StatusInternalServerError)
+				return
+			}
+		}
+	}
+
+	// 6. DB更新 (キャンセル処理)
+	// ステータスを CANCELLED にし、商品の在庫を戻す
+	if err := h.db.CancelFleaTransaction(txID, userID, input.Reason); err != nil {
+		log.Println("Error cancelling transaction:", err)
+		http.Error(w, "failed to cancel transaction", http.StatusInternalServerError)
+		return
+	}
+
+	// 7. 通知メール送信 (双方へ)
+	go func() {
+		// 共通の文言
+		baseMsg := `
+        <p>取引 (ID: ` + txIDStr + `) がキャンセルされました。</p>
+        <p>理由: ` + input.Reason + `</p>
+        <hr>
+        `
+
+		// --- A. 出品者へのメール (再出品の案内あり) ---
+		sellerSubject := "【Aftialoop】取引がキャンセルされました"
+		sellerContent := baseMsg + `
+        <p><b>【商品の状態について】</b></p>
+        <p>商品は現在<b>「下書き（非公開）」</b>状態に戻っています。</p>
+        <p>再出品される場合は、マイページの出品リストから「編集」を行い、再度公開してください。</p>
+        `
+		if err := function.SendEmailToUserID(h.db, txData.SellerID, sellerSubject, sellerContent); err != nil {
+			log.Printf("Failed to send cancel email to seller: %v", err)
+		}
+
+		// --- B. 購入者へのメール (返金の案内のみ) ---
+		buyerSubject := "【Aftialoop】取引がキャンセルされました"
+		buyerContent := baseMsg + `
+        <p>本取引は中止となりました。</p>
+        <p>お支払い済みの代金がある場合は、順次返金処理が行われます。</p>
+        <p>詳細はマイページの取引履歴をご確認ください。</p>
+        `
+		if err := function.SendEmailToUserID(h.db, txData.BuyerID, buyerSubject, buyerContent); err != nil {
+			log.Printf("Failed to send cancel email to buyer: %v", err)
+		}
+	}()
+
+	// 8. レスポンス
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{
+		"status":  "CANCELLED",
+		"message": "Transaction cancelled successfully",
+	})
+}

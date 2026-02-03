@@ -13,6 +13,10 @@ import { Address } from "../../types/Address";
 import { FleaContent } from "../../types/FleaMarket";
 import { acceptPurchaseRequest } from "../../function/FleaMarket";
 
+import { WithdrawRequestButton } from "../WithdrawRequestButton";
+import { RejectRequestButton } from "../RejectRequestButton";
+import { RequestCancelledPanel} from "./RequestCancelledPanel"
+
 // Icons
 import {
     Calculator, Truck, Thermometer, Box, MapPin, Info, ArrowRight
@@ -193,6 +197,7 @@ export default function SellerSetTerms({
 
     const reqSeq = React.useRef(0);
 
+    console.log(pr)
     // --- Effects ---
     React.useEffect(() => {
         if (!pr) return;
@@ -226,7 +231,7 @@ export default function SellerSetTerms({
     }, [carrier, temp, size]);
 
     // --- Handlers ---
-    const estimateShipping = async () => {
+    const estimateShipping = async (): Promise<void> => {
         const mySeq = ++reqSeq.current;
         if (!item?.shipFrom || !buyer_address?.pref_code) return;
 
@@ -244,8 +249,9 @@ export default function SellerSetTerms({
             if (mySeq !== reqSeq.current) return;
             setEstimateError("取得失敗");
         } finally {
-            if (mySeq !== reqSeq.current) return;
-            setEstimateLoading(false);
+            if (mySeq === reqSeq.current) {
+                setEstimateLoading(false);
+            }
         }
     };
 
@@ -270,6 +276,10 @@ export default function SellerSetTerms({
             console.error(e);
         }
     };
+
+    if (pr && (pr.status === "WITHDRAWN" || pr.status === "REJECTED")) {
+        return <RequestCancelledPanel pr={pr} role={role} />;
+    }
 
     if (!pr) return null;
 
@@ -318,6 +328,14 @@ export default function SellerSetTerms({
                                 />
                             </div>
                         )}
+                        {/* 申請取り下げボタン */}
+                        <div className="mt-8 pt-6 border-t border-gray-100 flex justify-center">
+                            <WithdrawRequestButton
+                                requestId={pr.id}
+                                onSuccess={onChanged}
+                                className="w-full"
+                            />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -546,6 +564,14 @@ export default function SellerSetTerms({
                             />
                         </div>
                     )}
+                    {/* 申請却下ボタン */}
+                    <div className="mt-4">
+                        <RejectRequestButton
+                            requestId={pr.id}
+                            onSuccess={onChanged}
+                            className="w-full bg-white border-none text-red-500 hover:bg-red-50 hover:text-red-600"
+                        />
+                    </div>
                 </div>
 
                 {/* 合計確認エリア */}

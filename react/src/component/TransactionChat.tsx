@@ -80,13 +80,13 @@ export const TransactionChat: React.FC<Props> = ({ purchase_request_id, myUserId
                 ref={scrollContainerRef}
                 className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50"
             >
-                {messages.length === 0 && (
+                {messages?.length === 0 && (
                     <div className="text-center text-gray-400 text-sm mt-10">
                         まだメッセージはありません。<br />挨拶を送ってみましょう！
                     </div>
                 )}
 
-                {messages.map((msg) => {
+                {messages?.map((msg) => {
                     const isMe = msg.user_id === myUserId;
                     return (
                         <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>

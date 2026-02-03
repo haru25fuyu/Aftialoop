@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, Package, ShoppingCart, Store, CheckCircle, XCircle, ShoppingBag } from "lucide-react";
 // import { Header } from "../component/Header"; // ★削除: サブページなので共通ヘッダーは外してスッキリさせる
-import api from "../conf/api";
-import { CONFIG } from "../conf/config";
+import api from "../../conf/api";
+import { CONFIG } from "../../conf/config";
 
 // --- 型定義 ---
 interface FleaTransaction {

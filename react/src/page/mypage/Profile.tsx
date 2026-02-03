@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Header } from '../component/Header'; // パス調整
-import LoginModal from '../modal/Login';      // パス調整
-import { Avatar } from '../component/Avatar'; // ★Avatarを使う
+import { Header } from '../../component/Header'; // パス調整
+import LoginModal from '../../modal/Login';      // パス調整
+import { Avatar } from '../../component/Avatar'; // ★Avatarを使う
 
-import api, { getAccessToken } from '../conf/api';
+import api, { getAccessToken } from '../../conf/api';
 
 // 型定義
 type UserData = {

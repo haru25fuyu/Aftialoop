@@ -1,9 +1,9 @@
 import React, { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../component/Header';
-import EditAddress from '../modal/EditAddress';
-import api from '../conf/api';
-import { Address } from '../types/Address';
+import { Header } from '../../component/Header';
+import EditAddress from '../../modal/EditAddress';
+import api from '../../conf/api';
+import { Address } from '../../types/Address';
 import { Plus, MapPin, CheckCircle, Phone, Edit2, ChevronLeft } from 'lucide-react'; // アイコン追加
 
 const AddressList: React.FC = () => {

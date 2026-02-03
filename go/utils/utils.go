@@ -413,45 +413,50 @@ type AddMessageRequest struct {
 
 // 取引関連
 type FleaPurchaseRequestRow struct {
-	ID                 uint64  `json:"id"`
-	ItemID             uint64  `json:"item_id"`
-	BuyerID            string  `json:"buyer_id"`
-	SellerID           string  `json:"seller_id"`
-	AddressID          uint64  `json:"address_id"`
-	ShippingMethodPref string  `json:"shipping_method_pref"`
-	ShippingFeePref    string  `json:"shipping_fee_pref"`
-	Note               *string `json:"note,omitempty"`
-	Status             string  `json:"status"`
-	CreatedAt          string  `json:"created_at"`
-	UpdatedAt          string  `json:"updated_at"`
+	ID                 uint64  `json:"id" db:"id"`
+	ItemID             uint64  `json:"item_id" db:"item_id"`
+	BuyerID            string  `json:"buyer_id" db:"buyer_id"`
+	SellerID           string  `json:"seller_id" db:"seller_id"`
+	AddressID          uint64  `json:"address_id" db:"address_id"`
+	ShippingMethodPref string  `json:"shipping_method_pref" db:"shipping_method_pref"`
+	ShippingFeePref    string  `json:"shipping_fee_pref" db:"shipping_fee_pref"`
+	Note               *string `json:"note,omitempty" db:"note"`
+	Status             string  `json:"status" db:"status"`
+
+	RejectionReason  *string `json:"rejection_reason" db:"rejection_reason"`
+	WithdrawalReason *string `json:"withdrawal_reason" db:"withdrawal_reason"`
+
+	CreatedAt string `json:"created_at" db:"created_at"`
+	UpdatedAt string `json:"updated_at" db:"updated_at"`
 }
 
 type FleaTransactionRow struct {
-	ID                uint64  `json:"id"`
-	PurchaseRequestID uint64  `json:"purchase_request_id"`
-	ItemID            uint64  `json:"item_id"`
-	BuyerID           string  `json:"buyer_id"`
-	SellerID          string  `json:"seller_id"`
-	AddressID         uint64  `json:"address_id"`
-	ShippingMethod    string  `json:"shipping_method"`
-	ShippingFeeType   string  `json:"shipping_fee_type"`
-	PriceItem         uint32  `json:"price_item"`
-	PriceShipping     uint32  `json:"price_shipping"`
-	PaymentProvider   *string `json:"payment_provider"`
-	PaymentID         *string `json:"payment_id"`
-	UsePoint          int64   `json:"use_point"`
-	PointRate         int64   `json:"point_rate"`
-	PaymentStatus     string  `json:"payment_status"`
-	ShippingCarrier   *string `json:"shipping_carrier"`
-	TrackingNumber    *string `json:"tracking_number"`
-	FeeAmount         int     `json:"fee_amount"`
-	ProfitAmount      int     `json:"profit_amount"`
-	Status            string  `json:"status"`
-	PaidAt            *string `json:"paid_at"`
-	ShippedAt         *string `json:"shipped_at"`
-	CompletedAt       *string `json:"completed_at"`
-	CreatedAt         string  `json:"created_at"`
-	UpdatedAt         string  `json:"updated_at"`
+	ID                 uint64  `json:"id" db:"id"`
+	PurchaseRequestID  uint64  `json:"purchase_request_id" db:"purchase_request_id"`
+	ItemID             uint64  `json:"item_id" db:"item_id"`
+	BuyerID            string  `json:"buyer_id" db:"buyer_id"`
+	SellerID           string  `json:"seller_id" db:"seller_id"`
+	AddressID          uint64  `json:"address_id" db:"address_id"`
+	ShippingMethod     string  `json:"shipping_method" db:"shipping_method"`
+	ShippingFeeType    string  `json:"shipping_fee_type" db:"shipping_fee_type"`
+	PriceItem          uint32  `json:"price_item" db:"price_item"`
+	PriceShipping      uint32  `json:"price_shipping" db:"price_shipping"`
+	PaymentProvider    *string `json:"payment_provider" db:"payment_provider"`
+	PaymentID          *string `json:"payment_id" db:"payment_id"`
+	UsePoint           int64   `json:"use_point" db:"use_point"`
+	PointRate          int64   `json:"point_rate" db:"point_rate"`
+	PaymentStatus      string  `json:"payment_status" db:"payment_status"`
+	ShippingCarrier    *string `json:"shipping_carrier" db:"shipping_carrier"`
+	TrackingNumber     *string `json:"tracking_number" db:"tracking_number"`
+	FeeAmount          int     `json:"fee_amount" db:"fee_amount"`
+	ProfitAmount       int     `json:"profit_amount" db:"profit_amount"`
+	Status             string  `json:"status" db:"status"`
+	CancellationReason *string `json:"cancellation_reason" db:"cancellation_reason"`
+	PaidAt             *string `json:"paid_at" db:"paid_at"`
+	ShippedAt          *string `json:"shipped_at" db:"shipped_at"`
+	CompletedAt        *string `json:"completed_at" db:"completed_at"`
+	CreatedAt          string  `json:"created_at" db:"created_at"`
+	UpdatedAt          string  `json:"updated_at" db:"updated_at"`
 }
 
 type FleaPurchaseRequestListItem struct {

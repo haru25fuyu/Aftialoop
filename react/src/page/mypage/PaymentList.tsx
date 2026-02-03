@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Header } from '../component/Header';
-import SquarePayment from '../modal/EditPayment';
-import LoginModal from '../modal/Login';
-import api, { getAccessToken } from '../conf/api';
+import { Header } from '../../component/Header';
+import SquarePayment from '../../modal/EditPayment';
+import LoginModal from '../../modal/Login';
+import api, { getAccessToken } from '../../conf/api';
 import { CreditCard, Plus, Trash2, CheckCircle, Settings, Calendar, ChevronLeft } from 'lucide-react';
-import { Payment } from '../types/Payment';
+import { Payment } from '../../types/Payment';
 
 const PaymentList: React.FC = () => {
     const navigate = useNavigate();

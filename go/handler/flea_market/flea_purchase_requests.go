@@ -8,7 +8,10 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
+
+	"github.com/gorilla/mux"
 )
 
 type CreateFleaPurchaseRequestReq struct {
@@ -189,4 +192,113 @@ func (h *FleaMarketHandler) ListPendingRequests(w http.ResponseWriter, r *http.R
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(requests)
+}
+
+// POST /flea/purchase_requests/{id}/withdraw
+func (h *FleaMarketHandler) WithdrawPurchaseRequest(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, _ := function.CheckUser(h.db, w, r)
+
+	// 2. ID取得
+	vars := mux.Vars(r)
+	reqID, _ := strconv.ParseUint(vars["id"], 10, 64)
+
+	var input struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&input)
+	if input.Reason == "" {
+		input.Reason = "理由なし"
+	}
+
+	// 3. 権限チェック (既存ロジック)
+	pr, err := h.db.GetFleaPurchaseRequestByID(r.Context(), userID, reqID)
+	if err != nil { /* エラー処理 */
+		return
+	}
+	if pr.BuyerID != userID { /* Forbidden */
+		return
+	}
+	if pr.Status != "REQUESTED" { /* BadRequest */
+		return
+	}
+
+	// 4. DB更新 (専用メソッドを呼ぶ)
+	// ★ UpdatePurchaseRequestStatus ではなく WithdrawFleaPurchaseRequest を新設して呼ぶ
+	if err := h.db.WithdrawFleaPurchaseRequest(reqID, userID, input.Reason); err != nil {
+		log.Println("Withdraw failed:", err)
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	// 5. 通知メール送信 (出品者へ)
+	go func() {
+		subject := "【Aftialoop】購入申請が取り下げられました"
+		content := `
+            <p>商品への購入申請が取り下げられました。</p>
+            <p>理由: ` + input.Reason + `</p>
+            <p>商品は引き続き「出品中」の状態です。</p>
+         `
+		function.SendEmailToUserID(h.db, pr.SellerID, subject, content)
+	}()
+
+	w.WriteHeader(http.StatusOK)
+}
+
+func (h *FleaMarketHandler) RejectPurchaseRequest(w http.ResponseWriter, r *http.Request) {
+	// 1. ユーザー認証
+	userID, _ := function.CheckUser(h.db, w, r)
+
+	// 2. ID取得
+	vars := mux.Vars(r)
+	reqID, _ := strconv.ParseUint(vars["id"], 10, 64)
+
+	// 3. 理由取得
+	var input struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&input)
+	if input.Reason == "" {
+		input.Reason = "出品者の都合により"
+	}
+
+	// 4. データ取得
+	pr, err := h.db.GetFleaPurchaseRequestByID(r.Context(), userID, reqID)
+	if err != nil {
+		http.Error(w, "request not found", http.StatusNotFound)
+		return
+	}
+
+	// ★ここが違う：実行者が「出品者」であることを確認
+	if pr.SellerID != userID {
+		http.Error(w, "forbidden: you are not the seller", http.StatusForbidden)
+		return
+	}
+
+	// ステータスチェック (REQUESTED の時のみ却下可能)
+	if pr.Status != "REQUESTED" {
+		http.Error(w, "cannot reject: status is not requested", http.StatusBadRequest)
+		return
+	}
+
+	// 5. DB更新 (却下用メソッドを呼ぶ)
+	if err := h.db.RejectFleaPurchaseRequest(reqID, userID, input.Reason); err != nil {
+		log.Println("Reject failed:", err)
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+
+	// 6. 通知メール送信 (購入者へ)
+	go func() {
+		subject := "【Aftialoop】購入申請が見送られました"
+		content := `
+            <p>誠に残念ですが、以下の商品への購入申請が見送られました（却下されました）。</p>
+            <p><b>理由:</b> ` + input.Reason + `</p>
+            <hr>
+            <p>またの機会がございましたら、よろしくお願いいたします。</p>
+         `
+		function.SendEmailToUserID(h.db, pr.BuyerID, subject, content)
+	}()
+
+	w.WriteHeader(http.StatusOK)
 }

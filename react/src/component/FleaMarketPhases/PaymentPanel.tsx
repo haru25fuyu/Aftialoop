@@ -3,24 +3,22 @@ import api from "../../conf/api";
 
 import { FleaThreadResponse } from "../../types/FleaMarket";
 import { Customer } from "../../types/Content";
-import { FleaContent } from "../../types/FleaMarket"; // FleaContentをインポート
+import { FleaContent } from "../../types/FleaMarket";
 import { Payment } from "../../types/Payment";
 
 import SquarePayment from "../../modal/EditPayment";
 
 import { TransactionChat } from "../TransactionChat";
+// ★追加: キャンセルボタンをインポート
+import { CancelTransactionButton } from "../CancelTransactionButton";
 
 // ---------------------------------------------------------
 // 型定義の拡張 (any回避)
 // ---------------------------------------------------------
-// バックエンドから返ってくるアイテム情報に含まれる可能性のある追加フィールド
 interface ExtendedItem extends Omit<FleaContent, 'seller_rate'> {
-    // ここで自由に再定義できます
     SellerRate?: number | string;
     sellerRate?: number | string;
-
     seller_rate?: number | string;
-
     seller_rate_value?: number | string;
     seller_discount_rate?: number | string;
     additional_discount_rate?: number | string;
@@ -89,7 +87,6 @@ export default function PaymentPanel({
                 }
                 if (cardRes.data.card) {
                     setPaymentList(cardRes.data.card);
-                    console.log("取得カード一覧:", cardRes.data.card);
                 }
             } catch (err) {
                 console.error("ユーザー情報の取得に失敗", err);
@@ -106,29 +103,20 @@ export default function PaymentPanel({
     const computed = useMemo(() => {
         if (!tx || !item) return null;
 
-        // 型アサーションを使って拡張フィールドにアクセスできるようにする
         const extItem = item as unknown as ExtendedItem;
 
-        // 支払総額（商品価格 + 送料）
         const baseTotalYen = tx.price_item + tx.price_shipping;
         const customerPoint = toNum(customer?.point);
 
-        // ✅ SellerRate（1ptが何円相当か）
-        // 優先度順にチェック
         const rawSellerRate =
-            toNum(extItem.seller_rate) ||        // DBカラム名 (通常これ)
-            toNum(extItem?.sellerRate) ||         // CamelCase
-            toNum(extItem.SellerRate) ||         // PascalCase
+            toNum(extItem.seller_rate) ||
+            toNum(extItem?.sellerRate) ||
+            toNum(extItem.SellerRate) ||
             toNum(extItem.seller_rate_value) ||
-            1; // デフォルト 1.0
+            1;
 
-        // 0除算防止
         const sellerRate = Math.max(0.000001, rawSellerRate);
 
-        // デバッグ用: レートが正しく取れているか確認
-        console.log("適用レート:", sellerRate, "元データ:", extItem);
-
-        // ✅ 出品者追加割引率（%）
         const rawDiscountRate =
             toNum(extItem.seller_discount_rate) ||
             toNum(extItem.additional_discount_rate) ||
@@ -136,17 +124,10 @@ export default function PaymentPanel({
             0;
         const sellerDiscountRate = clamp(rawDiscountRate, 0, 100);
 
-        // 円→必要ポイント (切り上げ)
-        // 例: 100円の商品, レート1.5円/pt => 100 / 1.5 = 66.6... => 67pt必要
         const yenToPoints = (yen: number) => yenCeil(yen / sellerRate);
-
-        // pt→円 (切り捨て)
-        // 例: 100pt使用, レート1.5円/pt => 100 * 1.5 = 150円分
         const pointsToYen = (pt: number) => yenFloor(pt * sellerRate);
 
         const requiredPointsFull = yenToPoints(baseTotalYen);
-
-        // 使えるポイント上限 (所持pt と 必要pt の小さい方)
         const maxUsablePoints = Math.min(customerPoint, requiredPointsFull);
 
         const safeUsePoints =
@@ -156,18 +137,10 @@ export default function PaymentPanel({
                     ? 0
                     : clamp(toNum(usePoints), 0, maxUsablePoints);
 
-        // ポイントで充当できた円額
         const coveredYenByPoints = Math.min(baseTotalYen, pointsToYen(safeUsePoints));
-
-        // 現金部分（割引前）
         const cashBeforeDiscount = Math.max(0, baseTotalYen - coveredYenByPoints);
-
-        // 割引額（現金部分にのみ適用）
         const discountAmountYen = yenFloor((cashBeforeDiscount * sellerDiscountRate) / 100);
-
-        // カード請求額
         const cardChargeAmountYen = Math.max(0, cashBeforeDiscount - discountAmountYen);
-
         const remainingPoints = Math.max(0, customerPoint - safeUsePoints);
 
         return {
@@ -179,7 +152,7 @@ export default function PaymentPanel({
             discountAmountYen,
             cardChargeAmountYen,
             remainingPoints,
-            sellerRate, // 表示用に返す
+            sellerRate,
         };
     }, [tx, item, customer?.point, pointMode, usePoints]);
 
@@ -229,7 +202,7 @@ export default function PaymentPanel({
     if (!tx || !item || !computed) return <div className="p-4 text-gray-500">読み込み中...</div>;
 
     return (
-        <> {/* チャットエリアを追加 */}
+        <>
             {data.transaction && myUserId && (
                 <div className="mt-8">
                     <TransactionChat
@@ -443,6 +416,20 @@ export default function PaymentPanel({
                             {busy ? "処理中..." : "支払いを確定する"}
                         </button>
                     </div>
+
+                    {/* ★追加: キャンセルボタンエリア */}
+                    <div className="mt-8 pt-6 border-t border-dashed border-gray-200">
+                        <p className="text-xs text-center text-gray-400 mb-3">
+                            この取引を中止する場合はこちら<br />
+                            <span className="opacity-75">（中止すると申請承認前の状態には戻りません）</span>
+                        </p>
+                        <CancelTransactionButton
+                            transactionId={tx.id}
+                            onSuccess={onChanged}
+                            className="w-full bg-white border border-gray-200 text-gray-500 hover:text-red-600 hover:bg-red-50 hover:border-red-200"
+                        />
+                    </div>
+
                 </div>
 
                 {/* カード追加モーダル */}

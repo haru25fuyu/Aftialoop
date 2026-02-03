@@ -118,110 +118,6 @@ func (db *Database) ListFleaTransactionsByBuyer(
 	return list, total, nil
 }
 
-// ListFleaTransactionsBySeller: 販売者側の取引一覧（status 絞り込み可、totalも返す）
-func (db *Database) ListFleaPurchaseRequestsBySeller(
-	ctx context.Context,
-	sellerID string,
-	status *string,
-	limit, offset int,
-) ([]utils.FleaPurchaseRequestListItem, int, error) {
-
-	if db.DB == nil {
-		return nil, 0, errors.New("db not ready")
-	}
-	sellerID = strings.TrimSpace(sellerID)
-	if sellerID == "" {
-		return nil, 0, errors.New("bad input")
-	}
-	if limit <= 0 {
-		limit = 20
-	}
-	if limit > 100 {
-		limit = 100
-	}
-	if offset < 0 {
-		offset = 0
-	}
-
-	where := "pr.seller_id = ?"
-	args := []any{sellerID}
-
-	if status != nil && strings.TrimSpace(*status) != "" {
-		st := utils.NormalizeEnum(*status)
-		where += " AND pr.status = ?"
-		args = append(args, st)
-	}
-
-	// total
-	var total int
-	if err := db.DB.QueryRowContext(ctx, `
-		SELECT COUNT(*)
-		  FROM flea_purchase_requests pr
-		 WHERE `+where+`
-	`, args...).Scan(&total); err != nil {
-		return nil, 0, err
-	}
-
-	// list
-	args2 := append(append([]any{}, args...), limit, offset)
-
-	rows, err := db.DB.QueryContext(ctx, `
-		SELECT
-			pr.id, pr.item_id,
-			COALESCE(fi.name, '') AS item_name,
-			fi.main_image_url,
-			pr.buyer_id, pr.seller_id, pr.address_id,
-			pr.shipping_method_pref, pr.shipping_fee_pref,
-			pr.note, pr.status,
-			pr.created_at, pr.updated_at
-		FROM flea_purchase_requests pr
-		JOIN flea_items fi ON fi.id = pr.item_id
-		WHERE `+where+`
-		ORDER BY pr.created_at DESC
-		LIMIT ? OFFSET ?
-	`, args2...)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	list := make([]utils.FleaPurchaseRequestListItem, 0, limit)
-	for rows.Next() {
-		var it utils.FleaPurchaseRequestListItem
-		var note sql.NullString
-		var mainURL sql.NullString
-		var created, updated time.Time
-
-		if err := rows.Scan(
-			&it.ID, &it.ItemID,
-			&it.ItemName,
-			&mainURL,
-			&it.BuyerID, &it.SellerID, &it.AddressID,
-			&it.ShippingMethodPref, &it.ShippingFeePref,
-			&note, &it.Status,
-			&created, &updated,
-		); err != nil {
-			return nil, 0, err
-		}
-
-		if mainURL.Valid {
-			s := mainURL.String
-			it.ItemMainImageURL = &s
-		}
-		if note.Valid {
-			s := note.String
-			it.Note = &s
-		}
-
-		it.CreatedAt = created.UTC().Format(time.RFC3339)
-		it.UpdatedAt = updated.UTC().Format(time.RFC3339)
-
-		list = append(list, it)
-	}
-
-	return list, total, rows.Err()
-}
-
 // GetFleaTransactionByPurchaseRequestID: 取引詳細（購入者 or 出品者のみ閲覧可）
 func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	ctx context.Context,
@@ -237,7 +133,7 @@ func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	err := db.DB.QueryRowContext(ctx, `
 		SELECT id, purchase_request_id, item_id, buyer_id, seller_id, address_id,
 		       shipping_method, shipping_fee_type, price_item, price_shipping,
-		       payment_provider, payment_id, payment_status, status, shipping_carrier, tracking_number,
+		       payment_provider, payment_id, payment_status, status, cancellation_reason ,shipping_carrier, tracking_number,
 			   use_point, point_rate,fee_amount, profit_amount,
 		       paid_at, shipped_at, completed_at, created_at, updated_at
 		  FROM flea_transactions
@@ -247,7 +143,7 @@ func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	`, reqID, userID, userID).Scan(
 		&out.ID, &out.PurchaseRequestID, &out.ItemID, &out.BuyerID, &out.SellerID, &out.AddressID,
 		&out.ShippingMethod, &out.ShippingFeeType, &out.PriceItem, &out.PriceShipping,
-		&payProv, &payID, &out.PaymentStatus, &out.Status, &out.ShippingCarrier, &out.TrackingNumber,
+		&payProv, &payID, &out.PaymentStatus, &out.Status, &out.CancellationReason, &out.ShippingCarrier, &out.TrackingNumber,
 		&out.UsePoint, &out.PointRate, &out.FeeAmount, &out.ProfitAmount,
 		&out.PaidAt, &shipped, &completed, &created, &updated,
 	)
@@ -627,4 +523,63 @@ func (db *Database) ListCompletedFleaTransactions(
 		list = append(list, it)
 	}
 	return list, nil
+}
+
+// CancelFleaTransaction: 取引をキャンセルし、理由を保存する
+func (d *Database) CancelFleaTransaction(txID uint64, userID, reason string) error {
+	tx, err := d.DB.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. 取引ステータス更新 & キャンセル理由保存
+	res, err := tx.Exec(`
+        UPDATE flea_transactions 
+        SET 
+            status = 'CANCELLED', 
+            cancellation_reason = ?,
+            updated_at = UTC_TIMESTAMP() 
+        WHERE id = ? AND status NOT IN ('COMPLETED', 'CANCELLED')
+    `, reason, txID)
+
+	if err != nil {
+		return fmt.Errorf("failed to cancel transaction: %w", err)
+	}
+
+	rows, _ := res.RowsAffected()
+	if rows == 0 {
+		return fmt.Errorf("transaction not found or cannot be cancelled")
+	}
+
+	// 2. アイテムID と 購入申請ID を取得
+	var itemID uint64
+	var requestID uint64 // ★追加
+
+	// SELECT文で purchase_request_id も一緒に取る
+	err = tx.QueryRow("SELECT item_id, purchase_request_id FROM flea_transactions WHERE id = ?", txID).Scan(&itemID, &requestID)
+	if err != nil {
+		return fmt.Errorf("failed to get transaction details: %w", err)
+	}
+
+	// 3. アイテムを「下書き(非公開)」に戻す
+	// ※ FleaItemStatusDraft (0) を使う
+	_, err = tx.Exec(`UPDATE flea_items SET status = ? WHERE id = ?`, config.FleaItemStatusDraft, itemID)
+	if err != nil {
+		return fmt.Errorf("failed to revert item status: %w", err)
+	}
+
+	// 4. システムメッセージとしてチャットに「キャンセルされました」を残す
+	chatMsg := fmt.Sprintf("取引がキャンセルされました。\n理由: %s", reason)
+
+	_, err = tx.Exec(`
+        INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message, is_system, created_at)
+        VALUES (?, ?, ?, true, UTC_TIMESTAMP())
+    `, requestID, userID, chatMsg)
+
+	if err != nil {
+		return fmt.Errorf("failed to insert system message: %w", err)
+	}
+
+	return tx.Commit()
 }

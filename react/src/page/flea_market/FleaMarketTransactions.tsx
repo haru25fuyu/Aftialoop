@@ -3,12 +3,12 @@ import { useParams } from "react-router-dom";
 
 // ↓ 追加: API関数と型定義
 import { fetchFleaTransactionDetail, calcTxPhase, TxPhase } from "../../conf/FleaMarket";
-import { ShippingMethod, ShippingFeePref } from "../../conf/FleaMarket"; // 型定義の場所に合わせてください
+//import { ShippingMethod, ShippingFeePref } from "../../conf/FleaMarket"; // 型定義の場所に合わせてください
 import api from '../../conf/api'; // user check api
 
 import { FleaThreadResponse } from "../../types/FleaMarket";
 
-import { acceptPurchaseRequest } from "../../function/FleaMarket";
+//import { acceptPurchaseRequest } from "../../function/FleaMarket";
 
 import TxHeader from "../../component/TxHeader";
 import TxTimeline from "../../component/TxTimeline";
