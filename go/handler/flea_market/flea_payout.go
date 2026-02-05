@@ -30,8 +30,7 @@ func (h *FleaMarketHandler) CreatePayoutRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// ※ user構造体に IsIdentityVerified (bool) がある前提です
-	if !user.IsIdentityVerified {
+	if user.IdentityStatus != config.IdentityStatusApproved {
 		// 専用のエラーメッセージを返す
 		http.Error(w, "identity_verification_required", http.StatusForbidden)
 		return

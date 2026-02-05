@@ -5,9 +5,11 @@ import {
     ShoppingBag, Package, List, Heart, LogOut, MapPin, CreditCard,
     Truck, ClipboardCheck
 } from "lucide-react";
+
 import { Header } from "../../component/Header";
+
 import api from "../../conf/api";
-import { CONFIG } from "../../conf/config";
+import { CONFIG, IDENTITY_STATUS } from "../../conf/config";
 
 // ユーザー情報の型定義
 interface UserProfile {
@@ -20,7 +22,7 @@ interface UserProfile {
     followers_count: number;
     following_count: number;
 
-    // ★APIから「件数」だけ返してもらうように変更
+    identity_status?: keyof typeof IDENTITY_STATUS; // 本人確認ステータス
     pending_requests_count: number;   // あなたへの購入申請 (承認待ち)
     active_transactions_count: number; // 進行中の取引 (発送待ち・受取待ちなど)
 }
@@ -34,8 +36,8 @@ export default function MyPage() {
             if (!res.data.user) {
                 navigate("/login");
             } else {
-                // ★ダミーデータ: 実際はGo側で件数を集計して返してください
                 const userData = res.data.user;
+                console.log("User Data:", userData);
 
                 // (テスト用に数字を入れておきます)
                 if (userData.pending_requests_count === undefined) userData.pending_requests_count = 2;
@@ -88,6 +90,27 @@ export default function MyPage() {
                         </div>
                     </div>
                 </div>
+
+                {/* 本人確認ステータス表示 */}
+                {user.identity_status && (
+                    <div className="px-4 mb-4">
+                        {user.identity_status === IDENTITY_STATUS.NONE && (
+                            <Link to="/mypage/settings/identity" className="block bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg hover:bg-red-100 transition">
+                                本人確認が未提出です。売り上げの入金には本人確認が必要です。
+                            </Link>
+                        )}
+                        {user.identity_status === IDENTITY_STATUS.PENDING && (
+                            <div className="block bg-yellow-50 border border-yellow-200 text-yellow-700 text-sm p-3 rounded-lg">
+                                本人確認書類は審査中です。しばらくお待ちください。
+                            </div>
+                        )}
+                        {user.identity_status === IDENTITY_STATUS.REJECTED && (
+                            <Link to="/mypage/settings/identity" className="block bg-red-50 border border-red-200 text-red-700 text-sm p-3 rounded-lg hover:bg-red-100 transition">
+                                本人確認が拒否されました。再提出が必要です。こちらをクリックしてください。
+                            </Link>
+                        )}
+                    </div>
+                )}
 
                 {/* --- 2. お金とポイント --- */}
                 <div className="p-4 pb-2">

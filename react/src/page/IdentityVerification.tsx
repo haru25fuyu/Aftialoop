@@ -1,15 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Upload, X, Loader2, CheckCircle2 } from "lucide-react";
+// ShieldCheck (完了用) と AlertCircle (却下用) を追加
+import { ArrowLeft, Upload, X, Loader2, CheckCircle2, ShieldCheck, AlertCircle } from "lucide-react";
 import { useToast } from "../conf/function";
 import api from "../conf/api";
 import { Header } from "../component/Header";
+import { IDENTITY_STATUS } from "../conf/config";
 
 export default function IdentityVerificationPage() {
     const navigate = useNavigate();
     const toast = useToast();
     const [submitting, setSubmitting] = useState(false);
-    const [isComplete, setIsComplete] = useState(false);
+    const [identity_status, setIdentityStatus] = useState<keyof typeof IDENTITY_STATUS | null>(null);
 
     // フォームデータ
     const [form, setForm] = useState({
@@ -35,7 +37,23 @@ export default function IdentityVerificationPage() {
         setForm({ ...form, [e.target.name]: e.target.value });
     };
 
-    // 画像選択時の処理 (typeに selfie を追加)
+    useEffect(() => {
+        // ユーザー情報の取得
+        api.post("/customer/data").then((res) => {
+            setIdentityStatus(res.data.identity_status);
+        });
+    }, []);
+
+    // クリーンアップ: プレビューURLの解放
+    useEffect(() => {
+        return () => {
+            if (frontPreview) URL.revokeObjectURL(frontPreview);
+            if (backPreview) URL.revokeObjectURL(backPreview);
+            if (selfiePreview) URL.revokeObjectURL(selfiePreview);
+        };
+    }, [frontPreview, backPreview, selfiePreview]);
+
+    // 画像選択時の処理
     const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>, type: "front" | "back" | "selfie") => {
         if (e.target.files && e.target.files[0]) {
             const file = e.target.files[0];
@@ -55,7 +73,6 @@ export default function IdentityVerificationPage() {
     };
 
     const handleSubmit = async () => {
-        // バリデーション: 全て必須
         if (!form.real_name || !form.birth_date || !form.address || !frontImage || !backImage || !selfieImage) {
             toast({ text: "必須項目をすべて入力してください", kind: "error" });
             return;
@@ -69,18 +86,18 @@ export default function IdentityVerificationPage() {
             formData.append("birth_date", form.birth_date);
             formData.append("address", form.address);
 
-            // 画像を詰める (nullチェック済みの前提)
             if (frontImage) formData.append("image_front", frontImage);
             if (backImage) formData.append("image_back", backImage);
             if (selfieImage) formData.append("image_selfie", selfieImage);
 
             await api.post("/identity/submit", formData, {
                 headers: {
-                "Content-Type": null, 
-            }
+                    "Content-Type": null,
+                }
             });
 
-            setIsComplete(true);
+            // 提出後はステータスをPENDINGに即時更新して画面を切り替える
+            setIdentityStatus("PENDING");
             toast({ text: "申請を受け付けました", kind: "success" });
         } catch (e) {
             console.error(e);
@@ -90,14 +107,36 @@ export default function IdentityVerificationPage() {
         }
     };
 
-    // 完了画面
-    if (isComplete) {
+    // ============================================================
+    // ★ 追加: 審査完了 (APPROVED) 画面
+    // ============================================================
+    if (identity_status === "APPROVED") { // IDENTITY_STATUS.APPROVED
+        return (
+            <>
+                <Header />
+                <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center text-center">
+                    <ShieldCheck size={80} className="text-blue-500 mb-6" />
+                    <h2 className="text-2xl font-bold mb-3 text-gray-800">本人確認済み</h2>
+                    <p className="text-gray-600 mb-8 leading-relaxed">
+                        本人確認の手続きが完了しました。<br />
+                        すべての機能をご利用いただけます。
+                    </p>
+                    <button onClick={() => navigate("/mypage")} className="bg-blue-600 text-white font-bold py-3 px-10 rounded-full shadow-lg hover:bg-blue-700 transition">
+                        マイページへ戻る
+                    </button>
+                </div>
+            </>
+        );
+    }
+
+    // 審査中 (PENDING) 画面
+    if (identity_status === "PENDING") { // IDENTITY_STATUS.PENDING
         return (
             <>
                 <Header />
                 <div className="min-h-screen bg-white p-6 flex flex-col items-center justify-center text-center">
                     <CheckCircle2 size={64} className="text-green-500 mb-4" />
-                    <h2 className="text-2xl font-bold mb-2">申請完了</h2>
+                    <h2 className="text-2xl font-bold mb-2">申請完了・審査中</h2>
                     <p className="text-gray-500 mb-8">
                         本人確認書類の提出ありがとうございます。<br />
                         審査完了まで1〜2営業日お待ちください。
@@ -124,6 +163,17 @@ export default function IdentityVerificationPage() {
                 </div>
 
                 <main className="max-w-lg mx-auto p-4 space-y-6">
+                    {/*  却下された場合のアラート表示 */}
+                    {identity_status === "REJECTED" && (
+                        <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-start gap-3 text-red-700">
+                            <AlertCircle className="shrink-0 mt-0.5" size={20} />
+                            <div className="text-sm">
+                                <p className="font-bold">審査が承認されませんでした</p>
+                                <p className="mt-1">入力内容や画像の鮮明さを確認の上、再度ご提出ください。</p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="bg-blue-50 p-4 rounded-lg text-sm text-blue-800">
                         <p>運転免許証、マイナンバーカード、健康保険証のいずれかをご用意ください。</p>
                     </div>

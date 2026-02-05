@@ -1,9 +1,9 @@
-const CONFIG = {
+export const CONFIG = {
   BASE_URL: "https://go.aftialoop.com" // 他にも使うなら残してOK
 };
 
 
-enum OrderStatus {
+export enum OrderStatus {
   Pending = 1,    // 未決済
   Paid,           // 決済済み
   Preparing,      // 発送準備中
@@ -14,7 +14,7 @@ enum OrderStatus {
   Refunded,       // 返金済み
 }
 
-const ORDER_STATUS = {
+export const ORDER_STATUS = {
   [OrderStatus.Pending]: "未決済",
   [OrderStatus.Paid]: "決済済み",
   [OrderStatus.Preparing]: "発送準備中",
@@ -25,7 +25,21 @@ const ORDER_STATUS = {
   [OrderStatus.Refunded]: "返金済み",
 };
 
-const ITEM__STATUS   = {
+export const IDENTITY_STATUS = {
+  NONE:     "NONE",     // 本人確認未提出
+  PENDING:  "PENDING",  // 本人確認審査中
+  APPROVED: "APPROVED", // 本人確認承認済み
+  REJECTED: "REJECTED", // 本人確認拒否済み
+} as const;
+
+export const IDENTITY_STATUS_LABELS = {
+  NONE:     "本人確認未提出",
+  PENDING:  "本人確認審査中",
+  APPROVED: "本人確認承認済み",
+  REJECTED: "本人確認拒否済み",
+} as const;
+
+export const ITEM__STATUS   = {
   IS_ON_SALE:    1 << 0, // 販売中
   HAS_RESTOCK:   1 << 1, // 再入荷
   ACCEPTS_ORDER: 1 << 2, // 受注可
@@ -33,7 +47,7 @@ const ITEM__STATUS   = {
   IS_FEATURED:   1 << 4  // 特集商品
 } as const;
 
-const ITEM_STATUS_LABELS = {
+export const ITEM_STATUS_LABELS = {
   IS_ON_SALE: {
     flag: 1 << 2,
     yes: "販売中",
@@ -61,7 +75,7 @@ const ITEM_STATUS_LABELS = {
   }
 };
 
-const PREFS = [
+export const PREFS = [
   { id: 1, name: "北海道" },
   { id: 2, name: "青森県" },
   { id: 3, name: "岩手県" },
@@ -110,6 +124,3 @@ const PREFS = [
   { id: 46, name: "鹿児島県" },
   { id: 47, name: "沖縄県" },
 ];
-
-
-export { CONFIG, OrderStatus, ITEM__STATUS, ORDER_STATUS, ITEM_STATUS_LABELS ,PREFS};

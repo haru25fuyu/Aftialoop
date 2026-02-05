@@ -56,7 +56,7 @@ const Contact: React.FC = () => {
             </main>
 
             <footer>
-                <Footer />
+                {/*<Footer />*/}
             </footer>
         </>
     );

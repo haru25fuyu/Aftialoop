@@ -66,20 +66,20 @@ type User struct {
 
 // SqlUser (usersテーブルの全カラムに対応)
 type SqlUser struct {
-	ID                 string  `db:"id" json:"id"`
-	CustomerID         string  `db:"customer_id" json:"customer_id"`
-	Name               string  `db:"name" json:"name"`
-	Email              string  `db:"email" json:"email"`
-	Point              int64   `db:"point" json:"point"`
-	IconURL            *string `db:"icon_url" json:"icon_url"`
-	IsIdentityVerified bool    `db:"is_identity_verified" json:"is_identity_verified"`
-	Password           string  `db:"password" json:"password"`
-	GoogleID           string  `db:"google_id" json:"google_id"`
-	AppleID            string  `db:"apple_id" json:"apple_id"`
-	DefaultCard        string  `db:"default_card" json:"default_card"`
-	FollowingCount     int     `db:"following_count" json:"following_count"`
-	FollowersCount     int     `db:"followers_count" json:"followers_count"`
-	SalesBalance       int64   `db:"sales_balance" json:"sales_balance"`
+	ID             string  `db:"id" json:"id"`
+	CustomerID     string  `db:"customer_id" json:"customer_id"`
+	Name           string  `db:"name" json:"name"`
+	Email          string  `db:"email" json:"email"`
+	Point          int64   `db:"point" json:"point"`
+	IconURL        *string `db:"icon_url" json:"icon_url"`
+	IdentityStatus string  `db:"identity_status" json:"identity_status"`
+	Password       string  `db:"password" json:"password"`
+	GoogleID       string  `db:"google_id" json:"google_id"`
+	AppleID        string  `db:"apple_id" json:"apple_id"`
+	DefaultCard    string  `db:"default_card" json:"default_card"`
+	FollowingCount int     `db:"following_count" json:"following_count"`
+	FollowersCount int     `db:"followers_count" json:"followers_count"`
+	SalesBalance   int64   `db:"sales_balance" json:"sales_balance"`
 }
 
 // PointHistoryItem: 1行分の履歴
@@ -123,6 +123,8 @@ type RequestUserProfile struct {
 	Bio         *string `db:"bio" json:"bio"`
 	IconURL     *string `db:"icon_url" json:"icon_url"`
 
+	IdentityStatus string `db:"identity_status" json:"identity_status"`
+
 	FollowersCount int `db:"followers_count" json:"followersCount"`
 	FollowingCount int `db:"following_count" json:"followingCount"`
 }
@@ -137,6 +139,8 @@ type SqlResponsUserProfile struct {
 	PhoneNumber sql.NullString `db:"phone_number" json:"phone_number"`
 	Bio         sql.NullString `db:"bio" json:"bio"`
 	IconURL     sql.NullString `db:"icon_url" json:"icon_url"`
+
+	IdentityStatus string `db:"identity_status" json:"identity_status"`
 
 	FollowersCount int `db:"followers_count" json:"followersCount"`
 	FollowingCount int `db:"following_count" json:"followingCount"`
@@ -615,6 +619,7 @@ func ToUserProfileResponse(u SqlResponsUserProfile) RequestUserProfile {
 		PhoneNumber:    ptr(u.PhoneNumber),
 		Bio:            ptr(u.Bio),
 		IconURL:        ptr(u.IconURL),
+		IdentityStatus: u.IdentityStatus,
 		FollowersCount: u.FollowersCount,
 		FollowingCount: u.FollowingCount,
 	}

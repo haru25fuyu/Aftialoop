@@ -86,6 +86,13 @@ const (
 	AreaNameSamePref = "県内" // DBのshipping_areas.nameと一致させる
 )
 
+const (
+	IdentityStatusNone     = "NONE"     // 本人確認未提出
+	IdentityStatusPending  = "PENDING"  // 本人確認審査中
+	IdentityStatusApproved = "APPROVED" // 本人確認承認済み
+	IdentityStatusRejected = "REJECTED" // 本人確認拒否済み
+)
+
 type FleaConfig struct {
 	BaseRate        int64
 	MaxRate         int64

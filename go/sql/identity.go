@@ -54,3 +54,43 @@ func (db *Database) InsertIdentityVerification(userID, realName, realNameKana, b
 
 	return nil
 }
+
+func (db *Database) CreateIdentityVerification(userID, realName, realNameKana, birthDate, address string, frontData, backData, selfieData []byte, mimeType string) error {
+	// 1. トランザクション開始
+	tx, err := db.DB.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	// 関数終了時にエラーが残っていればロールバック
+	defer func() {
+		if err != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 2. 本人確認テーブルへ保存 (INSERT)
+	queryInsert := `
+		INSERT INTO identity_verifications 
+		(user_id, real_name, real_name_kana, birth_date, address, image_front_data, image_back_data, image_selfie_data, mime_type, status)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
+	`
+	_, err = tx.Exec(queryInsert, userID, realName, realNameKana, birthDate, address, frontData, backData, selfieData, mimeType)
+	if err != nil {
+		return fmt.Errorf("failed to insert identity verification: %w", err)
+	}
+
+	// 3. ユーザーテーブルのステータスを更新 (UPDATE)
+	queryUpdate := `UPDATE users SET identity_status = 'PENDING' WHERE id = ?`
+	_, err = tx.Exec(queryUpdate, userID)
+	if err != nil {
+		return fmt.Errorf("failed to update user status: %w", err)
+	}
+
+	// 4. コミット (確定)
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}

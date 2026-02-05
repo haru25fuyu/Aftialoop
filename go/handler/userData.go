@@ -120,7 +120,8 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 		"point":                     user.Point,          // ポイント
 		"following_count":           user.FollowingCount, // フォロー数
 		"followers_count":           user.FollowersCount, // フォロワー数
-		"listings_count":            listingsCount,       // ★追加: 出品数
+		"listings_count":            listingsCount,       // 出品数
+		"identity_status":           user.IdentityStatus, // 本人確認ステータス
 		"pending_requests_count":    pendingCount,
 		"active_transactions_count": activeCount,
 	}
@@ -130,7 +131,6 @@ func (h *userDataHandler) mypage(w http.ResponseWriter, r *http.Request) {
 }
 
 // プロフィール取得 (表示・編集画面用)
-// ★ここを大幅にリファクタリング！
 func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	user_id, err := function.CheckUser(h.db, w, r)
 	if err != nil {
@@ -139,15 +139,9 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ★ 修正ポイント:
-	// これまでは GetUserData と GetProfile を別々に呼んで結合していましたが、
-	// SQLで JOIN 済みのデータを返す関数を作ったので、それを1発呼ぶだけにします。
-	// これでアイコン(users)も自己紹介(profile)も一度に取れます。
-
 	userData, err := h.db.GetUserDataAndProfile([]string{"u.id = ?"}, []interface{}{user_id})
 	if err != nil {
-		// プロフィールが無い(ユーザーはいる)場合のハンドリングが必要なら
-		// GetUserDataAndProfile 内で LEFT JOIN しているので基本は取れるはず
+		log.Println("GetProfile error:", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データ取得失敗: " + err.Error()})
 		return
@@ -160,9 +154,7 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 
 // ユーザー情報取得 (共通利用)
 func (h *userDataHandler) GetCustomerData(w http.ResponseWriter, r *http.Request) {
-	// GetProfileと同じロジックでOKなら、共通化しても良いですが
-	// 用途が違う（こちらは決済用など）ならそのままで。
-	// 今回は GetProfile と同じく JOIN 版を使います。
+
 	h.GetProfile(w, r)
 }
 
@@ -220,7 +212,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 		Name:  request.Name,
 		Email: request.Email,
 	}
-	// ★重要: アイコンURLは users テーブルのカラムになったので、ここでセットする
+
 	if iconPath != "" {
 		user.IconURL = function.Ptr(iconPath)
 	}
@@ -255,7 +247,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 
 // GetCustomer (EC購入画面などで使う詳細情報)
 func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
-	// ... (元のコードのままでOK。ただし GetUserData がアイコン等を返すようになっているのでリッチになります)
+
 	user_id, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)

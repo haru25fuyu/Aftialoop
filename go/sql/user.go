@@ -47,7 +47,7 @@ func (d *Database) SaveUser(user map[string]interface{}) error {
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, default_card, point, icon_url, following_count, followers_count,sales_balance FROM users"
+	query := "SELECT id, email, name, default_card, point, icon_url, following_count, followers_count,sales_balance,identity_status FROM users"
 
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
@@ -273,7 +273,7 @@ func (d *Database) UpdateProfile(userID string, profile utils.Profile) error {
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
 	query := `
         SELECT 
-            u.id, u.name, u.email, u.default_card, u.icon_url, u.following_count, u.followers_count,
+            u.id, u.name, u.email, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count,
             p.date_of_birth, p.gender, p.phone_number, p.bio   
         FROM users u
         LEFT JOIN profile p ON u.id = p.user_id

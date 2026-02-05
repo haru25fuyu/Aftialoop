@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 )
 
@@ -42,70 +41,99 @@ func (h *userDataHandler) GetIdentityImage(w http.ResponseWriter, r *http.Reques
 	w.Write(imageData)
 }
 
-// SubmitIdentityVerification 本人確認書類のアップロード処理
 func (h *userDataHandler) SubmitIdentityVerification(w http.ResponseWriter, r *http.Request) {
 	// 1. 認証チェック
 	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
-		log.Println("Unauthorized access attempt")
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	log.Printf("Submitting identity verification for user ID: %s\n", userID)
-	// 2. フォームデータの解析 (10MB制限)
+	// 2. フォーム解析 & データ取得 (省略せずに書いておきます)
 	if err := r.ParseMultipartForm(10 << 20); err != nil {
-		log.Println("Error parsing multipart form:", err)
 		http.Error(w, "File too large", http.StatusBadRequest)
 		return
 	}
 
-	// 3. テキストデータの取得
 	realName := r.FormValue("real_name")
 	realNameKana := r.FormValue("real_name_kana")
 	birthDate := r.FormValue("birth_date")
 	address := r.FormValue("address")
 
-	// 4. 画像データの読み込み
-	// 表面
 	frontData, mimeType, err := readFile(r, "image_front")
 	if err != nil {
-		log.Println("Error reading front image:", err)
-		http.Error(w, "image_front is required", http.StatusBadRequest)
+		http.Error(w, "image_front error", http.StatusBadRequest)
 		return
 	}
-	// 裏面
 	backData, _, err := readFile(r, "image_back")
 	if err != nil {
-		log.Println("Error reading back image:", err)
-		http.Error(w, "image_back is required", http.StatusBadRequest)
+		http.Error(w, "image_back error", http.StatusBadRequest)
 		return
 	}
-	// 自撮り (MIMEタイプはfrontと同じと仮定、もしくは無視してOK)
 	selfieData, _, err := readFile(r, "image_selfie")
 	if err != nil {
-		log.Println("Error reading selfie image:", err)
-		http.Error(w, "image_selfie is required", http.StatusBadRequest)
+		http.Error(w, "image_selfie error", http.StatusBadRequest)
 		return
 	}
 
-	// 5. DB保存関数を呼び出す (引数に selfieData を追加)
-	err = h.db.InsertIdentityVerification(userID, realName, realNameKana, birthDate, address, frontData, backData, selfieData, mimeType)
+	// 3. DB保存
+	err = h.db.CreateIdentityVerification(userID, realName, realNameKana, birthDate, address, frontData, backData, selfieData, mimeType)
 
 	if err != nil {
-		// エラーログを出して500を返す
+		// DBのエラーログを出して500を返す
 		fmt.Printf("DB Error: %v\n", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 		return
 	}
 
+	// 4. メール通知 (非同期)
 	go func() {
-		// utilsパッケージの関数を呼ぶ
 		function.SendIdentityVerificationNotification(realName, userID)
 	}()
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("Success"))
+}
+
+// ApproveIdentityVerification 申請を承認する
+func (h *userDataHandler) ApproveIdentityVerification(w http.ResponseWriter, r *http.Request) {
+	targetUserID, err := function.CheckUser(h.db, w, r)
+
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	tx, err := h.db.DB.Begin()
+	if err != nil {
+		http.Error(w, "DB Error", http.StatusInternalServerError)
+		return
+	}
+	defer tx.Rollback()
+
+	// 1. 申請データのステータスを承認にする
+	_, err = tx.Exec("UPDATE identity_verifications SET status = 'APPROVED' WHERE user_id = ?", targetUserID)
+	if err != nil {
+		http.Error(w, "Update Verification Error", http.StatusInternalServerError)
+		return
+	}
+
+	// 2. ユーザー本体のステータスを承認済みにする
+	// ★これで「認証済み」になります
+	_, err = tx.Exec("UPDATE users SET identity_status = 'APPROVED' WHERE id = ?", targetUserID)
+	if err != nil {
+		http.Error(w, "Update User Error", http.StatusInternalServerError)
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "Commit Error", http.StatusInternalServerError)
+		return
+	}
+
+	// (任意) ユーザーに「承認されました！」とメールを送るならここで
+
+	w.Write([]byte("Approved"))
 }
 
 // ファイル読み込み用ヘルパー関数 (ハンドラー内または別ファイルに定義)

@@ -20,19 +20,19 @@ export default function Settings() {
     const navigate = useNavigate();
     const [status, setStatus] = useState<UserSettingsStatus | null>(null);
 
+
     // 初期ロード：ステータス取得（本人確認バッジなどのため）
     useEffect(() => {
-        // ★本来はAPIから取得します
-        // const res = await api.get("/user/settings/status");
-        // setStatus(res.data);
-
-        // ダミーデータ
-        setStatus({
-            email: "sample@animaloop.com",
-            is_identity_verified: false, // 未完了
-            is_phone_verified: true,     // 完了
-            has_password: true,
+        api.post("/customer/data").then((res) => {
+            setStatus({
+                email: res.data.email,
+                is_identity_verified: res.data.identity_status === "APPROVED",
+                is_phone_verified: res.data.phone !== null && res.data.phone !== "",
+                has_password: res.data.password !== null && res.data.password !== "",
+            });
         });
+
+        
     }, []);
 
     if (!status) return <div className="p-10 text-center">Loading...</div>;
@@ -140,7 +140,7 @@ export default function Settings() {
                     <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                         <h2 className="text-xs font-bold text-gray-400 mb-2 ml-1">サポート・規約</h2>
                         <div className="bg-white rounded-xl shadow-sm overflow-hidden divide-y divide-gray-50">
-                            <Link to="/help" className="flex items-center justify-between p-4 hover:bg-gray-50 transition group">
+                            <Link to="/contact" className="flex items-center justify-between p-4 hover:bg-gray-50 transition group">
                                 <div className="flex items-center gap-3">
                                     <HelpCircle size={20} className="text-gray-400" />
                                     <div className="text-sm font-medium text-gray-800">ヘルプ・お問い合わせ</div>
