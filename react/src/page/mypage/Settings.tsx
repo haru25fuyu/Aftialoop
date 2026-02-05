@@ -25,14 +25,14 @@ export default function Settings() {
     useEffect(() => {
         api.post("/customer/data").then((res) => {
             setStatus({
-                email: res.data.email,
-                is_identity_verified: res.data.identity_status === "APPROVED",
-                is_phone_verified: res.data.phone !== null && res.data.phone !== "",
-                has_password: res.data.password !== null && res.data.password !== "",
+                email: res.data.user.email,
+                is_identity_verified: res.data.user.identity_status === "APPROVED",
+                is_phone_verified: res.data.user.phone !== null && res.data.user.phone !== "",
+                has_password: res.data.user.password !== null && res.data.user.password !== "",
             });
         });
 
-        
+
     }, []);
 
     if (!status) return <div className="p-10 text-center">Loading...</div>;
@@ -89,15 +89,10 @@ export default function Settings() {
                             </Link>
 
                             {/* 電話番号認証 */}
-                            <Link to="/mypage/settings/phone" className="flex items-center justify-between p-4 hover:bg-gray-50 transition group">
+                            <Link to="/mypage/settings/phone" className="flex items-center justify-between p-4 hover:bg-gray-50 transition border-b border-gray-50">
                                 <div className="flex items-center gap-3">
                                     <Smartphone size={20} className="text-gray-400" />
-                                    <div>
-                                        <div className="text-sm font-medium text-gray-800">電話番号の確認</div>
-                                        <div className="text-xs text-gray-400 mt-0.5">
-                                            {status.is_phone_verified ? "認証済み" : "未設定"}
-                                        </div>
-                                    </div>
+                                    <span className="text-sm font-medium text-gray-800">電話番号認証</span>
                                 </div>
                                 <ChevronRight size={16} className="text-gray-300" />
                             </Link>

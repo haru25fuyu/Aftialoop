@@ -6,6 +6,7 @@ import (
 	"animaloop/handler"
 	flea "animaloop/handler/flea_market"
 	SQL "animaloop/sql"
+	"animaloop/utils"
 
 	"encoding/json"
 	"log"
@@ -30,6 +31,8 @@ func main() {
 	if err := function.InitConfig(db); err != nil {
 		log.Fatalf("InitConfig failed: %v", err)
 	}
+
+	utils.InitRedis()
 
 	// ===== ルーター作成 =====
 	r := mux.NewRouter()
@@ -56,6 +59,8 @@ func main() {
 	handler.NewShippingHandler(db).RegisterRoutes(r)
 	handler.NewSNSHandler(db).RegisterRoutes(r)
 	handler.NewBankHandler(db).RegisterRoutes(r)
+	handler.NewSMSHandler(db).RegisterRoutes(r)
+	handler.NewEmailHandler(db).RegisterRoutes(r)
 
 	flea.NewFleaMarketHandler(db).RegisterRoutes(r)
 

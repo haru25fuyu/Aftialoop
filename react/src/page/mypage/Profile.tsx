@@ -1,26 +1,30 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Header } from '../../component/Header'; // パス調整
-import LoginModal from '../../modal/Login';      // パス調整
-import { Avatar } from '../../component/Avatar'; // ★Avatarを使う
+import { Header } from '../../component/Header';
+import LoginModal from '../../modal/Login';
+import { Avatar } from '../../component/Avatar';
+// キーやスマホ、リンクのアイコンを追加
+import { Mail, Phone, Calendar, User, ShieldCheck, ChevronRight, KeyRound, Link as LinkIcon, Smartphone, Globe } from 'lucide-react';
 
 import api, { getAccessToken } from '../../conf/api';
 
-// 型定義
 type UserData = {
     id: string;
     name: string;
     email: string;
-    icon_url: string; // image -> iconUrl に統一
+    icon_url: string;
     phone: string;
     bio: string;
     birth: string;
     gender: string;
+    // ★追加: 連携状況フラグ (バックエンドから受け取る想定)
+    is_google_connected?: boolean;
+    is_line_connected?: boolean;
+    is_apple_connected?: boolean;
 };
 
 const MyProfilePage: React.FC = () => {
     const location = useLocation();
-    // 編集画面から戻ってきた時に "changed" フラグがあればメッセージを出す
     const isChanged = location.state?.changed;
 
     const [isLoginModalOpen, setLoginModalOpen] = useState(false);
@@ -38,20 +42,17 @@ const MyProfilePage: React.FC = () => {
             return;
         }
 
-        // 自分の詳細情報を取得 (APIエンドポイントは適宜修正)
         api.post('/profile/get', {})
             .then((res) => {
                 const u = res.data;
-                console.log('Fetched user data:', u);
                 setUser({
-                    id: u.id,
-                    name: u.name,
-                    email: u.email,
-                    icon_url: u.icon_url,
+                    ...u, // 既存データ展開
                     phone: u.phone || "未設定",
-                    bio: u.bio || "未設定", // バックエンドからbioが返ってくるようにする
+                    bio: u.bio || "自己紹介が設定されていません",
                     birth: u.birth || "未設定",
-                    gender: u.gender === "1" ? "男性" : (u.gender === "2" ? "女性" : "未回答")
+                    gender: u.gender === "1" ? "男性" : (u.gender === "2" ? "女性" : "未回答"),
+                    is_google_connected: true,
+                    is_line_connected: false,
                 });
             })
             .catch((err) => {
@@ -59,6 +60,11 @@ const MyProfilePage: React.FC = () => {
                 setLoginModalOpen(true);
             });
     }, [reloadTrigger]);
+
+    // SNS連携ボタンのハンドラ（仮）
+    const handleSocialLink = (provider: string) => {
+        alert(`${provider}連携の処理をここに書きます (OAuthリダイレクトなど)`);
+    };
 
     if (!user) return <div className="p-20 text-center">読み込み中...</div>;
 
@@ -72,70 +78,149 @@ const MyProfilePage: React.FC = () => {
             />
 
             <main className="max-w-2xl mx-auto pt-6 px-4">
-                {/* 完了メッセージ */}
                 {isChanged && (
-                    <div className="mb-4 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 animate-fade-in-down">
-                        <span className="text-xl">✅</span>
-                        プロフィールを更新しました
+                    <div className="mb-6 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl flex items-center gap-2 animate-bounce-short">
+                        <span>✅</span>
+                        <span className="font-bold text-sm">プロフィールを更新しました</span>
                     </div>
                 )}
 
-                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                    <div className="p-6 border-b border-gray-100 flex flex-col items-center">
+                <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                    {/* --- 上部プロフィール (変更なし) --- */}
+                    <div className="p-8 border-b border-gray-50 flex flex-col items-center bg-gradient-to-b from-white to-gray-50/50">
                         <div className="mb-4">
-                            {/* ★Avatarコンポーネントを使用 */}
-                            <Avatar
-                                src={user.icon_url}
-                                name={user.name}
-                                className="w-28 h-28 text-4xl border-4 border-white shadow-lg"
-                            />
+                            <Avatar src={user.icon_url} name={user.name} className="w-32 h-32 text-4xl border-4 border-white shadow-xl" />
                         </div>
-                        <h1 className="text-2xl font-bold text-gray-900">{user.name}</h1>
-                        <p className="text-gray-500 text-sm mt-1">{user.email}</p>
+                        <h1 className="text-2xl font-black text-gray-900">{user.name}</h1>
+                        <Link to="/mypage/profile/edit" className="mt-6 px-8 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-full shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2">
+                            プロフィールを編集
+                        </Link>
                     </div>
 
-                    <div className="p-6 space-y-6">
-                        {/* 項目リスト */}
-                        <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4 items-center border-b border-gray-50 pb-4 last:border-0">
-                            <label className="text-sm font-bold text-gray-500">自己紹介</label>
-                            <div className="text-gray-800 whitespace-pre-wrap leading-relaxed">
-                                {user.bio}
+                    <div className="p-6 space-y-10">
+                        {/* --- 公開情報 (変更なし) --- */}
+                        <section className="space-y-4">
+                            <h3 className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest px-1">
+                                <User size={14} /> 公開情報
+                            </h3>
+                            <div className="bg-gray-50/50 rounded-2xl p-5 space-y-4">
+                                <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-gray-400 uppercase">自己紹介</label>
+                                    <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{user.bio}</p>
+                                </div>
+                                <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <Calendar size={16} className="text-gray-400" />
+                                        <span className="text-xs font-bold text-gray-500">性別・誕生日</span>
+                                    </div>
+                                    <span className="text-sm font-bold text-gray-700">{user.gender} / {user.birth}</span>
+                                </div>
                             </div>
-                        </div>
+                        </section>
 
-                        <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4 items-center border-b border-gray-50 pb-4 last:border-0">
-                            <label className="text-sm font-bold text-gray-500">電話番号</label>
-                            <div className="text-gray-800 font-mono">{user.phone}</div>
-                        </div>
+                        {/* --- 連絡先情報 --- */}
+                        <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                            <h3 className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest px-1">
+                                <ShieldCheck size={14} /> 連絡先・本人確認
+                            </h3>
+                            <div className="space-y-3">
+                                <Link to="/settings/email" className="group flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
+                                            <Mail size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase">メールアドレス</p>
+                                            <p className="text-sm font-bold text-gray-700">{user.email}</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={18} className="text-gray-300 group-hover:text-emerald-500" />
+                                </Link>
 
-                        <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4 items-center border-b border-gray-50 pb-4 last:border-0">
-                            <label className="text-sm font-bold text-gray-500">性別</label>
-                            <div className="text-gray-800">{user.gender}</div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4 items-center border-b border-gray-50 pb-4 last:border-0">
-                            <label className="text-sm font-bold text-gray-500">誕生日</label>
-                            <div className="text-gray-800">{user.birth}</div>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-4 items-center border-b border-gray-50 pb-4 last:border-0">
-                            <label className="text-sm font-bold text-gray-500">パスワード</label>
-                            <div>
-                                <Link to="/reset-password" className="text-sm text-emerald-600 font-bold hover:underline">
-                                    パスワードを変更する
+                                <Link to="/settings/phone" className="group flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
+                                    <div className="flex items-center gap-4">
+                                        <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
+                                            <Phone size={20} />
+                                        </div>
+                                        <div>
+                                            <p className="text-[10px] font-black text-gray-400 uppercase">電話番号</p>
+                                            <p className="text-sm font-bold text-gray-700">{user.phone}</p>
+                                        </div>
+                                    </div>
+                                    <ChevronRight size={18} className="text-gray-300 group-hover:text-emerald-500" />
                                 </Link>
                             </div>
-                        </div>
-                    </div>
+                        </section>
 
-                    <div className="p-6 bg-gray-50">
-                        {/* ★編集ページへのリンク (先ほど作ったページへ) */}
-                        <Link
-                            to="/mypage/profile/edit"
-                            className="block w-full py-3 bg-emerald-600 text-white text-center font-bold rounded-xl shadow-md hover:bg-emerald-700 transition-all hover:-translate-y-0.5"
-                        >
-                            プロフィールを編集する
-                        </Link>
+                        {/* --- ★ここが追加: セキュリティ・ログイン管理 --- */}
+                        <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
+                            <h3 className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest px-1">
+                                <KeyRound size={14} /> セキュリティ・ログイン管理
+                            </h3>
+                            <div className="border border-gray-100 rounded-2xl overflow-hidden">
+                                {/* パスワード変更 */}
+                                <Link to="/reset-password" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
+                                            <KeyRound size={18} />
+                                        </div>
+                                        <span className="text-sm font-bold text-gray-700">パスワード変更</span>
+                                    </div>
+                                    <ChevronRight size={18} className="text-gray-300" />
+                                </Link>
+
+                                {/* Google連携 */}
+                                <div className="flex items-center justify-between p-4 border-b border-gray-50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                            <Globe size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-700">Googleアカウント</p>
+                                            <p className="text-xs text-gray-400">ログインに使用できます</p>
+                                        </div>
+                                    </div>
+                                    {user.is_google_connected ? (
+                                        <button onClick={() => handleSocialLink('Google')} className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                                            連携済み
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleSocialLink('Google')} className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">
+                                            連携する
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* LINE連携 */}
+                                <div className="flex items-center justify-between p-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-green-50 text-green-600 rounded-lg">
+                                            <Smartphone size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-700">LINEアカウント</p>
+                                            <p className="text-xs text-gray-400">ログインに使用できます</p>
+                                        </div>
+                                    </div>
+                                    {user.is_line_connected ? (
+                                        <button onClick={() => handleSocialLink('Line')} className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                                            連携済み
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleSocialLink('Line')} className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">
+                                            連携する
+                                        </button>
+                                    )}
+                                </div>
+                            </div>
+                        </section>
+
+                        <div className="pt-4 text-center">
+                            <button className="text-xs font-bold text-red-400 hover:text-red-600 hover:underline">
+                                ログアウトはこちら
+                            </button>
+                        </div>
+
                     </div>
                 </div>
             </main>

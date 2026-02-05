@@ -47,7 +47,7 @@ func (d *Database) SaveUser(user map[string]interface{}) error {
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, default_card, point, icon_url, following_count, followers_count,sales_balance,identity_status FROM users"
+	query := "SELECT id, email, name, default_card, point, icon_url, google_id ,following_count, followers_count,sales_balance,identity_status FROM users"
 
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
@@ -177,103 +177,15 @@ func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
 	return err
 }
 
-func (d *Database) SaveProfile(id string, profile map[string]interface{}) error {
-	columns := []string{"user_id"}
-	values := []interface{}{id}
-
-	for key, value := range profile {
-		columns = append(columns, key)
-		values = append(values, value)
-	}
-
-	placeholders := make([]string, len(columns))
-	for i := range placeholders {
-		placeholders[i] = "?"
-	}
-
-	query := fmt.Sprintf("INSERT INTO profile (%s) VALUES (%s)", strings.Join(columns, ","), strings.Join(placeholders, ","))
-
-	_, err := d.DB.Exec(query, values...)
-	return err
-}
-
-func (d *Database) GetProfile(id string) (utils.Profile, error) {
-	query := "SELECT date_of_birth, gender, phone_number, bio FROM profile WHERE user_id = ?"
-	var profile utils.Profile
-
-	err := d.DB.Get(&profile, query, id)
-	if err == sql.ErrNoRows {
-		saveErr := d.SaveProfile(id, map[string]interface{}{})
-		if saveErr != nil {
-			return profile, fmt.Errorf("プロフィール作成に失敗しました: %v", saveErr)
-		}
-		err = d.DB.Get(&profile, query, id)
-		if err != nil {
-			return profile, fmt.Errorf("プロフィール取得に失敗しました: %v", err)
-		}
-	}
-	return profile, err
-}
-
 func (d *Database) SetDefaultCard(userID, cardID string) error {
 	_, err := d.DB.Exec("UPDATE users SET default_card = ? WHERE id = ?", cardID, userID)
-	return err
-}
-
-func (d *Database) UpdateProfile(userID string, profile utils.Profile) error {
-	// 1. クエリの部品（"name = ?" など）と、値を入れるスライスを用意
-	var setClauses []string
-	var args []interface{}
-
-	// 2. 各フィールドをチェックして、値があればリストに追加
-
-	// 誕生日
-	if profile.DateOfBirth != nil && *profile.DateOfBirth != "" {
-		setClauses = append(setClauses, "date_of_birth = ?")
-		args = append(args, *profile.DateOfBirth)
-	}
-
-	// 性別
-	if profile.Gender != nil && *profile.Gender != "" {
-		setClauses = append(setClauses, "gender = ?")
-		args = append(args, *profile.Gender)
-	}
-
-	// 電話番号
-	if profile.PhoneNumber != nil && *profile.PhoneNumber != "" {
-		setClauses = append(setClauses, "phone_number = ?")
-		args = append(args, *profile.PhoneNumber)
-	}
-
-	// 自己紹介
-	// ※Bioは空文字で「消去」したい場合もあると思うので、nilチェックだけにしています
-	if profile.Bio != nil {
-		setClauses = append(setClauses, "bio = ?")
-		args = append(args, *profile.Bio)
-	}
-
-	// 3. 更新する項目が一つもなければ何もしない
-	if len(setClauses) == 0 {
-		return nil
-	}
-
-	// 4. クエリを組み立てる
-	// strings.Join を使うと、カンマ区切りを自動でやってくれます
-	// 例: "UPDATE profile SET date_of_birth = ?, bio = ? WHERE user_id = ?"
-	query := fmt.Sprintf("UPDATE profile SET %s WHERE user_id = ?", strings.Join(setClauses, ", "))
-
-	// 5. 最後に WHERE句用の user_id を引数リストに追加
-	args = append(args, userID)
-
-	// 6. 実行 (args... でスライスを展開して渡す)
-	_, err := d.DB.Exec(query, args...)
 	return err
 }
 
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
 	query := `
         SELECT 
-            u.id, u.name, u.email, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count,
+            u.id, u.name, u.email, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count, u.google_id,
             p.date_of_birth, p.gender, p.phone_number, p.bio   
         FROM users u
         LEFT JOIN profile p ON u.id = p.user_id
@@ -292,4 +204,31 @@ func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (
 		return utils.RequestUserProfile{}, err
 	}
 	return utils.ToUserProfileResponse(user), nil
+}
+
+// メインまたは（認証済みの）予備メールアドレスからユーザーを検索
+func (d *Database) GetUserByAnyEmail(email string) (utils.SqlUser, error) {
+	// メインメアドが一致 OR (予備メアドが一致 かつ 認証済み)
+	query := `
+		SELECT * FROM users 
+		WHERE email = ? 
+		OR (sub_email = ? AND sub_email_verified_at IS NOT NULL)
+		LIMIT 1
+	`
+
+	var user utils.SqlUser
+	err := d.DB.Get(&user, query, email, email)
+
+	if err != nil {
+		return user, err
+	}
+	return user, nil
+}
+
+// 予備メールアドレスを更新（認証日時もセット）
+func (d *Database) UpdateSubEmail(userID string, email string) error {
+	// NOW() で現在時刻を入れる
+	query := "UPDATE users SET sub_email = ?, sub_email_verified_at = NOW() WHERE id = ?"
+	_, err := d.DB.Exec(query, email, userID)
+	return err
 }

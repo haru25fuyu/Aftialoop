@@ -49,8 +49,10 @@ import { AuthProvider } from './context/AuthContext';
 import PointHistoryPage from './page/mypage/PointHistoryPage';
 import BankAccount from './page/mypage/BankAccount';
 import Settings from './page/mypage/Settings';
-import IdentityVerificationPage from './page/IdentityVerification';
+import IdentityVerificationPage from './page/mypage/IdentityVerification';
 import ToastProvider from './component/ToastProvider';
+import SMSVerification from './page/mypage/SMSVerification';
+import EmailChange from './page/mypage/EmailChange';
 
 
 
@@ -109,6 +111,8 @@ const App: React.FC = () => {
           <Route path="/mypage/bank-account" element={<RequireAuth><ToastProvider><BankAccount /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/settings" element={<RequireAuth><Settings /></RequireAuth>} />
           <Route path="/mypage/settings/identity" element={<RequireAuth><ToastProvider><IdentityVerificationPage /></ToastProvider></RequireAuth>} />
+          <Route path="/mypage/settings/phone" element={<RequireAuth><ToastProvider><SMSVerification /></ToastProvider></RequireAuth>} />
+          <Route path="/mypage/settings/email" element={<RequireAuth><ToastProvider><EmailChange /></ToastProvider></RequireAuth>} />
 
           {/* list/item を公開にするかは方針次第 */}
           <Route path="/list" element={<List />} />

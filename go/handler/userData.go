@@ -152,10 +152,39 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(userData)
 }
 
-// ユーザー情報取得 (共通利用)
+// ユーザー情報取得 (共通利用: /customer)
 func (h *userDataHandler) GetCustomerData(w http.ResponseWriter, r *http.Request) {
+	user_id, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 
-	h.GetProfile(w, r)
+	// DBから全情報を取得
+	userData, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{user_id})
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	//　必要なデータだけを選んでレスポンスを作る
+	response := map[string]interface{}{
+		"id":           userData.ID,
+		"name":         userData.Name,
+		"email":        userData.Email, // 自分の情報なのでEmailは返してOK
+		"point":        userData.Point,
+		"default_card": userData.DefaultCard, // フロントエンドの型定義に合わせて返す
+		"icon_url":     userData.IconURL,     // 多分アイコンも使うので入れておく
+
+		"is_google_linked": userData.GoogleID != "",
+
+		"identity_status": userData.IdentityStatus,
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"user": response,
+	})
 }
 
 // ユーザー情報更新
@@ -264,7 +293,18 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 	defoltAddress, _ := h.db.GetDefaultAddress(user_id)
 
 	response := map[string]interface{}{
-		"user": customerData,
+		"user": map[string]interface{}{
+			"id":           customerData.ID,
+			"name":         customerData.Name,
+			"email":        customerData.Email, // 自分の情報なのでEmailは返してOK
+			"point":        customerData.Point,
+			"default_card": customerData.DefaultCard, // フロントエンドの型定義に合わせて返す
+			"icon_url":     customerData.IconURL,     // 多分アイコンも使うので入れておく
+
+			"is_google_linked": customerData.GoogleID != "",
+
+			"identity_status": customerData.IdentityStatus,
+		},
 		"address": func() string {
 			if defoltAddress == nil {
 				return ""

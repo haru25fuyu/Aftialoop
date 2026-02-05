@@ -66,20 +66,22 @@ type User struct {
 
 // SqlUser (usersテーブルの全カラムに対応)
 type SqlUser struct {
-	ID             string  `db:"id" json:"id"`
-	CustomerID     string  `db:"customer_id" json:"customer_id"`
-	Name           string  `db:"name" json:"name"`
-	Email          string  `db:"email" json:"email"`
-	Point          int64   `db:"point" json:"point"`
-	IconURL        *string `db:"icon_url" json:"icon_url"`
-	IdentityStatus string  `db:"identity_status" json:"identity_status"`
-	Password       string  `db:"password" json:"password"`
-	GoogleID       string  `db:"google_id" json:"google_id"`
-	AppleID        string  `db:"apple_id" json:"apple_id"`
-	DefaultCard    string  `db:"default_card" json:"default_card"`
-	FollowingCount int     `db:"following_count" json:"following_count"`
-	FollowersCount int     `db:"followers_count" json:"followers_count"`
-	SalesBalance   int64   `db:"sales_balance" json:"sales_balance"`
+	ID                 string     `db:"id" json:"id"`
+	CustomerID         string     `db:"customer_id" json:"customer_id"`
+	Name               string     `db:"name" json:"name"`
+	Email              string     `db:"email" json:"email"`
+	Point              int64      `db:"point" json:"point"`
+	IconURL            *string    `db:"icon_url" json:"icon_url"`
+	IdentityStatus     string     `db:"identity_status" json:"identity_status"`
+	Password           string     `db:"password" json:"password"`
+	GoogleID           string     `db:"google_id" json:"google_id"`
+	AppleID            string     `db:"apple_id" json:"apple_id"`
+	DefaultCard        string     `db:"default_card" json:"default_card"`
+	FollowingCount     int        `db:"following_count" json:"following_count"`
+	FollowersCount     int        `db:"followers_count" json:"followers_count"`
+	SalesBalance       int64      `db:"sales_balance" json:"sales_balance"`
+	SubEmail           *string    `db:"sub_email"`
+	SubEmailVerifiedAt *time.Time `db:"sub_email_verified_at"`
 }
 
 // PointHistoryItem: 1行分の履歴

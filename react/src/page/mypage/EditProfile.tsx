@@ -21,14 +21,16 @@ type Inputs = {
 };
 
 const EditProfile: React.FC = () => {
-    const { register, handleSubmit, formState: { errors }, reset, setValue } = useForm<Inputs>();
+    const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<Inputs>();
     const navigate = useNavigate();
     const [preview, setPreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
+    // 現在の入力値を監視
+    const currentEmail = watch("email");
+    const currentPhone = watch("phone");
 
     useEffect(() => {
-
         api.post('/profile/get', {})
             .then((res) => {
                 if (res.data.icon_url) {
@@ -38,10 +40,8 @@ const EditProfile: React.FC = () => {
                 reset(res.data);
                 setValue("gender", res.data.gender);
             })
-            .catch((err) => {
-                console.error(err);
-            });
-    }, []);
+            .catch((err) => console.error(err));
+    }, [reset, setValue]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -54,15 +54,11 @@ const EditProfile: React.FC = () => {
     };
 
     const onSubmit = async (data: Inputs) => {
-
-        data.phone = data.phone.replace(/-/g, '');
-        data.icon_url = selectedFile || new File([], 'dummy');
-
         const formData = new FormData();
+        // メールと電話番号は別画面で変更するため、ここでの送信データからは除外するか、
+        // もしくはバックエンド側で無視するようにします
         const jsonData = {
             name: data.name,
-            email: data.email,
-            phone: data.phone,
             bio: data.bio,
             gender: data.gender,
             birth: data.birth,
@@ -72,18 +68,14 @@ const EditProfile: React.FC = () => {
         if (selectedFile) formData.append('icon_url', selectedFile);
 
         api.post(CONFIG.BASE_URL + '/profile/edit', formData, {
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            }
+            headers: { 'Content-Type': 'multipart/form-data' }
         })
-            .then((res) => {
-                console.log(res.data);
+            .then(() => {
                 navigate('/mypage/profile', { replace: true, state: { changed: true } });
             })
-            .catch((err) => {
-                console.error(err);
-            });
+            .catch((err) => console.error(err));
     };
+
     return (
         <div className="bg-gray-50 min-h-screen pb-20"> {/* 背景色をつけて画面全体を明るく */}
             <Header />
@@ -142,7 +134,6 @@ const EditProfile: React.FC = () => {
                                         type="text"
                                         {...register('name', { required: '必須です' })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-gray-50 focus:bg-white"
-                                        placeholder="例: たなか"
                                     />
                                     {errors.name && <p className="mt-1 text-sm text-red-500 font-bold">{errors.name.message}</p>}
                                 </div>
@@ -154,7 +145,6 @@ const EditProfile: React.FC = () => {
                                         {...register('bio')}
                                         rows={4}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-gray-50 focus:bg-white resize-none"
-                                        placeholder="出品者の場合、発送の目安などを書くと親切です。"
                                     />
                                 </div>
 
@@ -177,28 +167,40 @@ const EditProfile: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* その他情報 (アコーディオン的に隠してもいいかもですが、今回は並べます) */}
-                                <div className="pt-4 border-t border-gray-100 space-y-5">
+                                {/* 非公開情報セクション */}
+                                <div className="pt-4 border-t border-gray-100 space-y-4">
                                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">非公開情報</h3>
 
-                                    <div>
-                                        <label className="block text-sm font-bold text-gray-700 mb-1.5">メールアドレス</label>
-                                        <input type="email" {...register('email')} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50" />
+                                    {/* メールアドレス変更リンク化 */}
+                                    <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
+                                        <div>
+                                            <p className="text-xs text-gray-500 font-bold">メールアドレス</p>
+                                            <p className="text-sm font-medium text-gray-700">{currentEmail || '未設定'}</p>
+                                        </div>
+                                        <Link to="/mypage/settings/email" className="text-sm font-bold text-emerald-600 hover:text-emerald-700">
+                                            変更
+                                        </Link>
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-4">
+                                    {/* 電話番号変更リンク化 */}
+                                    <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
                                         <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1.5">電話番号</label>
-                                            <input type="text" {...register('phone')} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50" />
+                                            <p className="text-xs text-gray-500 font-bold">電話番号</p>
+                                            <p className="text-sm font-medium text-gray-700">{currentPhone || '未設定'}</p>
                                         </div>
-                                        <div>
-                                            <label className="block text-sm font-bold text-gray-700 mb-1.5">誕生日</label>
-                                            <input type="date" {...register('birth')} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50" />
-                                        </div>
+                                        <Link to="/mypage/settings/phone" className="text-sm font-bold text-emerald-600 hover:text-emerald-700">
+                                            変更
+                                        </Link>
+                                    </div>
+
+                                    {/* 誕生日（誕生日は変更不可にするケースが多いですが、一応そのまま） */}
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1.5 pl-1">誕生日</label>
+                                        <input type="date" {...register('birth')} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50" />
                                     </div>
                                 </div>
 
-                                {/* パスワード変更リンク */}
+                                {/* パスワード変更 */}
                                 <div className="text-right">
                                     <Link to="/reset-password" className="text-sm font-bold text-emerald-600 hover:underline">
                                         パスワードを変更する
@@ -206,7 +208,6 @@ const EditProfile: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* 保存ボタン (画面下部に固定でも良い) */}
                             <div className="pt-4">
                                 <button
                                     type="submit"
@@ -215,7 +216,6 @@ const EditProfile: React.FC = () => {
                                     変更を保存する
                                 </button>
                             </div>
-
                         </form>
                     </div>
                 </div>

@@ -4,14 +4,12 @@ import (
 	"animaloop/function"
 	SQL "animaloop/sql"
 	"animaloop/utils"
-	"fmt"
-	"time"
-
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 )
 
@@ -21,27 +19,30 @@ type TokenResponse struct {
 	ExpiresIn   int    `json:"expires_in"`
 }
 
-// loginHandler は /login 系のエンドポイントをまとめたハンドラです
-type loginHandler struct {
+// LoginHandler は /login 系のエンドポイントをまとめたハンドラです
+//
+//	大文字 LoginHandler に統一
+type LoginHandler struct {
 	db *SQL.Database
-	// ここに DB やサービスを注入しても OK
 }
 
 // NewLoginHandler はハンドラのコンストラクタ
-func NewLoginHandler(db *SQL.Database) *loginHandler {
-	return &loginHandler{
+func NewLoginHandler(db *SQL.Database) *LoginHandler {
+	return &LoginHandler{
 		db: db,
 	}
 }
 
 // RegisterRoutes がルーティングの登録を行います
-func (h *loginHandler) RegisterRoutes(r *mux.Router) {
+func (h *LoginHandler) RegisterRoutes(r *mux.Router) {
 	// POST /login
 	r.HandleFunc("/login", h.Login).Methods("POST")
+	// POST /auth/google
 	r.HandleFunc("/auth/google", h.googleLogin).Methods("POST")
 }
 
-func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
+// 通常ログイン (Email/Password)
+func (h *LoginHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var query utils.SqlUser
 	err := json.NewDecoder(r.Body).Decode(&query)
 	if err != nil {
@@ -55,6 +56,7 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// ユーザー取得
 	user, err := h.db.GetUserData([]string{"Email = ?"}, []interface{}{query.Email})
 	if user.Email == "" || err != nil {
 		log.Println("ユーザーが存在しません", err)
@@ -64,28 +66,22 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// パスワード検証
-	log.Println(user.Email, query.Password)
 	err = function.ComparePassword(user.Password, query.Password)
 	if err != nil {
-		log.Println("パスワードが間違っています", err)
+		log.Println("パスワード不一致:", user.Email)
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
 		return
 	}
 
-	// トークン生成
-	var token_data utils.User
-	token_data.ID = user.ID
-	token_data.Email = user.Email
-	token_data.Name = user.Name
-	token_data.Limit = 1
-	token, err := function.GenerateToken(&token_data)
-
+	// トークン生成ロジックを googleLogin と統一 (15分有効なアクセストークン)
+	token, err := function.GenerateTokenWithTTL(user.ID, 15*time.Minute)
 	if err != nil {
 		http.Error(w, "Could not generate token", http.StatusInternalServerError)
 		return
 	}
 
+	// リフレッシュトークン設定 (Cookie)
 	err = function.SetRefreshToken(h.db, w, user.ID)
 	if err != nil {
 		log.Println("リフレッシュトークン設定失敗", err)
@@ -93,18 +89,16 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// レスポンス
 	response := TokenResponse{
 		AccessToken: token,
 		TokenType:   "Bearer",
-		ExpiresIn:   3600,
+		ExpiresIn:   900, // 15分 (900秒) に統一
 	}
 
-	// ログインメールの送信
+	// ログインメール送信 (非同期)
 	go func() {
 		subject := "【Animaloop】新しいログインがありました"
-
-		// HTMLメール本文
-		// ※ `user.Name` が手元にあるなら埋め込めますが、ない場合は汎用的な文面でOK
 		htmlContent := `
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
                 <h2 style="color: #333;">ログイン通知</h2>
@@ -116,9 +110,6 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
                 </p>
             </div>
         `
-
-		// 既存の関数を呼び出す (h.db を渡す)
-		// ※エラーログは出しておくとデバッグしやすいです
 		if _, err := function.SendMail(query.Email, subject, htmlContent); err != nil {
 			fmt.Printf("Failed to send login notification: %v\n", err)
 		}
@@ -126,216 +117,82 @@ func (h *loginHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
-	log.Println("ログイン成功", user.Email)
+	log.Println("ログイン成功:", user.Email)
 }
 
-func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
-	// トークンを取得(psotリクエスト)
+// Googleログイン (ログイン専用)
+func (h *LoginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
+	// 1. トークンを取得
 	var get utils.Token
 
-	// Decode 成功＋Tokenあり を同時にチェック！
-	err := json.NewDecoder(r.Body).Decode(&get)
-	if err != nil || get.Token == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
-		return
-	}
-	log.Println("googleトークン：", get.Token)
-	var token = get.Token
-
-	if token == "" {
+	// Decode 成功＋Tokenあり を同時にチェック
+	if err := json.NewDecoder(r.Body).Decode(&get); err != nil || get.Token == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
 		return
 	}
 
-	// トークンを検証
-	payload, err := function.GetGoogleUserInfo(token)
+	// 2. トークンを検証してユーザー情報を取得
+	payload, err := function.GetGoogleUserInfo(get.Token)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "トークンが不正です"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "Google認証失敗"})
 		return
 	}
 
-	// トークンのデータを取得
+	// 3. メールアドレス認証確認 (未認証なら弾く)
+	if verified, ok := payload["email_verified"].(bool); !ok || !verified {
+		http.Error(w, "Googleのメールアドレスが未認証です", http.StatusBadRequest)
+		return
+	}
+
+	// 必要な情報を取得
+	googleID := payload["sub"].(string)
 	email := payload["email"].(string)
-	//並列でメールアドレスをチェックする
-	sql_mail, err := h.db.EmailCheck(email)
-	square_mail := function.CheckSquareEmail(email)
-	if sql_mail || square_mail {
-		// ユーザーが存在する場合はログイン処理
-		user, err := h.db.GetUserData([]string{"Email = ?"}, []interface{}{email})
 
-		if user.Email == "" || err != nil {
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスまたはパスワードが間違っています"})
-			return
-		}
+	// 4. ユーザー検索 (ログイン専用なので google_id で探す)
+	var user utils.SqlUser
+	err = h.db.DB.Get(&user, "SELECT * FROM users WHERE google_id = ?", googleID)
 
-		err = h.db.UpdateUser(user.ID, utils.SqlUser{
-			Name:     payload["name"].(string),
-			GoogleID: payload["sub"].(string),
+	if err != nil {
+		// 見つからない = アカウントがない = 404エラー
+		// フロントエンドはこの 404 を検知して「新規登録」へ誘導します
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"err_message": "アカウントが見つかりません。新規登録してください。",
+			"code":        "USER_NOT_FOUND",
 		})
-
-		// トークン生成
-		var token_data utils.User
-		token_data.ID = user.ID
-		token_data.Email = user.Email
-		token_data.Name = payload["name"].(string)
-		token_data.Limit = 1
-
-		token, err := function.GenerateToken(&token_data)
-
-		if err != nil {
-			http.Error(w, "Could not generate token", http.StatusInternalServerError)
-			return
-		}
-
-		// refresh_tokenをOnlyクッキーに
-		err = function.SetRefreshToken(h.db, w, user.ID)
-
-		if err != nil {
-			log.Println("リフレッシュトークン設定失敗", err)
-			http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
-			return
-		}
-
-		response := TokenResponse{
-			AccessToken: token,
-			TokenType:   "Bearer",
-			ExpiresIn:   3600,
-		}
-
-		go func() {
-			subject := "【Animaloop】新しいログインがありました"
-			htmlContent := `
-                <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
-                    <h2 style="color: #333;">ログイン通知</h2>
-                    <p>Animaloopのアカウントへの新しいログインがありました。</p>
-                    <p><strong>日時:</strong> 現在</p>
-                    <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-                    <p style="font-size: 12px; color: #777;">
-                        ※お心当たりがない場合は、速やかにパスワードを変更してください。
-                    </p>
-                </div>
-            `
-			// user変数ではなく、email変数を使えばDBから取ったuser情報がなくても送れます
-			if _, err := function.SendMail(email, subject, htmlContent); err != nil {
-				fmt.Printf("Failed to send login notification: %v\n", err)
-			}
-		}()
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(response)
 		return
 	}
 
-	// ユーザーが存在しない場合はユーザーを作成
+	// 5. ユーザー情報の更新 (Googleの名前が変わっている場合などに備えて更新)
 	name, _ := payload["name"].(string)
-	if name == "" {
-		name, _ = payload["given_name"].(string) // tokeninfoなら入ってることがある
-	}
-	if name == "" {
-		name = "user"
-	}
-
-	sub, _ := payload["sub"].(string)
-	if sub == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "GoogleIDが取得できません"})
-		return
-	}
-
-	user := utils.SqlUser{
-		ID:       uuid.New().String(),
-		Email:    email,
+	err = h.db.UpdateUser(user.ID, utils.SqlUser{
 		Name:     name,
-		GoogleID: sub,
-	}
-
-	log.Println("[google new] start email:", email, "payload keys:", payload)
-
-	nameAny, ok := payload["name"]
-	log.Println("[google new] payload.name:", nameAny, "ok:", ok)
-
-	subAny, ok := payload["sub"]
-	log.Println("[google new] payload.sub:", subAny, "ok:", ok)
-
-	// スクエアのカスタマーを作成
-	log.Println("[google new] before CreateCustomer")
-	squareResponse, err := function.CreateCustomer(user)
+		GoogleID: googleID,
+	})
 	if err != nil {
-		log.Printf("Error creating customer: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
-		return
+		log.Println("ユーザー情報更新失敗:", err)
 	}
-	user.CustomerID = squareResponse
 
-	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
-
-	prm, err := function.StructToMap(user)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました"})
-		return
-	}
-	// ユーザーを作成
-	log.Println("[google new] before CreateCustomer")
-	err = h.db.SaveUser(prm)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました" + err.Error()})
-		function.DeleteCustomer(squareResponse)
-		return
-	}
-	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
-
-	// プロフィールを作成
-	log.Println("[google new] before CreateCustomer")
-	err = h.db.SaveProfile(user.ID, map[string]interface{}{})
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーの作成に失敗しました" + err.Error()})
-		function.DeleteCustomer(squareResponse)
-		return
-	}
-	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
-
-	//　アクセストークンとリフレッシュトークンを生成
-	var token_data utils.User
-	token_data.ID = user.ID
-	token_data.Email = user.Email
-	token_data.Name = user.Name
-	token_data.Limit = 1
-
-	log.Println("[google new] before CreateCustomer")
-
-	token, err = function.GenerateTokenWithTTL(user.ID, 15*time.Minute)
-	log.Println("[google new] after CreateCustomer id:", squareResponse, "err:", err)
+	// 6. トークン生成 (15分)
+	accessToken, err := function.GenerateTokenWithTTL(user.ID, 15*time.Minute)
 	if err != nil {
 		http.Error(w, "Could not generate token", http.StatusInternalServerError)
 		return
 	}
 
-	// refresh_tokenをOnlyクッキーに
+	// 7. リフレッシュトークン設定 (Cookie)
 	err = function.SetRefreshToken(h.db, w, user.ID)
 	if err != nil {
+		log.Println("リフレッシュトークン設定失敗", err)
 		http.Error(w, "Could not set refresh token", http.StatusInternalServerError)
 		return
 	}
 
-	response := TokenResponse{
-		AccessToken: token,
-		TokenType:   "Bearer",
-		ExpiresIn:   3600,
-	}
-
+	// 8. ログイン通知メール送信 (非同期)
 	go func() {
 		subject := "【Animaloop】新しいログインがありました"
-
-		// HTMLメール本文
-		// ※ `user.Name` が手元にあるなら埋め込めますが、ない場合は汎用的な文面でOK
 		htmlContent := `
             <div style="font-family: sans-serif; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
                 <h2 style="color: #333;">ログイン通知</h2>
@@ -347,15 +204,19 @@ func (h *loginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
                 </p>
             </div>
         `
-
-		// 既存の関数を呼び出す (h.db を渡す)
-		// ※エラーログは出しておくとデバッグしやすいです
-		if _, err := function.SendMail(user.Email, subject, htmlContent); err != nil {
+		if _, err := function.SendMail(email, subject, htmlContent); err != nil {
 			fmt.Printf("Failed to send login notification: %v\n", err)
 		}
 	}()
 
+	// 9. レスポンス
+	response := TokenResponse{
+		AccessToken: accessToken,
+		TokenType:   "Bearer",
+		ExpiresIn:   900, // 15分
+	}
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(response)
-	log.Println("Googleログイン成功", user.Email)
+
+	log.Println("Googleログイン成功:", email)
 }

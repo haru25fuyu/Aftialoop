@@ -564,8 +564,8 @@ export default function FleaItemCreatePage() {
             }
             toast({ text: "出品が完了しました！", kind: "success" });
 
-        } catch (err: unknown) { // ★修正: any -> unknown
-            if (axios.isAxiosError(err)) { // ★修正: isAxiosErrorの型ガードを使用
+        } catch (err: unknown) { 
+            if (axios.isAxiosError(err)) { // isAxiosErrorの型ガードを使用
                 // ApiErrorResponse 型として扱う
                 const data = err.response?.data as ApiErrorResponse | undefined;
                 if (err.response?.status === 400 && data?.errors) {
