@@ -25,11 +25,11 @@ const googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.
 var googleOAuthClientSecret string
 
 // MySQL接続情報
-const DB_user = "admin"
-const DB_password = "hU3!K1%26LOSfK"
+const DB_user = "aftia_user"
+const DB_password = "aG7^HMAsGU@p"
 const DB_host = "localhost"
 const DB_port = "3306"
-const DB_name = "Animaloop"
+const DB_name = "aftialoop"
 const DB_charset = "utf8mb4"
 
 const FromEmail = "info@aftialoop.com"
