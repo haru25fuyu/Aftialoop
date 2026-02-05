@@ -4,6 +4,7 @@ import (
 	"animaloop/function"
 	SQL "animaloop/sql"
 	"animaloop/utils"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -169,7 +170,7 @@ func (h *LoginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 	name, _ := payload["name"].(string)
 	err = h.db.UpdateUser(user.ID, utils.SqlUser{
 		Name:     name,
-		GoogleID: googleID,
+		GoogleID: sql.NullString{String: googleID, Valid: true},
 	})
 	if err != nil {
 		log.Println("ユーザー情報更新失敗:", err)

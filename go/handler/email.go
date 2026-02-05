@@ -62,7 +62,7 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if user.GoogleID != "" {
+	if user.GoogleID.String != "" {
 		http.Error(w, "Googleアカウントでログインしているため、メールアドレスは変更できません", http.StatusBadRequest)
 		return
 	}

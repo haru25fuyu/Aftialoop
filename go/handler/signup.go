@@ -5,6 +5,7 @@ import (
 	"animaloop/function"
 	SQL "animaloop/sql"
 	"animaloop/utils"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -51,8 +52,8 @@ func (h *SignupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	// reCAPTCHA検証 (GoogleIDフィールドをトークンとして利用)
 	log.Println("RecaptchaAction:", config.RecaptchaAction)
-	function.CreateAssessment(user.GoogleID)
-	user.GoogleID = "" // 検証後は消す
+	function.CreateAssessment(user.GoogleID.String)
+	user.GoogleID.String = "" // 検証後は消す
 
 	if user.Email == "" || user.Password == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -333,7 +334,7 @@ func (h *SignupHandler) GoogleSignUp(w http.ResponseWriter, r *http.Request) {
 		ID:       uuid.New().String(),
 		Email:    email,
 		Name:     name,
-		GoogleID: googleID,
+		GoogleID: sql.NullString{String: googleID, Valid: true},
 	}
 
 	// Square顧客作成

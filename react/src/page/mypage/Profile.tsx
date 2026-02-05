@@ -4,7 +4,7 @@ import { Header } from '../../component/Header';
 import LoginModal from '../../modal/Login';
 import { Avatar } from '../../component/Avatar';
 // キーやスマホ、リンクのアイコンを追加
-import { Mail, Phone, Calendar, User, ShieldCheck, ChevronRight, KeyRound, Link as LinkIcon, Smartphone, Globe } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, ChevronRight, KeyRound, Link as LinkIcon, Smartphone, Globe, Apple } from 'lucide-react';
 
 import api, { getAccessToken } from '../../conf/api';
 
@@ -51,9 +51,11 @@ const MyProfilePage: React.FC = () => {
                     bio: u.bio || "自己紹介が設定されていません",
                     birth: u.birth || "未設定",
                     gender: u.gender === "1" ? "男性" : (u.gender === "2" ? "女性" : "未回答"),
-                    is_google_connected: true,
+                    is_google_connected: u.is_google_connected,
                     is_line_connected: false,
+                    is_apple_connected: u.is_apple_connected,
                 });
+                console.log('User data loaded:', u);
             })
             .catch((err) => {
                 console.error(err);
@@ -99,7 +101,7 @@ const MyProfilePage: React.FC = () => {
 
                     <div className="p-6 space-y-10">
                         {/* --- 公開情報 (変更なし) --- */}
-                        <section className="space-y-4">
+                        <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                             <h3 className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest px-1">
                                 <User size={14} /> 公開情報
                             </h3>
@@ -152,7 +154,7 @@ const MyProfilePage: React.FC = () => {
                             </div>
                         </section>
 
-                        {/* --- ★ここが追加: セキュリティ・ログイン管理 --- */}
+                        {/* --- セキュリティ・ログイン管理 --- */}
                         <section className="bg-white p-4 sm:p-6 rounded-lg shadow-md">
                             <h3 className="flex items-center gap-2 text-xs font-black text-gray-400 uppercase tracking-widest px-1">
                                 <KeyRound size={14} /> セキュリティ・ログイン管理
@@ -190,8 +192,29 @@ const MyProfilePage: React.FC = () => {
                                         </button>
                                     )}
                                 </div>
+                                {/* Apple連携 */}
+                                <div className="flex items-center justify-between p-4 border-b border-gray-50">
+                                    <div className="flex items-center gap-3">
+                                        <div className="p-2 bg-black text-white rounded-lg">
+                                            <Apple size={18} />
+                                        </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-700">Appleアカウント</p>
+                                            <p className="text-xs text-gray-400">ログインに使用できます</p>
+                                        </div>
+                                    </div>
+                                    {user.is_apple_connected ? (
+                                        <button onClick={() => handleSocialLink('Apple')} className="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-full border border-emerald-100">
+                                            連携済み
+                                        </button>
+                                    ) : (
+                                        <button onClick={() => handleSocialLink('Apple')} className="text-xs font-bold text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full hover:bg-gray-200">
+                                            連携する
+                                        </button>
+                                    )}
+                                </div>
 
-                                {/* LINE連携 */}
+                                {/* LINE連携 
                                 <div className="flex items-center justify-between p-4">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-green-50 text-green-600 rounded-lg">
@@ -212,6 +235,7 @@ const MyProfilePage: React.FC = () => {
                                         </button>
                                     )}
                                 </div>
+                                */}
                             </div>
                         </section>
 

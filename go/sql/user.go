@@ -145,13 +145,13 @@ func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
 	}
 
 	// GoogleID
-	if user.GoogleID != "" {
+	if user.GoogleID.String != "" {
 		setClauses = append(setClauses, "google_id = ?")
 		args = append(args, user.GoogleID)
 	}
 
 	// AppleID
-	if user.AppleID != "" {
+	if user.AppleID.String != "" {
 		setClauses = append(setClauses, "apple_id = ?")
 		args = append(args, user.AppleID)
 	}
@@ -185,7 +185,7 @@ func (d *Database) SetDefaultCard(userID, cardID string) error {
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
 	query := `
         SELECT 
-            u.id, u.name, u.email, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count, u.google_id,
+            u.id, u.name, u.email, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count, u.google_id,u.apple_id,
             p.date_of_birth, p.gender, p.phone_number, p.bio   
         FROM users u
         LEFT JOIN profile p ON u.id = p.user_id

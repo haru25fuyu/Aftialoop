@@ -147,9 +147,24 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	log.Println("GetProfile success:", userData.GoogleID)
+
+	res := map[string]interface{}{
+		"id":                  userData.ID,
+		"name":                userData.Name,
+		"email":               userData.Email,
+		"icon_url":            userData.IconURL,
+		"date_of_birth":       userData.DateOfBirth,
+		"gender":              userData.Gender,
+		"phone_number":        userData.PhoneNumber,
+		"bio":                 userData.Bio,
+		"is_google_connected": userData.GoogleID != nil && *userData.GoogleID != "",
+		"is_apple_connected":  userData.AppleID != nil && *userData.AppleID != "",
+	}
+
 	// レスポンス (RequestUserProfile型をそのまま返せばOK)
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(userData)
+	json.NewEncoder(w).Encode(res)
 }
 
 // ユーザー情報取得 (共通利用: /customer)
@@ -176,7 +191,8 @@ func (h *userDataHandler) GetCustomerData(w http.ResponseWriter, r *http.Request
 		"default_card": userData.DefaultCard, // フロントエンドの型定義に合わせて返す
 		"icon_url":     userData.IconURL,     // 多分アイコンも使うので入れておく
 
-		"is_google_linked": userData.GoogleID != "",
+		"is_google_linked": userData.GoogleID.String != "",
+		"is_apple_linked":  userData.AppleID.String != "",
 
 		"identity_status": userData.IdentityStatus,
 	}
@@ -301,7 +317,7 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 			"default_card": customerData.DefaultCard, // フロントエンドの型定義に合わせて返す
 			"icon_url":     customerData.IconURL,     // 多分アイコンも使うので入れておく
 
-			"is_google_linked": customerData.GoogleID != "",
+			"is_google_linked": customerData.GoogleID.String != "",
 
 			"identity_status": customerData.IdentityStatus,
 		},
