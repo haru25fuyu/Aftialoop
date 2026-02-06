@@ -52,7 +52,12 @@ func (h *SignupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	// reCAPTCHA検証 (GoogleIDフィールドをトークンとして利用)
 	log.Println("RecaptchaAction:", config.RecaptchaAction)
-	function.CreateAssessment(user.GoogleID.String)
+	score, err := function.CreateAssessment(user.GoogleID.String)
+	if err != nil || score < 0.5 { // 0.5未満はボットとみなすなど
+		log.Printf("reCAPTCHA check failed. Score: %v, Err: %v", score, err)
+		http.Error(w, "Bot detected or verification failed", http.StatusBadRequest)
+		return
+	}
 	user.GoogleID.String = "" // 検証後は消す
 
 	if user.Email == "" || user.Password == "" {
@@ -176,19 +181,11 @@ func (h *SignupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 	// ID設定
 	userData.CustomerID = id
 	userData.ID = uuid.New().String()
-	prm, err := function.StructToMap(userData)
-	if err != nil {
-		log.Println("Map変換エラー:", err)
-		function.DeleteCustomer(id) // ★ロールバック
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "本登録に失敗しました", "error": err.Error()})
-		return
-	}
 
-	err = h.db.SaveUser(prm)
+	err = h.db.SaveUser(userData)
 	if err != nil {
 		// ★ エラー発生時はSquareの顧客を削除する (ゴミデータを残さない)
-		defer function.DeleteCustomer(id)
+		function.DeleteCustomer(id)
 
 		// 重複キー(1062)判定
 		if me, ok := err.(*mysql.MySQLError); ok && me.Number == 1062 {
@@ -201,8 +198,7 @@ func (h *SignupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 
 				for i := 0; i < maxRetry; i++ {
 					userData.ID = uuid.New().String()
-					prm["ID"] = userData.ID
-					if lastErr = h.db.SaveUser(prm); lastErr == nil {
+					if lastErr = h.db.SaveUser(userData); lastErr == nil {
 						success = true
 						break
 					}
@@ -347,8 +343,7 @@ func (h *SignupHandler) GoogleSignUp(w http.ResponseWriter, r *http.Request) {
 	newUser.CustomerID = squareID
 
 	// DB保存
-	userMap, _ := function.StructToMap(newUser)
-	if err := h.db.SaveUser(userMap); err != nil {
+	if err := h.db.SaveUser(newUser); err != nil {
 		function.DeleteCustomer(squareID) // ★失敗したらSquareも消す
 		http.Error(w, "DB保存失敗", http.StatusInternalServerError)
 		return

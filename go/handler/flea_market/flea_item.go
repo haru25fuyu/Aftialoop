@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -102,7 +103,7 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 20MB まで（必要に応じて調整）
+	// 20MB まで
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
@@ -121,18 +122,25 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 
 	// サーバー側設定
 	cfg := config.GetFleaConfig()
-	baseBP := cfg.BaseRate
-	maxBP := cfg.MaxRate
+	baseBP := cfg.BaseRate // 10200 (1.02%)
+	maxBP := cfg.MaxRate   // 11000 (1.10%)
 	baseCR := cfg.CommissionRate
-	maxPlusPct := int((maxBP - baseBP) / cfg.RateDen)
+
+	// 【修正3】 計算ロジックの修正
+	// 例: RateDen=10000 (100%) の場合、1% は 100 BP
+	bpPerPct := cfg.RateDen / 100
+
+	// 最大何%上乗せできるか (例: (11000-10200)/100 = 8%)
+	maxPlusPct := int((maxBP - baseBP) / bpPerPct)
 
 	if sellerPlusPct < 0 || sellerPlusPct > maxPlusPct {
 		http.Error(w, "invalid seller_plus_pct", http.StatusBadRequest)
 		return
 	}
 
-	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(cfg.RateDen)
-	commissionRateBP := baseCR + int64(sellerPlusPct)*int64(cfg.RateDen)
+	// 上乗せ分を加算 (例: 5%上乗せ -> 10200 + 5*100 = 10700)
+	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(bpPerPct)
+	commissionRateBP := baseCR + int64(sellerPlusPct)*int64(bpPerPct)
 
 	quantity := utils.ParseInt(r.FormValue("quantity"), 1)
 	isMulti := utils.ParseBool(r.FormValue("is_multi_purchasable"))
@@ -144,19 +152,26 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 
 	// ---- 新規画像の保存 ----
 	files := r.MultipartForm.File["images"]
-	imageURLs := make([]string, 0, len(files)) // 新規分のURLリスト
+	imageURLs := make([]string, 0, len(files))
 
-	// ★重要: 「新規ファイルなし」かつ「既存画像IDなし」ならエラー
 	existingImageIDs := r.Form["image_ids"]
 	if len(files) == 0 && len(existingImageIDs) == 0 {
 		http.Error(w, "image required", http.StatusBadRequest)
 		return
 	}
 
-	uploadDir := "./static/flea"
-	if err := os.MkdirAll(uploadDir, 0o755); err != nil {
+	// 【修正1】 保存先パスの修正 (ドットを追加)
+	saveDir := "./static/flea"
+	urlPrefix := "/static/flea/"
+
+	if err := os.MkdirAll(saveDir, 0755); err != nil {
 		http.Error(w, "failed to create upload dir", http.StatusInternalServerError)
 		return
+	}
+
+	// 【修正2】 拡張子制限の追加
+	allowedExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
 	}
 
 	for i, fh := range files {
@@ -164,24 +179,34 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		if err != nil {
 			continue
 		}
+
+		// 即時実行関数をやめて、フラットに書く方がエラーハンドリングしやすいです
+		// もし function.SaveImage を使うなら置き換えてもOKです
 		func() {
 			defer f.Close()
-			ext := filepath.Ext(fh.Filename)
-			if ext == "" {
-				ext = ".jpg"
+
+			ext := strings.ToLower(filepath.Ext(fh.Filename))
+			if !allowedExts[ext] {
+				// 許可されていない拡張子はスキップ (ログ推奨)
+				log.Printf("Unsupported file type: %s", ext)
+				return
 			}
+
 			filename := fmt.Sprintf("%s_%d%s", uuid.New().String(), i, ext)
-			dstPath := filepath.Join(uploadDir, filename)
+			dstPath := filepath.Join(saveDir, filename) // 保存用パス
 
 			dst, err := os.Create(dstPath)
 			if err != nil {
+				log.Printf("File create error: %v", err)
 				return
 			}
 			defer dst.Close()
+
 			if _, err = io.Copy(dst, f); err != nil {
 				return
 			}
-			publicURL := "/static/flea/" + filename
+
+			publicURL := urlPrefix + filename // URL用パス
 			imageURLs = append(imageURLs, publicURL)
 		}()
 	}

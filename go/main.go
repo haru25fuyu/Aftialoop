@@ -61,6 +61,7 @@ func main() {
 	handler.NewBankHandler(db).RegisterRoutes(r)
 	handler.NewSMSHandler(db).RegisterRoutes(r)
 	handler.NewEmailHandler(db).RegisterRoutes(r)
+	handler.NewPasswordHandler(db).RegisterRoutes(r)
 
 	flea.NewFleaMarketHandler(db).RegisterRoutes(r)
 

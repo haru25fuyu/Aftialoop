@@ -53,6 +53,10 @@ import IdentityVerificationPage from './page/mypage/IdentityVerification';
 import ToastProvider from './component/ToastProvider';
 import SMSVerification from './page/mypage/SMSVerification';
 import EmailChange from './page/mypage/EmailChange';
+import PasswordReset from './page/PasswordReset';
+import PasswordResetRequest from './page/PasswordResetRequest';
+import PasswordResetExecute from './page/PasswordResetExecute';
+import BlockedList from './page/mypage/BlockedList';
 
 
 
@@ -84,6 +88,9 @@ const App: React.FC = () => {
           <Route path="/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
           <Route path="/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
 
+          <Route path="/password-reset" element={<PasswordResetRequest />} />
+          <Route path="/reset-password" element={<PasswordResetExecute />} />
+
           <Route path="/flea-market/list" element={<FleaMarketList />} />
           <Route path="/flea-market/item/:id" element={<FleaMarketItem />} />
           <Route path="/flea-market/item/edit/:id" element={<RequireAuth><ToastProvider><FleaItemEdit /></ToastProvider></RequireAuth>} />
@@ -109,10 +116,12 @@ const App: React.FC = () => {
           <Route path="/mypage/likes" element={<RequireAuth><LikeListPage /></RequireAuth>} />
           <Route path="/mypage/transactions/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
           <Route path="/mypage/bank-account" element={<RequireAuth><ToastProvider><BankAccount /></ToastProvider></RequireAuth>} />
+          <Route path="/mypage/password" element={<RequireAuth><PasswordReset /></RequireAuth>} />
           <Route path="/mypage/settings" element={<RequireAuth><Settings /></RequireAuth>} />
           <Route path="/mypage/settings/identity" element={<RequireAuth><ToastProvider><IdentityVerificationPage /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/settings/phone" element={<RequireAuth><ToastProvider><SMSVerification /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/settings/email" element={<RequireAuth><ToastProvider><EmailChange /></ToastProvider></RequireAuth>} />
+          <Route path="/mypage/settings/blocked" element={<RequireAuth><BlockedList /></RequireAuth>} />
 
           {/* list/item を公開にするかは方針次第 */}
           <Route path="/list" element={<List />} />

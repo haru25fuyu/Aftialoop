@@ -6,7 +6,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	//_ "github.com/go-function-driver/mysql"
 	"github.com/joho/godotenv"
 	"github.com/square/square-go-sdk"
 	client "github.com/square/square-go-sdk/client"
@@ -20,28 +19,32 @@ var AllowedOrigins = []string{
 	// 他の許可したいオリジンを追加
 }
 
-const googleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
+// ClientIDは公開情報のためハードコードでも可だが、Secretは必ず環境変数へ
+const GoogleOAuthClientID = "301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com"
 
-var googleOAuthClientSecret string
+var GoogleOAuthClientSecret string
 
-// MySQL接続情報
-const DB_user = "aftia_user"
-const DB_password = "aG7^HMAsGU@p"
-const DB_host = "localhost"
-const DB_port = "3306"
-const DB_name = "aftialoop"
-const DB_charset = "utf8mb4"
+// MySQL接続情報 (constからvarに変更し、環境変数から代入)
+var (
+	DB_user     string
+	DB_password string
+	DB_host     string
+	DB_port     string
+	DB_name     string
+	DB_charset  = "utf8mb4"
+)
 
 const FromEmail = "info@aftialoop.com"
 const FromName = "Animaloop"
-const FromEmailPassword = "Animaloop1234"
+
+var FromEmailPassword string // 環境変数へ移動
 
 const JwksURL = "https://www.googleapis.com/oauth2/v3/certs"
 
 var MAILJET_API_KEY, MAILJET_API_SECRET, SQUARE_ACCESS_TOKEN string
 var SECRET_KEY, SECRET_REFRESH_KEY []byte
 
-var SquareClient = client.NewClient()
+var SquareClient *client.Client // 型を明示
 
 const ProjectID = "animaloop-1745409062037"
 const RecaptchaKey = "6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4"
@@ -93,6 +96,15 @@ const (
 	IdentityStatusRejected = "REJECTED" // 本人確認拒否済み
 )
 
+// 通報理由コード (ReportUserModal.tsx と合わせる)
+const (
+	ReportReasonSpam                 = "spam"                  // スパム・宣伝目的
+	ReportReasonInappropriateContent = "inappropriate_content" // 不適切なコンテンツ（画像・文章）
+	ReportReasonHarassment           = "harassment"            // 嫌がらせ・誹謗中傷
+	ReportReasonFakeItem             = "fake_item"             // 偽ブランド品・禁止商品の出品
+	ReportReasonOther                = "other"                 // その他
+)
+
 type FleaConfig struct {
 	BaseRate        int64
 	MaxRate         int64
@@ -125,24 +137,47 @@ func GetFleaConfig() FleaConfig {
 var FleaCfg atomic.Value // FleaConfig を入れる
 
 func Init() {
-	// 1. 先に .env を読み込む (環境変数を使うため一番上が良い)
+	// 1. .env を読み込む
 	var err error
 	err = godotenv.Load()
 	if err != nil {
 		log.Println("No .env file found, using system env variables")
 	}
 
-	// 環境変数のセット
+	// 2. 環境変数から設定値をロード
+	// DB設定
+	DB_user = os.Getenv("DB_USER")
+	DB_password = os.Getenv("DB_PASSWORD")
+	DB_host = os.Getenv("DB_HOST")
+	DB_port = os.Getenv("DB_PORT")
+	DB_name = os.Getenv("DB_NAME")
+
+	// DB設定のデフォルト値フォールバック (必要に応じて)
+	if DB_user == "" {
+		DB_user = "aftia_user"
+	}
+	if DB_host == "" {
+		DB_host = "localhost"
+	}
+	if DB_port == "" {
+		DB_port = "3306"
+	}
+	if DB_name == "" {
+		DB_name = "aftialoop"
+	}
+
+	// APIキー等
 	MAILJET_API_KEY = os.Getenv("MAILJET_API_KEY")
 	MAILJET_API_SECRET = os.Getenv("MAILJET_API_SECRET")
+	FromEmailPassword = os.Getenv("FROM_EMAIL_PASSWORD")
 
 	SECRET_KEY = []byte(os.Getenv("SECRET_KEY"))
 	SECRET_REFRESH_KEY = []byte(os.Getenv("SECRET_REFRESH_KEY"))
 
-	googleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+	GoogleOAuthClientSecret = os.Getenv("GOOGLE_OAUTH_CLIENT_SECRET")
 
-	// 3. Squareの環境設定 (URLも切り替える)
-	var squareEnv string // 環境URL用変数
+	// 3. Squareの環境設定
+	var squareEnv string
 
 	if IsProduction() {
 		SQUARE_ACCESS_TOKEN = os.Getenv("SQUARE_PRODUCTION_TOKEN")
@@ -154,7 +189,7 @@ func Init() {
 
 	// Squareのクライアントを初期化
 	SquareClient = client.NewClient(
-		option.WithBaseURL(squareEnv), // 変数を使うように変更
+		option.WithBaseURL(squareEnv),
 		option.WithToken(SQUARE_ACCESS_TOKEN),
 	)
 }

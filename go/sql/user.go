@@ -13,37 +13,21 @@ import (
 // ユーザー関係
 // ============================================================
 
-func (d *Database) SaveUser(user map[string]interface{}) error {
-	columns := []string{}
-	values := []interface{}{}
+// SaveUser はユーザー情報をDBに保存します
+func (d *Database) SaveUser(user utils.SqlUser) error {
+	query := `
+		INSERT INTO users (
+			id, customer_id, name, email, point, icon_url, identity_status, password, google_id, apple_id, default_card, following_count, followers_count, sales_balance,sub_email,sub_email_verified_at
+		) VALUES (:id, :customer_id, :name, :email, :point, :icon_url, :identity_status, :password, :google_id, :apple_id, :default_card, :following_count, :followers_count, :sales_balance,:sub_email,:sub_email_verified_at
+		)`
 
-	for key, value := range user {
-		log.Println(key, value)
-
-		if key == "google_id" && value == "" {
-			continue
-		}
-		if key == "password" && value == "" {
-			continue
-		}
-		if key == "apple_id" && value == "" {
-			continue
-		}
-
-		columns = append(columns, key)
-		values = append(values, value)
+	_, err := d.DB.NamedExec(query, user)
+	if err != nil {
+		log.Printf("SaveUser failed: %v", err)
+		return err
 	}
 
-	placeholders := "?"
-	for i := 1; i < len(columns); i++ {
-		placeholders += ", ?"
-	}
-
-	query := fmt.Sprintf("INSERT INTO users (%s) VALUES (%s)", strings.Join(columns, ","), placeholders)
-	log.Println(query)
-
-	_, err := d.DB.Exec(query, values...)
-	return err
+	return nil
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
@@ -180,6 +164,18 @@ func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
 func (d *Database) SetDefaultCard(userID, cardID string) error {
 	_, err := d.DB.Exec("UPDATE users SET default_card = ? WHERE id = ?", cardID, userID)
 	return err
+}
+
+// IDからパスワードハッシュを取得（パスワード変更時の検証用）
+func (d *Database) GetUserPasswordByID(userID string) (string, error) {
+	var password string
+	// passwordカラムだけを取得
+	query := "SELECT password FROM users WHERE id = ?"
+	err := d.DB.Get(&password, query, userID)
+	if err != nil {
+		return "", err
+	}
+	return password, nil
 }
 
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {

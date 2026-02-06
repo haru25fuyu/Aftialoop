@@ -69,6 +69,7 @@ type SqlUser struct {
 	ID                 string         `db:"id" json:"id"`
 	CustomerID         string         `db:"customer_id" json:"customer_id"`
 	Name               string         `db:"name" json:"name"`
+	Username           *string        `db:"username" json:"username"`
 	Email              string         `db:"email" json:"email"`
 	Point              int64          `db:"point" json:"point"`
 	IconURL            *string        `db:"icon_url" json:"icon_url"`
@@ -117,6 +118,7 @@ type Profile struct {
 type RequestUserProfile struct {
 	ID          string  `db:"id" json:"id"`
 	Name        string  `db:"name" json:"name"`
+	Username    *string `db:"username" json:"username"`
 	Email       string  `db:"email" json:"email"`
 	DateOfBirth *string `db:"date_of_birth" json:"birth"`
 	Gender      *string `db:"gender" json:"gender"`
@@ -137,6 +139,7 @@ type RequestUserProfile struct {
 type SqlResponsUserProfile struct {
 	ID          string         `db:"id" json:"id"`
 	Name        string         `db:"name" json:"name"`
+	Username    sql.NullString `db:"username" json:"username"`
 	Email       string         `db:"email" json:"email"`
 	DateOfBirth sql.NullString `db:"date_of_birth" json:"birth"`
 	Gender      sql.NullString `db:"gender" json:"gender"`
@@ -166,6 +169,21 @@ type Address struct {
 	Address2 *string `db:"address2" json:"address2"`
 	Address3 *string `db:"address3" json:"address3"`
 	Status   *bool   `db:"status" json:"status"`
+}
+
+/* =========================
+   パスワードリセット
+========================= */
+
+// パスワードリセット申請用 (Emailのみ)
+type RequestResetPasswordInput struct {
+	Email string `json:"email"`
+}
+
+// パスワード更新実行用 (トークンと新パスワード)
+type ExecutePasswordResetInput struct {
+	Token       string `json:"token"`
+	NewPassword string `json:"password"`
 }
 
 /* =========================
@@ -620,6 +638,7 @@ func ToUserProfileResponse(u SqlResponsUserProfile) RequestUserProfile {
 	return RequestUserProfile{
 		ID:          u.ID,
 		Name:        u.Name,
+		Username:    ptr(u.Username),
 		Email:       u.Email,
 		DateOfBirth: ptr(u.DateOfBirth),
 		Gender:      ptr(u.Gender),

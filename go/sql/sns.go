@@ -115,3 +115,79 @@ func (d *Database) CreatePost(post utils.UserPost) error {
     `, post.UserID, post.Body)
 	return err
 }
+
+// ============================================================
+// SNS: 通報・ブロック
+// ============================================================
+
+// GetBlockedUsers: ブロックしているユーザーの一覧を取得
+func (d *Database) GetBlockedUsers(ctx context.Context, userID string) ([]utils.User, error) {
+	// user_blocks と users を結合して、ブロック相手の情報を取得
+	query := `
+		SELECT u.id, u.name, u.icon_url 
+		FROM user_blocks b
+		JOIN users u ON b.blocked_id = u.id
+		WHERE b.blocker_id = ?
+		ORDER BY b.created_at DESC
+	`
+	rows, err := d.DB.QueryContext(ctx, query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var users []utils.User
+	for rows.Next() {
+		var u utils.User
+		var iconURL *string
+		if err := rows.Scan(&u.ID, &u.Name, &iconURL); err != nil {
+			return nil, err
+		}
+		u.IconURL = iconURL
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+// ReportUser: ユーザーを通報
+func (d *Database) ReportUser(ctx context.Context, reporterID, reportedID, reason, details string) error {
+	_, err := d.DB.ExecContext(ctx, `
+        INSERT INTO user_reports (reporter_id, reported_id, reason, details) 
+        VALUES (?, ?, ?, ?)
+    `, reporterID, reportedID, reason, details)
+	return err
+}
+
+// BlockUser: ユーザーをブロック
+// ※本来はブロック時に「相互フォロー解除」も行うのが一般的ですが、
+//
+//	まずはシンプルにブロックテーブルへの追加のみ実装します。
+func (d *Database) BlockUser(ctx context.Context, blockerID, blockedID string) error {
+	_, err := d.DB.ExecContext(ctx, `
+        INSERT IGNORE INTO user_blocks (blocker_id, blocked_id) 
+        VALUES (?, ?)
+    `, blockerID, blockedID)
+	return err
+}
+
+// UnblockUser: ブロック解除
+func (d *Database) UnblockUser(ctx context.Context, blockerID, blockedID string) error {
+	_, err := d.DB.ExecContext(ctx, `
+		DELETE FROM user_blocks 
+		WHERE blocker_id = ? AND blocked_id = ?
+	`, blockerID, blockedID)
+	return err
+}
+
+// IsBlocked: ブロック状態確認
+func (d *Database) IsBlocked(ctx context.Context, blockerID, blockedID string) (bool, error) {
+	var count int
+	err := d.DB.QueryRowContext(ctx, `
+        SELECT COUNT(*) FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?
+    `, blockerID, blockedID).Scan(&count)
+
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}

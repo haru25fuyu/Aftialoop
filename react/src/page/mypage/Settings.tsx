@@ -99,7 +99,7 @@ export default function Settings() {
 
                             {/* パスワード */}
                             {status.has_password && (
-                                <Link to="/mypage/settings/password" className="flex items-center justify-between p-4 hover:bg-gray-50 transition group">
+                                <Link to="/mypage/password" className="flex items-center justify-between p-4 hover:bg-gray-50 transition group">
                                     <div className="flex items-center gap-3">
                                         <Lock size={20} className="text-gray-400" />
                                         <div className="text-sm font-medium text-gray-800">パスワード変更</div>

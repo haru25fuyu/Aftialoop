@@ -4,7 +4,7 @@ import { Header } from '../../component/Header';
 import LoginModal from '../../modal/Login';
 import { Avatar } from '../../component/Avatar';
 // キーやスマホ、リンクのアイコンを追加
-import { Mail, Phone, Calendar, User, ShieldCheck, ChevronRight, KeyRound, Link as LinkIcon, Smartphone, Globe, Apple } from 'lucide-react';
+import { Mail, Phone, Calendar, User, ShieldCheck, ChevronRight, KeyRound, Globe } from 'lucide-react';
 
 import api, { getAccessToken } from '../../conf/api';
 
@@ -49,7 +49,7 @@ const MyProfilePage: React.FC = () => {
                     ...u, // 既存データ展開
                     phone: u.phone || "未設定",
                     bio: u.bio || "自己紹介が設定されていません",
-                    birth: u.birth || "未設定",
+                    birth: u.date_of_birth || "未設定",
                     gender: u.gender === "1" ? "男性" : (u.gender === "2" ? "女性" : "未回答"),
                     is_google_connected: u.is_google_connected,
                     is_line_connected: false,
@@ -126,7 +126,7 @@ const MyProfilePage: React.FC = () => {
                                 <ShieldCheck size={14} /> 連絡先・本人確認
                             </h3>
                             <div className="space-y-3">
-                                <Link to="/settings/email" className="group flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
+                                <Link to="/mypage/settings/email" className="group flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
                                             <Mail size={20} />
@@ -139,7 +139,7 @@ const MyProfilePage: React.FC = () => {
                                     <ChevronRight size={18} className="text-gray-300 group-hover:text-emerald-500" />
                                 </Link>
 
-                                <Link to="/settings/phone" className="group flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
+                                <Link to="/mypage/settings/phone" className="group flex items-center justify-between p-4 rounded-2xl border border-gray-100 hover:border-emerald-200 hover:bg-emerald-50/30 transition-all">
                                     <div className="flex items-center gap-4">
                                         <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center text-gray-500 group-hover:bg-emerald-100 group-hover:text-emerald-600 transition-colors">
                                             <Phone size={20} />
@@ -161,7 +161,7 @@ const MyProfilePage: React.FC = () => {
                             </h3>
                             <div className="border border-gray-100 rounded-2xl overflow-hidden">
                                 {/* パスワード変更 */}
-                                <Link to="/reset-password" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-50">
+                                <Link to="/mypage/password" className="flex items-center justify-between p-4 hover:bg-gray-50 transition-colors border-b border-gray-50">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-gray-100 rounded-lg text-gray-600">
                                             <KeyRound size={18} />
@@ -192,7 +192,7 @@ const MyProfilePage: React.FC = () => {
                                         </button>
                                     )}
                                 </div>
-                                {/* Apple連携 */}
+                                {/* Apple連携 
                                 <div className="flex items-center justify-between p-4 border-b border-gray-50">
                                     <div className="flex items-center gap-3">
                                         <div className="p-2 bg-black text-white rounded-lg">
@@ -213,6 +213,8 @@ const MyProfilePage: React.FC = () => {
                                         </button>
                                     )}
                                 </div>
+
+                                */}
 
                                 {/* LINE連携 
                                 <div className="flex items-center justify-between p-4">

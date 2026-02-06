@@ -3,13 +3,15 @@ import { useParams, Link } from "react-router-dom";
 
 import Header from "../component/Header";
 import { Avatar } from "../component/Avatar";
-// Checkout.tsx に合わせてパスを修正
 import LoginModal from "../modal/Login";
+import ReportUserModal from "../modal/ReportUserModal";
 
 import api from "../conf/api";
 import { CONFIG } from "../conf/config";
 import { UserProfileData } from "../types/FleaMarket";
 import { FleaItemStatus } from "../conf/FleaMarket";
+
+import { MoreVertical, Flag, Ban } from "lucide-react";
 
 const UserProfile: React.FC = () => {
     const { userId } = useParams<{ userId: string }>();
@@ -20,8 +22,12 @@ const UserProfile: React.FC = () => {
     // 自分のID (ログイン判定用)
     const [myUserId, setMyUserId] = useState<string | null>(null);
 
-    // ★ログインモーダルの表示状態管理
+    // モーダルの表示状態管理
     const [isLoginModalOpen, setLoginModalOpen] = useState(false);
+    const [isReportModalOpen, setReportModalOpen] = useState(false);
+
+    // メニューの表示状態管理
+    const [showMenu, setShowMenu] = useState(false);
 
     // 自分の情報を取得する関数
     const fetchMe = () => {
@@ -47,7 +53,6 @@ const UserProfile: React.FC = () => {
                 setLoading(true);
                 const res = await api.get(`/users/${userId}/profile`);
                 setProfile(res.data);
-                console.log("Fetched user profile:", res.data);
             } catch (error) {
                 console.error("Failed to fetch user profile", error);
             } finally {
@@ -57,25 +62,20 @@ const UserProfile: React.FC = () => {
         fetchProfile();
     }, [userId]);
 
-    // ★ログイン成功時のコールバック
     const handleLoginSuccess = () => {
         setLoginModalOpen(false);
-        fetchMe(); // 自分の情報を再取得してフォローボタンを押せるようにする
+        fetchMe();
     };
 
-    // フォロー切り替え処理
     const handleToggleFollow = async () => {
-        // ★ログインしていない場合はモーダルを開く
         if (!myUserId) {
             setLoginModalOpen(true);
             return;
         }
-
         if (!profile) return;
 
-        // 楽観的UI更新（API通信を待たずに見た目を変える）
         const prevIsFollowing = profile.isFollowing;
-        const prevCount = profile.followersCount;
+        // const prevCount = profile.followersCount; // 使っていないので削除
 
         setProfile(prev => prev ? {
             ...prev,
@@ -85,21 +85,75 @@ const UserProfile: React.FC = () => {
 
         try {
             if (prevIsFollowing) {
-                // 解除
                 await api.delete(`/sns/users/${userId}/follow`);
             } else {
-                // 登録
                 await api.post(`/sns/users/${userId}/follow`, {});
             }
         } catch (e) {
             console.error(e);
-            // 失敗したら元に戻す
             setProfile(prev => prev ? {
                 ...prev,
                 isFollowing: prevIsFollowing,
-                followersCount: prevCount
+                followersCount: prev.isFollowing ? prev.followersCount + 1 : prev.followersCount - 1
             } : null);
             alert("通信に失敗しました");
+        }
+    };
+
+    const handleReportClick = () => {
+        setShowMenu(false);
+        if (!myUserId) {
+            setLoginModalOpen(true);
+            return;
+        }
+        setReportModalOpen(true);
+    };
+
+    const handleReportSubmit = async (reason: string, details: string) => {
+        try {
+            await api.post(`/sns/users/${userId}/report`, { reason, details });
+            setReportModalOpen(false);
+            alert("通報を受け付けました。ご協力ありがとうございます。");
+        } catch (error) {
+            console.error(error);
+            alert("通報の送信に失敗しました。");
+        }
+    };
+
+    const handleBlock = async () => {
+        setShowMenu(false);
+        if (!myUserId) {
+            setLoginModalOpen(true);
+            return;
+        }
+        if (!profile) return;
+
+        if (window.confirm(`${profile.name}さんをブロックしますか？\nブロックすると、お互いにフォローができなくなり、商品の購入やコメントもできなくなります。`)) {
+            try {
+                await api.post(`/sns/users/${userId}/block`, {});
+                setProfile(prev => prev ? { ...prev, isBlocked: true } : null); // ブロック状態を反映
+                alert("ユーザーをブロックしました。");
+            } catch (error) {
+                console.error("Failed to block user", error);
+                alert("ブロックに失敗しました。");
+            }
+        }
+    };
+
+    // ★ブロック解除処理
+    const handleUnblock = async () => {
+        if (!myUserId) return;
+        if (!profile) return;
+
+        if (window.confirm(`${profile.name}さんのブロックを解除しますか？`)) {
+            try {
+                await api.delete(`/sns/users/${profile.id}/block`);
+                setProfile(prev => prev ? { ...prev, isBlocked: false } : null);
+                alert("ブロックを解除しました。");
+            } catch (error) {
+                console.error("Failed to unblock", error);
+                alert("解除に失敗しました。");
+            }
         }
     };
 
@@ -108,14 +162,54 @@ const UserProfile: React.FC = () => {
 
     const isMe = String(myUserId) === String(profile.id);
 
+    const listings = profile.listings || [];
+    const reviews = profile.reviews || [];
+
     return (
         <div className="bg-gray-50 min-h-screen pb-20">
             <Header />
 
             <main className="w-full max-w-4xl mx-auto px-3 pt-4 md:px-4 md:pt-6">
+                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-center md:items-start gap-6 relative">
 
-                {/* プロフィールヘッダーエリア */}
-                <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-100 mb-6 flex flex-col md:flex-row items-center md:items-start gap-6">
+                    {/* メニューボタン */}
+                    {!isMe && (
+                        <div className="absolute top-3 right-3 z-10">
+                            <button
+                                onClick={() => setShowMenu(!showMenu)}
+                                className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"
+                            >
+                                <MoreVertical size={20} />
+                            </button>
+
+                            {showMenu && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-20 cursor-default"
+                                        onClick={() => setShowMenu(false)}
+                                    ></div>
+                                    <div className="absolute right-0 top-full mt-1 w-48 bg-white rounded-xl shadow-xl border border-gray-100 py-1 z-30 overflow-hidden animate-in fade-in zoom-in-95 duration-100">
+                                        <button
+                                            onClick={handleReportClick}
+                                            className="w-full text-left px-4 py-3 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2 transition-colors"
+                                        >
+                                            <Flag size={16} className="text-gray-400" />
+                                            通報する
+                                        </button>
+                                        <button
+                                            onClick={handleBlock}
+                                            className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors border-t border-gray-50"
+                                        >
+                                            <Ban size={16} className="text-red-500" />
+                                            ブロックする
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* アバター */}
                     <div className="flex-shrink-0 mx-auto md:mx-0">
                         <Avatar
                             src={profile.iconUrl}
@@ -124,12 +218,13 @@ const UserProfile: React.FC = () => {
                         />
                     </div>
 
+                    {/* プロフィール詳細 */}
                     <div className="flex-1 w-full space-y-3">
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900 text-center md:text-left">{profile.name}</h1>
-
-                                {/* ステータス行 */}
+                                <h1 className="text-2xl font-bold text-gray-900 text-center md:text-left pr-8">
+                                    {profile.name}
+                                </h1>
                                 <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 mt-2 text-sm text-gray-600">
                                     <div className="flex items-center gap-1">
                                         <span className="text-orange-400">★</span>
@@ -152,15 +247,24 @@ const UserProfile: React.FC = () => {
                             {/* ボタンエリア */}
                             {!isMe && (
                                 <div className="flex justify-center md:justify-end">
-                                    <button
-                                        onClick={handleToggleFollow}
-                                        className={`px-6 py-2 rounded-full font-bold transition-all shadow-sm border ${profile.isFollowing
-                                            ? "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
-                                            : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:shadow-md"
-                                            }`}
-                                    >
-                                        {profile.isFollowing ? "フォロー中" : "フォローする"}
-                                    </button>
+                                    {profile.isBlocked ? (
+                                        <button
+                                            onClick={handleUnblock}
+                                            className="px-6 py-2 rounded-full font-bold transition-all shadow-sm border bg-red-50 text-red-600 border-red-200 hover:bg-red-100"
+                                        >
+                                            ブロック中
+                                        </button>
+                                    ) : (
+                                        <button
+                                            onClick={handleToggleFollow}
+                                            className={`px-6 py-2 rounded-full font-bold transition-all shadow-sm border ${profile.isFollowing
+                                                ? "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
+                                                : "bg-emerald-600 text-white border-emerald-600 hover:bg-emerald-700 hover:shadow-md"
+                                                }`}
+                                        >
+                                            {profile.isFollowing ? "フォロー中" : "フォローする"}
+                                        </button>
+                                    )}
                                 </div>
                             )}
                             {isMe && (
@@ -187,7 +291,7 @@ const UserProfile: React.FC = () => {
                             }`}
                         onClick={() => setActiveTab("listings")}
                     >
-                        出品商品 ({profile.listings.length})
+                        出品商品 ({listings.length})
                     </button>
                     <button
                         className={`flex-1 py-4 text-sm font-bold border-b-2 transition-colors ${activeTab === "reviews"
@@ -196,17 +300,15 @@ const UserProfile: React.FC = () => {
                             }`}
                         onClick={() => setActiveTab("reviews")}
                     >
-                        評価一覧 ({profile.reviews.length})
+                        評価一覧 ({reviews.length})
                     </button>
                 </div>
 
-                {/* コンテンツエリア */}
                 <div className="min-h-[300px]">
                     {activeTab === "listings" ? (
-                        /* --- 出品リスト --- */
-                        profile.listings.length > 0 ? (
+                        listings.length > 0 ? (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3 md:gap-4">
-                                {profile.listings.map((item) => (
+                                {listings.map((item) => (
                                     <Link
                                         key={item.id}
                                         to={`/flea-market/item/${item.id}`}
@@ -218,7 +320,7 @@ const UserProfile: React.FC = () => {
                                                 alt={item.name}
                                                 className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${item.status >= FleaItemStatus.Trading ? "opacity-60 grayscale" : ""}`}
                                             />
-                                            {item.status >= FleaItemStatus.Trading  && (
+                                            {item.status >= FleaItemStatus.Trading && (
                                                 <div className="absolute top-0 left-0 z-20">
                                                     <div className="w-0 h-0 border-t-[60px] border-t-red-600 border-r-[60px] border-r-transparent"></div>
                                                     <span className="absolute top-2 left-1 -rotate-45 text-white font-bold text-xs tracking-widest">SOLD</span>
@@ -238,10 +340,9 @@ const UserProfile: React.FC = () => {
                             </div>
                         )
                     ) : (
-                        /* --- レビューリスト --- */
                         <div className="space-y-4">
-                            {profile.reviews.length > 0 ? (
-                                profile.reviews.map((review) => (
+                            {reviews.length > 0 ? (
+                                reviews.map((review) => (
                                     <div key={review.id} className="bg-white p-5 rounded-xl shadow-sm border border-gray-100">
                                         <div className="flex items-center gap-3 mb-2">
                                             <Avatar
@@ -280,12 +381,18 @@ const UserProfile: React.FC = () => {
                 </div>
             </main>
 
-            {/* ★ログインモーダルを配置 (Checkout.tsxのPropsに準拠) */}
             <LoginModal
                 isOpen={isLoginModalOpen}
                 onClose={() => setLoginModalOpen(false)}
                 onLoginSuccess={handleLoginSuccess}
                 showCloseButton={true}
+            />
+
+            <ReportUserModal
+                isOpen={isReportModalOpen}
+                onClose={() => setReportModalOpen(false)}
+                userName={profile.name}
+                onSubmit={handleReportSubmit}
             />
         </div>
     );

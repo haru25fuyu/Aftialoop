@@ -3,6 +3,7 @@ package handler
 import (
 	"animaloop/function"
 	SQL "animaloop/sql"
+	"animaloop/utils"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -29,6 +30,12 @@ func (h *SNSHandler) RegisterRoutes(r *mux.Router) {
 	// 投稿系 (予定)
 	// r.HandleFunc("/sns/posts", h.CreatePost).Methods("POST")
 	// r.HandleFunc("/sns/timeline", h.GetTimeline).Methods("GET")
+
+	//  通報・ブロック
+	r.HandleFunc("/sns/users/{id}/report", h.ReportUser).Methods("POST")
+	r.HandleFunc("/sns/users/{id}/block", h.BlockUser).Methods("POST")
+	r.HandleFunc("/sns/blocks", h.GetBlockedList).Methods("GET")
+	r.HandleFunc("/sns/users/{id}/block", h.UnblockUser).Methods("DELETE")
 }
 
 // フォローする
@@ -78,4 +85,110 @@ func (h *SNSHandler) UnfollowUser(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"message": "unfollowed"})
+}
+
+// リクエストボディ受け取り用
+type ReportRequest struct {
+	Reason  string `json:"reason"`
+	Details string `json:"details"`
+}
+
+// 通報
+func (h *SNSHandler) ReportUser(w http.ResponseWriter, r *http.Request) {
+	// 1. ログインチェック
+	reporterID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		return
+	}
+
+	// 2. パラメータ取得
+	vars := mux.Vars(r)
+	reportedID := vars["id"]
+
+	// 3. Bodyの読み込み
+	var req ReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	// 4. DB登録
+	if err := h.db.ReportUser(r.Context(), reporterID, reportedID, req.Reason, req.Details); err != nil {
+		log.Println("Report error:", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "reported"})
+}
+
+// ブロック
+func (h *SNSHandler) BlockUser(w http.ResponseWriter, r *http.Request) {
+	// 1. ログインチェック
+	blockerID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		return
+	}
+
+	// 2. パラメータ取得
+	vars := mux.Vars(r)
+	blockedID := vars["id"]
+
+	if blockerID == blockedID {
+		http.Error(w, "cannot block yourself", http.StatusBadRequest)
+		return
+	}
+
+	// 3. DB登録
+	if err := h.db.BlockUser(r.Context(), blockerID, blockedID); err != nil {
+		log.Println("Block error:", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "blocked"})
+}
+
+// ブロックリスト取得
+func (h *SNSHandler) GetBlockedList(w http.ResponseWriter, r *http.Request) {
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		return
+	}
+
+	users, err := h.db.GetBlockedUsers(r.Context(), userID)
+	if err != nil {
+		log.Println("GetBlockedList error:", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+	// nullの場合は空配列を返す
+	if users == nil {
+		users = []utils.User{}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(users)
+}
+
+// ブロック解除
+func (h *SNSHandler) UnblockUser(w http.ResponseWriter, r *http.Request) {
+	blockerID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		return
+	}
+
+	vars := mux.Vars(r)
+	blockedID := vars["id"]
+
+	if err := h.db.UnblockUser(r.Context(), blockerID, blockedID); err != nil {
+		log.Println("Unblock error:", err)
+		http.Error(w, "Server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]string{"message": "unblocked"})
 }

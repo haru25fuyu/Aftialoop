@@ -181,7 +181,7 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 	defer file.Close()
 
 	// 3. 保存先ディレクトリの作成 (なければ作る)
-	uploadDir := "./static/flea/flea_drafts/"
+	uploadDir := "/static/flea/flea_drafts/"
 
 	// ディレクトリがなければ作る（権限エラーが出る場合は事前にmkdirが必要かも）
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {

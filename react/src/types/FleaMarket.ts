@@ -138,7 +138,7 @@ export type FleaPurchaseRequestRow = {
   note?: string | null;
 
   withdrawal_reason?: string;
-  rejection_reason?: string;  
+  rejection_reason?: string;
 
   status: "PENDING" | "ACCEPTED" | "REJECTED" | "CANCELLED" | "WITHDRAWN";
 
@@ -209,6 +209,7 @@ export type UserProfileData = {
   description: string;
   ratingAverage: number;
   ratingCount: number;
+  isBlocked: boolean;
   isFollowing: boolean;
   followersCount: number;
   followingCount: number;

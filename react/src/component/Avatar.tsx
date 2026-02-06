@@ -1,5 +1,5 @@
 // src/component/Avatar.tsx
-import React from 'react';
+import React, { useMemo } from 'react';
 import { CONFIG } from '../conf/config';
 
 type AvatarProps = {
@@ -16,11 +16,13 @@ export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '' }) => 
     // className prop で渡されたサイズ指定などが優先されるように後置する
     const baseClassName = `rounded-full flex-shrink-0 flex items-center justify-center font-bold leading-none ${defaultSizeClass} ${className}`;
 
+    const timestamp = useMemo(() => new Date().getTime(), []);
+
     // 画像URLがある場合 -> 画像を表示
     if (src) {
         return (
             <img
-                src={CONFIG.BASE_URL + src}
+                src={`${CONFIG.BASE_URL}${src}?v=${timestamp}`} // キャッシュ対策にタイムスタンプを付与
                 alt={name}
                 className={`${baseClassName} object-cover`}
             />

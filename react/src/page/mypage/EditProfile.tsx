@@ -39,6 +39,7 @@ const EditProfile: React.FC = () => {
                 setPreview(res.data.icon_url);
                 reset(res.data);
                 setValue("gender", res.data.gender);
+                setValue("birth", res.data.date_of_birth);
             })
             .catch((err) => console.error(err));
     }, [reset, setValue]);
@@ -202,7 +203,7 @@ const EditProfile: React.FC = () => {
 
                                 {/* パスワード変更 */}
                                 <div className="text-right">
-                                    <Link to="/reset-password" className="text-sm font-bold text-emerald-600 hover:underline">
+                                    <Link to="/mypage/password" className="text-sm font-bold text-emerald-600 hover:underline">
                                         パスワードを変更する
                                     </Link>
                                 </div>

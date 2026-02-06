@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gorilla/mux"
 	"golang.org/x/sync/errgroup"
@@ -147,19 +148,23 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Println("GetProfile success:", userData.GoogleID)
+	currentPassHash, _ := h.db.GetUserPasswordByID(user_id)
+	hasPassword := currentPassHash != ""
 
+	// レスポンスデータ作成
 	res := map[string]interface{}{
-		"id":                  userData.ID,
-		"name":                userData.Name,
-		"email":               userData.Email,
-		"icon_url":            userData.IconURL,
-		"date_of_birth":       userData.DateOfBirth,
-		"gender":              userData.Gender,
-		"phone_number":        userData.PhoneNumber,
-		"bio":                 userData.Bio,
+		"id":            userData.ID,
+		"name":          userData.Name,
+		"email":         userData.Email,
+		"icon_url":      userData.IconURL,
+		"date_of_birth": userData.DateOfBirth,
+		"gender":        userData.Gender,
+		"phone_number":  userData.PhoneNumber,
+		"bio":           userData.Bio,
+
 		"is_google_connected": userData.GoogleID != nil && *userData.GoogleID != "",
 		"is_apple_connected":  userData.AppleID != nil && *userData.AppleID != "",
+		"has_password":        hasPassword,
 	}
 
 	// レスポンス (RequestUserProfile型をそのまま返せばOK)
@@ -236,8 +241,8 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 			os.MkdirAll(dir, os.ModePerm)
 		}
 
-		// キャッシュ対策でファイル名にタイムスタンプを入れるか、UUIDにするのが本来はベター
-		fileName := fmt.Sprintf("icon_%s.png", user_id)
+		// タイムスタンプを入れて毎回違うファイル名にする
+		fileName := fmt.Sprintf("icon_%s_%d.png", user_id, time.Now().Unix())
 		iconPath = react_dir + fileName
 
 		outFile, err := os.Create(dir + fileName)
@@ -337,12 +342,13 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 type UserProfileAPIResponse struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
-	IconUrl       *string `json:"iconUrl"` // JS側で camelCase なので注意
+	IconUrl       *string `json:"iconUrl"`
 	Description   string  `json:"description"`
 	RatingAverage float64 `json:"ratingAverage"`
 	RatingCount   int     `json:"ratingCount"`
 
 	IsFollowing    bool `json:"isFollowing"`
+	IsBlocked      bool `json:"isBlocked"` // ★追加
 	FollowersCount int  `json:"followersCount"`
 	FollowingCount int  `json:"followingCount"`
 
@@ -352,23 +358,20 @@ type UserProfileAPIResponse struct {
 
 // GET /users/{id}/profile
 func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
-	// 閲覧者(自分)のID取得 (エラーでもゲストとして続行)
 	currentUserID, _ := function.CheckUser(h.db, w, r)
-
 	vars := mux.Vars(r)
 	targetUserID := vars["id"]
 
-	// 結果を格納する変数を定義
 	var (
-		basicInfo   utils.RequestUserProfile // または *utils.User (DB定義に合わせて)
+		basicInfo   utils.RequestUserProfile
 		listings    []utils.FleaMarketItemResponse
 		reviews     []utils.UserReviewResponse
 		avg         float64
 		count       int
 		isFollowing bool
+		isBlocked   bool // ★追加: 変数定義
 	)
 
-	// errgroup の作成
 	eg, ctx := errgroup.WithContext(r.Context())
 
 	// 1. 基本ユーザー情報 (これだけは必須なのでエラーなら即終了)
@@ -414,8 +417,9 @@ func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request)
 		return nil
 	})
 
-	// 5. フォロー状態の確認 (ログイン済み かつ 本人以外の場合)
+	// 5. フォロー・ブロック状態の確認 (ログイン済み かつ 本人以外)
 	if currentUserID != "" && currentUserID != targetUserID {
+		// フォロー状態
 		eg.Go(func() error {
 			var err error
 			isFollowing, err = h.db.IsFollowing(ctx, currentUserID, targetUserID)
@@ -424,33 +428,37 @@ func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request)
 			}
 			return nil
 		})
+
+		// ★追加: ブロック状態
+		eg.Go(func() error {
+			var err error
+			// go/sql/sns.go に IsBlocked 関数を追加する必要があります
+			isBlocked, err = h.db.IsBlocked(ctx, currentUserID, targetUserID)
+			if err != nil {
+				isBlocked = false
+			}
+			return nil
+		})
 	}
 
-	// 全てのスレッドが終わるのを待つ
 	if err := eg.Wait(); err != nil {
-		// 基本情報(1番)が取れなかった場合のみここに来る
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
 
-	// レスポンス構築
-	// basicInfo がポインタか構造体かで書き方が変わるので調整してください
-	// ここでは構造体として扱っています
 	resp := UserProfileAPIResponse{
-		ID:            basicInfo.ID,
-		Name:          basicInfo.Name,
-		IconUrl:       basicInfo.IconURL,
-		Description:   *basicInfo.Bio,
-		RatingAverage: avg,
-		RatingCount:   count,
-		Listings:      listings,
-
-		// basicInfoにJOINで取ってきたカウントが入っているならそれを使う
+		ID:             basicInfo.ID,
+		Name:           basicInfo.Name,
+		IconUrl:        basicInfo.IconURL,
+		Description:    *basicInfo.Bio,
+		RatingAverage:  avg,
+		RatingCount:    count,
+		Listings:       listings,
 		FollowersCount: basicInfo.FollowersCount,
 		FollowingCount: basicInfo.FollowingCount,
-
-		IsFollowing: isFollowing, // 並行処理で取得した結果
-		Reviews:     reviews,
+		IsFollowing:    isFollowing,
+		IsBlocked:      isBlocked, // ★追加: レスポンスにセット
+		Reviews:        reviews,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

@@ -108,65 +108,39 @@ func SetRefreshToken(db *db.Database, w http.ResponseWriter, userID string) erro
 	return nil
 }
 
-func CreateAssessment(token string) {
-
-	// reCAPTCHA クライアントを作成する。
+func CreateAssessment(token string) (float32, error) {
 	ctx := context.Background()
 	client, err := recaptcha.NewClient(ctx)
 	if err != nil {
-		fmt.Printf("Error creating reCAPTCHA client:" + err.Error())
-		return
+		return 0, fmt.Errorf("reCAPTCHA client creation failed: %w", err)
 	}
 	defer client.Close()
 
-	// 追跡するイベントのプロパティを設定する。
 	event := &recaptchapb.Event{
 		Token:   token,
 		SiteKey: config.RecaptchaKey,
 	}
 
-	assessment := &recaptchapb.Assessment{
-		Event: event,
-	}
-
-	// 評価リクエストを作成する。
 	request := &recaptchapb.CreateAssessmentRequest{
-		Assessment: assessment,
+		Assessment: &recaptchapb.Assessment{Event: event},
 		Parent:     fmt.Sprintf("projects/%s", config.ProjectID),
 	}
 
-	response, err := client.CreateAssessment(
-		ctx,
-		request)
-
+	response, err := client.CreateAssessment(ctx, request)
 	if err != nil {
-		fmt.Printf("Error calling CreateAssessment: %v", err.Error())
+		return 0, fmt.Errorf("CreateAssessment call failed: %w", err)
 	}
 
-	// トークンが有効かどうかを確認する。
-	if err != nil {
-		fmt.Printf("Error calling CreateAssessment: %v\n", err)
-		return
-	}
-	if response == nil || response.TokenProperties == nil {
-		fmt.Println("response or TokenProperties is nil, aborting")
-		return
+	if response.TokenProperties == nil {
+		return 0, fmt.Errorf("invalid response: TokenProperties is nil")
 	}
 
-	// 想定どおりのアクションが実行されたかどうかを確認する。
 	if response.TokenProperties.Action != config.RecaptchaAction {
-		fmt.Printf("The action attribute in your reCAPTCHA tag does not match the action you are expecting to score")
-		return
+		return 0, fmt.Errorf("action mismatch: expected %s, got %s", config.RecaptchaAction, response.TokenProperties.Action)
 	}
 
-	// リスクスコアと理由を取得する。
-	// 評価の解釈の詳細については、以下を参照:
-	// https://cloud.google.com/recaptcha-enterprise/docs/interpret-assessment
-	fmt.Printf("The reCAPTCHA score for this token is:  %v", response.RiskAnalysis.Score)
-
-	for _, reason := range response.RiskAnalysis.Reasons {
-		fmt.Printf(reason.String() + "\n")
-	}
+	// スコアを返す (0.0 〜 1.0)
+	return response.RiskAnalysis.Score, nil
 }
 
 func PrioritizeCard(cards []utils.CardSummary, defaultID string) []utils.CardSummary {
@@ -521,16 +495,31 @@ func IsCancellable(status string) bool {
 
 // SaveImage: 画像を static/flea に保存し、Web用のパスを返す
 func SaveImage(file multipart.File, originalFilename string) (string, error) {
+
+	// 【重要】保存先ディレクトリ（ファイルシステム上のパス）
+	// 実行ファイルがある場所からの相対パス "./" を使います
+	saveDir := "./static/flea/"
+
+	// ブラウザに返すURLのプレフィックス
+	urlPrefix := "/static/flea/"
+
 	// 1. 保存先ディレクトリの確保
-	uploadDir := "./static/flea/"
-	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+	if err := os.MkdirAll(saveDir, 0755); err != nil {
 		return "", err
 	}
 
-	// 2. ユニークなファイル名を生成 (タイムスタンプ + 元の拡張子)
-	ext := filepath.Ext(originalFilename)
+	// 2. ユニークなファイル名を生成
+	allowedExts := map[string]bool{
+		".jpg": true, ".jpeg": true, ".png": true, ".gif": true,
+	}
+	ext := strings.ToLower(filepath.Ext(originalFilename))
+	if !allowedExts[ext] {
+		return "", fmt.Errorf("unsupported file type: %s", ext)
+	}
 	newFilename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-	dstPath := filepath.Join(uploadDir, newFilename)
+
+	// ファイルシステム上のパスを作成
+	dstPath := filepath.Join(saveDir, newFilename)
 
 	// 3. 空のファイルを作成
 	dst, err := os.Create(dstPath)
@@ -544,8 +533,9 @@ func SaveImage(file multipart.File, originalFilename string) (string, error) {
 		return "", err
 	}
 
-	// 5. アクセス用のURLパスを返す (/static/flea/...)
-	return uploadDir + newFilename, nil
+	// 5. アクセス用のURLパスを返す
+	// (filepath.JoinはOSによって "\" になることがあるので、URL結合は単純結合か path.Join が安全)
+	return urlPrefix + newFilename, nil
 }
 
 // SendIdentityVerificationNotification 本人確認申請の通知メールを送る

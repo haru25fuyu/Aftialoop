@@ -105,3 +105,25 @@ func GetSubEmailData(ctx context.Context, userID string) (*EmailChangeData, erro
 func DeleteSubEmailData(ctx context.Context, userID string) {
 	Rdb.Del(ctx, "sub_email:"+userID)
 }
+
+// パスワードリセット用トークンを保存 (Key: トークン -> Value: ユーザーID)
+// 有効期限: 30分
+func SavePasswordResetToken(ctx context.Context, token string, userID string) error {
+	key := "pwd_reset:" + token
+	return Rdb.Set(ctx, key, userID, 30*time.Minute).Err()
+}
+
+// トークンからユーザーIDを取得 (検証)
+func GetUserIDByResetToken(ctx context.Context, token string) (string, error) {
+	key := "pwd_reset:" + token
+	val, err := Rdb.Get(ctx, key).Result()
+	if err == redis.Nil {
+		return "", fmt.Errorf("トークンが無効か期限切れです")
+	}
+	return val, err
+}
+
+// 使用済みトークンを削除
+func DeletePasswordResetToken(ctx context.Context, token string) {
+	Rdb.Del(ctx, "pwd_reset:"+token)
+}

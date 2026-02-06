@@ -25,7 +25,7 @@ func CreateCustomer(user utils.SqlUser) (string, error) {
 		},
 	)
 	if err != nil {
-		log.Fatalf("Error creating customer: %v", err)
+		log.Printf("Error creating customer: %v", err)
 		return "", err
 	}
 
@@ -42,7 +42,7 @@ func DeleteCustomer(customerID string) error {
 		},
 	)
 	if err != nil {
-		log.Fatalf("Error deleting customer: %v", err)
+		log.Printf("Error deleting customer: %v", err)
 		return err
 	}
 
@@ -71,7 +71,7 @@ func CheckSquareEmail(email string) bool {
 	)
 
 	if err != nil {
-		log.Fatalf("Error searching customers: %v", err)
+		log.Printf("Error searching customers: %v", err)
 	}
 
 	if response.Customers != nil {
@@ -189,7 +189,7 @@ func DeleteCard(cardID string) error {
 		},
 	)
 	if err != nil {
-		log.Fatalf("Error disabling card: %v", err)
+		log.Printf("Error disabling card: %v", err)
 	}
 	if response.Card != nil {
 		log.Printf("Card disabled: %s\n", *response.Card.ID)

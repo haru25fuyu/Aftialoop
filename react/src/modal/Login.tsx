@@ -96,7 +96,7 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
                         {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password.message}</p>}
                     </div>
                     <div>
-                        <Link to="/">パスワード忘れた方</Link>
+                        <Link to="/password-reset">パスワード忘れた方</Link>
                         <button
                             type="submit"
                             className="w-full px-4 py-2 mt-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700"

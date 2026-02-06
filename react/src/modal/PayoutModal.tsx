@@ -79,7 +79,7 @@ export default function PayoutModal({ isOpen, onClose, onSuccess, currentBalance
             console.error(e);
             // エラーメッセージの出し分け
             const errorMsg = String(error.response?.data || "");
-            
+
             if (errorMsg.includes("identity_verification_required")) {
                 setView("verify_required");
                 toast({ text: "本人確認が必要です", kind: "error" });
