@@ -78,7 +78,8 @@ const App: React.FC = () => {
           <Route path="/register/confirm" element={<RegisterConfirm />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="*" element={<NotFound />} />
-          <Route path="/user/profile/:userId" element={<UserProfile />} />
+          <Route path="/user/profile/:id" element={<RequireAuth><UserProfile /></RequireAuth>} />
+          <Route path="/user/:username" element={<RequireAuth><UserProfile /></RequireAuth>} />
 
           {/* protected */}
           <Route path="/cart" element={<Cart />} />

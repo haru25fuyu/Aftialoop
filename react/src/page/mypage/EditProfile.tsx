@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
-import { Camera, UserRound } from "lucide-react";
+import { Camera, UserRound, AtSign } from "lucide-react"; // AtSignアイコン追加
 
 import { Header } from '../../component/Header';
 
@@ -9,22 +9,27 @@ import api from '../../conf/api';
 import { CONFIG } from '../../conf/config';
 
 type Inputs = {
-    id: string,
-    name: string,
-    email: string,
-    icon_url: string | File,
-    password: string,
-    phone: string,
-    bio: string,
-    birth: string,
-    gender: string
+    id: string;
+    name: string;
+    username: string; // ★追加
+    email: string;
+    icon_url: string | File;
+    password: string;
+    phone: string;
+    bio: string;
+    birth: string;
+    gender: string;
 };
 
 const EditProfile: React.FC = () => {
-    const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<Inputs>();
+    // mode: 'onBlur' を追加して、フォーカスが外れたタイミングでバリデーション(重複チェック)を実行するようにする
+    const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<Inputs>({ mode: 'onBlur' });
     const navigate = useNavigate();
     const [preview, setPreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
+
+    // 初期値のユーザーネームを保持（変更がない場合は重複チェックをスキップするため）
+    const [initialUsername, setInitialUsername] = useState<string>("");
 
     // 現在の入力値を監視
     const currentEmail = watch("email");
@@ -37,9 +42,17 @@ const EditProfile: React.FC = () => {
                     res.data.icon_url = CONFIG.BASE_URL + res.data.icon_url;
                 }
                 setPreview(res.data.icon_url);
+
                 reset(res.data);
+
+                // 個別のフィールドセット
                 setValue("gender", res.data.gender);
                 setValue("birth", res.data.date_of_birth);
+
+                // ★初期ユーザーネームを保存
+                const uName = res.data.username || "";
+                setValue("username", uName);
+                setInitialUsername(uName);
             })
             .catch((err) => console.error(err));
     }, [reset, setValue]);
@@ -56,10 +69,10 @@ const EditProfile: React.FC = () => {
 
     const onSubmit = async (data: Inputs) => {
         const formData = new FormData();
-        // メールと電話番号は別画面で変更するため、ここでの送信データからは除外するか、
-        // もしくはバックエンド側で無視するようにします
+
         const jsonData = {
             name: data.name,
+            username: data.username, 
             bio: data.bio,
             gender: data.gender,
             birth: data.birth,
@@ -68,17 +81,23 @@ const EditProfile: React.FC = () => {
         formData.append('data', JSON.stringify(jsonData));
         if (selectedFile) formData.append('icon_url', selectedFile);
 
-        api.post(CONFIG.BASE_URL + '/profile/edit', formData, {
+        api.post('/profile/edit', formData, {
             headers: { 'Content-Type': 'multipart/form-data' }
         })
             .then(() => {
                 navigate('/mypage/profile', { replace: true, state: { changed: true } });
             })
-            .catch((err) => console.error(err));
+            .catch((err) => {
+                console.error(err);
+                // バックエンドでUnique制約エラーが出た場合のフォールバック
+                if (err.response?.data?.err_message?.includes("Duplicate")) {
+                    alert("そのユーザーIDは既に使用されています。");
+                }
+            });
     };
 
     return (
-        <div className="bg-gray-50 min-h-screen pb-20"> {/* 背景色をつけて画面全体を明るく */}
+        <div className="bg-gray-50 min-h-screen pb-20">
             <Header />
 
             <div className="flex justify-center items-start pt-6 px-4">
@@ -128,11 +147,54 @@ const EditProfile: React.FC = () => {
 
                             {/* 入力フィールド群 */}
                             <div className="space-y-5">
-                                {/* 名前 */}
+                                {/* ★ユーザーID (Username) */}
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-700 mb-1.5">ユーザーネーム <span className="text-red-500">*</span></label>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1.5">ユーザーID (検索用) <span className="text-red-500">*</span></label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400">
+                                            <AtSign size={18} />
+                                        </div>
+                                        <input
+                                            type="text"
+                                            placeholder="taro_1234"
+                                            {...register('username', {
+                                                required: '必須です',
+                                                pattern: {
+                                                    value: /^[a-zA-Z0-9_]+$/,
+                                                    message: '半角英数字とアンダースコア(_)のみ使用できます'
+                                                },
+                                                minLength: { value: 3, message: '3文字以上で入力してください' },
+                                                maxLength: { value: 30, message: '30文字以内で入力してください' },
+                                                // ★重複チェックのバリデーション
+                                                validate: async (value) => {
+                                                    // 変更がない場合はチェックをスキップ (APIを飛ばさない)
+                                                    if (value === initialUsername) return true;
+
+                                                    // 空の場合は必須チェックに任せる
+                                                    if (!value) return true;
+
+                                                    try {
+                                                        const res = await api.post('/check/username', { username: value });
+                                                        return res.data.available || "このIDは既に使用されています";
+                                                    } catch (e) {
+                                                        console.error(e);
+                                                        return "確認中にエラーが発生しました";
+                                                    }
+                                                }
+                                            })}
+                                            className={`w-full pl-10 pr-4 py-3 rounded-xl border ${errors.username ? 'border-red-300 bg-red-50 focus:border-red-500 focus:ring-red-200' : 'border-gray-200 bg-gray-50 focus:bg-white focus:border-emerald-500 focus:ring-emerald-200'} outline-none transition-all`}
+                                        />
+                                    </div>
+                                    {errors.username && <p className="mt-1 text-sm text-red-500 font-bold">{errors.username.message}</p>}
+                                    <p className="mt-1 text-xs text-gray-400">※半角英数字と _ が使えます。URLの一部になります。</p>
+                                </div>
+
+                                {/* 名前 (表示名) */}
+                                <div>
+                                    <label className="block text-sm font-bold text-gray-700 mb-1.5">名前 (表示名) <span className="text-red-500">*</span></label>
                                     <input
                                         type="text"
+                                        placeholder="動物 太郎"
                                         {...register('name', { required: '必須です' })}
                                         className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none transition-all bg-gray-50 focus:bg-white"
                                     />
@@ -149,7 +211,7 @@ const EditProfile: React.FC = () => {
                                     />
                                 </div>
 
-                                {/* 性別 (ボタン風ラジオボタン) */}
+                                {/* 性別 */}
                                 <div>
                                     <label className="block text-sm font-bold text-gray-700 mb-1.5">性別</label>
                                     <div className="flex bg-gray-100 p-1 rounded-xl">
@@ -172,7 +234,7 @@ const EditProfile: React.FC = () => {
                                 <div className="pt-4 border-t border-gray-100 space-y-4">
                                     <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider">非公開情報</h3>
 
-                                    {/* メールアドレス変更リンク化 */}
+                                    {/* メールアドレス */}
                                     <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
                                         <div>
                                             <p className="text-xs text-gray-500 font-bold">メールアドレス</p>
@@ -183,7 +245,7 @@ const EditProfile: React.FC = () => {
                                         </Link>
                                     </div>
 
-                                    {/* 電話番号変更リンク化 */}
+                                    {/* 電話番号 */}
                                     <div className="flex items-center justify-between p-4 rounded-xl border border-gray-100 bg-gray-50/50">
                                         <div>
                                             <p className="text-xs text-gray-500 font-bold">電話番号</p>
@@ -194,7 +256,7 @@ const EditProfile: React.FC = () => {
                                         </Link>
                                     </div>
 
-                                    {/* 誕生日（誕生日は変更不可にするケースが多いですが、一応そのまま） */}
+                                    {/* 誕生日 */}
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1.5 pl-1">誕生日</label>
                                         <input type="date" {...register('birth')} className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50" />

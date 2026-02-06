@@ -32,11 +32,16 @@ func (h *userDataHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/profile/edit", h.EditProfile).Methods("POST")
 	r.HandleFunc("/customer", h.GetCustomer).Methods("POST")
 
-	// 他人のプロフィール取得
-	r.HandleFunc("/users/{id}/profile", h.GetUserProfile).Methods("GET")
+	// IDで検索する場合 (アプリ内リンク用)
+	r.HandleFunc("/users/id/{id}/profile", h.GetUserProfileByID).Methods("GET")
+
+	// ユーザーネームで検索する場合 (URLシェア用)
+	r.HandleFunc("/users/username/{username}/profile", h.GetUserProfileByUsername).Methods("GET")
 
 	r.HandleFunc("/identity/submit", h.SubmitIdentityVerification).Methods("POST")
 	r.HandleFunc("/identity/image", h.GetIdentityImage).Methods("GET")
+
+	r.HandleFunc("/check/username", h.CheckUsername).Methods("POST")
 }
 
 // マイページの取得 (ダッシュボード用: 基本情報 + カウンターのみ)
@@ -155,6 +160,7 @@ func (h *userDataHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	res := map[string]interface{}{
 		"id":            userData.ID,
 		"name":          userData.Name,
+		"username":      userData.Username,
 		"email":         userData.Email,
 		"icon_url":      userData.IconURL,
 		"date_of_birth": userData.DateOfBirth,
@@ -258,9 +264,10 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 
 	// 1. usersテーブル更新用データ
 	user := utils.SqlUser{
-		ID:    user_id,
-		Name:  request.Name,
-		Email: request.Email,
+		ID:       user_id,
+		Name:     request.Name,
+		Email:    request.Email,
+		Username: request.Username,
 	}
 
 	if iconPath != "" {
@@ -342,6 +349,7 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 type UserProfileAPIResponse struct {
 	ID            string  `json:"id"`
 	Name          string  `json:"name"`
+	Username      *string `json:"username"`
 	IconUrl       *string `json:"iconUrl"`
 	Description   string  `json:"description"`
 	RatingAverage float64 `json:"ratingAverage"`
@@ -356,57 +364,81 @@ type UserProfileAPIResponse struct {
 	Reviews  []utils.UserReviewResponse     `json:"reviews"`
 }
 
-// GET /users/{id}/profile
-func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request) {
-	currentUserID, _ := function.CheckUser(h.db, w, r)
+// ---------------------------------------------------------
+// ① IDで取得するハンドラー
+// ---------------------------------------------------------
+func (h *userDataHandler) GetUserProfileByID(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	targetUserID := vars["id"]
+	targetID := vars["id"]
+	// UUIDで検索
+	h.fetchAndRespondProfile(w, r, "u.id = ?", targetID)
+}
 
+// ---------------------------------------------------------
+// ② ユーザーネームで取得するハンドラー
+// ---------------------------------------------------------
+func (h *userDataHandler) GetUserProfileByUsername(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	targetUsername := vars["username"]
+	// usernameで検索
+	h.fetchAndRespondProfile(w, r, "u.username = ?", targetUsername)
+}
+
+// ---------------------------------------------------------
+// 共通処理 (ロジックは統合)
+// ---------------------------------------------------------
+func (h *userDataHandler) fetchAndRespondProfile(w http.ResponseWriter, r *http.Request, whereCol string, targetVal string) {
+	currentUserID, _ := function.CheckUser(h.db, w, r)
+
+	// 1. 基本情報取得 (ここが失敗＝ユーザー無し)
+	basicInfo, err := h.db.GetUserDataAndProfile([]string{whereCol}, []interface{}{targetVal})
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
+
+	// UUIDを確定させる
+	targetUserID := basicInfo.ID
+
+	// --- ここから並列処理 (targetUserID を使う) ---
 	var (
-		basicInfo   utils.RequestUserProfile
 		listings    []utils.FleaMarketItemResponse
 		reviews     []utils.UserReviewResponse
 		avg         float64
 		count       int
 		isFollowing bool
-		isBlocked   bool // ★追加: 変数定義
+		isBlocked   bool
 	)
 
 	eg, ctx := errgroup.WithContext(r.Context())
 
-	// 1. 基本ユーザー情報 (これだけは必須なのでエラーなら即終了)
-	eg.Go(func() error {
-		var err error
-		// context対応のメソッドがあれば ctx を渡すのがベストですが、なければそのまま
-		basicInfo, err = h.db.GetUserDataAndProfile([]string{"u.id = ?"}, []interface{}{targetUserID})
-		if err != nil {
-			return err // ここでエラーを返すと eg.Wait() でエラーになる
-		}
-		return nil
-	})
-
-	// 2. 出品リスト (失敗しても空リストでOKとする)
+	// 2. 出品リスト
 	eg.Go(func() error {
 		var err error
 		listings, err = h.db.GetUserListings(ctx, targetUserID, false, 20, 0)
+		if listings == nil {
+			listings = []utils.FleaMarketItemResponse{}
+		}
 		if err != nil {
-			listings = []utils.FleaMarketItemResponse{} // 空にする
-			// エラーを返さない (nil) = 全体の処理は止めない
+			log.Println("GetUserListings error:", err)
 		}
 		return nil
 	})
 
-	// 3. レビューリスト (失敗しても空リスト)
+	// 3. レビューリスト
 	eg.Go(func() error {
 		var err error
 		reviews, err = h.db.GetUserReviews(targetUserID, 20)
-		if err != nil {
+		if reviews == nil {
 			reviews = []utils.UserReviewResponse{}
+		}
+		if err != nil {
+			log.Println("GetUserReviews error:", err)
 		}
 		return nil
 	})
 
-	// 4. 評価集計 (失敗しても0点)
+	// 4. 評価集計
 	eg.Go(func() error {
 		var err error
 		avg, count, err = h.db.GetUserRatingStats(targetUserID)
@@ -417,9 +449,8 @@ func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request)
 		return nil
 	})
 
-	// 5. フォロー・ブロック状態の確認 (ログイン済み かつ 本人以外)
+	// 5. 関係性 (自分 != 相手)
 	if currentUserID != "" && currentUserID != targetUserID {
-		// フォロー状態
 		eg.Go(func() error {
 			var err error
 			isFollowing, err = h.db.IsFollowing(ctx, currentUserID, targetUserID)
@@ -428,11 +459,8 @@ func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request)
 			}
 			return nil
 		})
-
-		// ★追加: ブロック状態
 		eg.Go(func() error {
 			var err error
-			// go/sql/sns.go に IsBlocked 関数を追加する必要があります
 			isBlocked, err = h.db.IsBlocked(ctx, currentUserID, targetUserID)
 			if err != nil {
 				isBlocked = false
@@ -442,25 +470,59 @@ func (h *userDataHandler) GetUserProfile(w http.ResponseWriter, r *http.Request)
 	}
 
 	if err := eg.Wait(); err != nil {
-		http.Error(w, "user not found", http.StatusNotFound)
+		http.Error(w, "server error", http.StatusInternalServerError)
 		return
+	}
+
+	// レスポンス作成
+	description := ""
+	if basicInfo.Bio != nil {
+		description = *basicInfo.Bio
+	}
+
+	// UsernameがNULLの場合の考慮
+	var username *string = nil
+	if basicInfo.Username != nil {
+		username = basicInfo.Username
 	}
 
 	resp := UserProfileAPIResponse{
 		ID:             basicInfo.ID,
 		Name:           basicInfo.Name,
+		Username:       username, // レスポンスに含める
 		IconUrl:        basicInfo.IconURL,
-		Description:    *basicInfo.Bio,
+		Description:    description,
 		RatingAverage:  avg,
 		RatingCount:    count,
 		Listings:       listings,
 		FollowersCount: basicInfo.FollowersCount,
 		FollowingCount: basicInfo.FollowingCount,
 		IsFollowing:    isFollowing,
-		IsBlocked:      isBlocked, // ★追加: レスポンスにセット
+		IsBlocked:      isBlocked,
 		Reviews:        reviews,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
+}
+
+// ユーザーネームの重複チェック
+func (h *userDataHandler) CheckUsername(w http.ResponseWriter, r *http.Request) {
+	var input struct {
+		Username string `json:"username"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	taken, err := h.db.IsUsernameTaken(input.Username)
+	if err != nil {
+		http.Error(w, "Server Error", http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusOK)
+	// available: true (使われていない) / false (使われている)
+	json.NewEncoder(w).Encode(map[string]bool{"available": !taken})
 }

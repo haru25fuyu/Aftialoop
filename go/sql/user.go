@@ -31,7 +31,7 @@ func (d *Database) SaveUser(user utils.SqlUser) error {
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, default_card, point, icon_url, google_id ,following_count, followers_count,sales_balance,identity_status FROM users"
+	query := "SELECT id, email, name, username, default_card, point, icon_url, google_id ,following_count, followers_count,sales_balance,identity_status FROM users"
 
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
@@ -61,7 +61,7 @@ func (d *Database) GetUserDataWithCustomerIDByID(userID string) (utils.SqlUser, 
 
 // 　カスタマーIDも含めたユーザーデータ取得
 func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, default_card, point, customer_id, icon_url, following_count, followers_count FROM users"
+	query := "SELECT id, email, name, username, default_card, point, customer_id, icon_url, following_count, followers_count FROM users"
 	if len(where) > 0 {
 		query += " WHERE " + strings.Join(where, " AND ")
 	}
@@ -146,6 +146,12 @@ func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
 		args = append(args, user.DefaultCard)
 	}
 
+	// Username
+	if user.Username != nil {
+		setClauses = append(setClauses, "username = ?")
+		args = append(args, *user.Username)
+	}
+
 	// 2. 更新する項目がなければ終了
 	if len(setClauses) == 0 {
 		return nil
@@ -181,7 +187,7 @@ func (d *Database) GetUserPasswordByID(userID string) (string, error) {
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
 	query := `
         SELECT 
-            u.id, u.name, u.email, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count, u.google_id,u.apple_id,
+            u.id, u.name, u.email, u.username, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count, u.google_id,u.apple_id,
             p.date_of_birth, p.gender, p.phone_number, p.bio   
         FROM users u
         LEFT JOIN profile p ON u.id = p.user_id
@@ -227,4 +233,14 @@ func (d *Database) UpdateSubEmail(userID string, email string) error {
 	query := "UPDATE users SET sub_email = ?, sub_email_verified_at = NOW() WHERE id = ?"
 	_, err := d.DB.Exec(query, email, userID)
 	return err
+}
+
+// ユーザーネームの重複チェック
+func (d *Database) IsUsernameTaken(username string) (bool, error) {
+	var count int
+	err := d.DB.Get(&count, "SELECT COUNT(*) FROM users WHERE username = ?", username)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }

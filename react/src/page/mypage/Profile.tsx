@@ -11,6 +11,7 @@ import api, { getAccessToken } from '../../conf/api';
 type UserData = {
     id: string;
     name: string;
+    username?: string;
     email: string;
     icon_url: string;
     phone: string;
@@ -94,6 +95,9 @@ const MyProfilePage: React.FC = () => {
                             <Avatar src={user.icon_url} name={user.name} className="w-32 h-32 text-4xl border-4 border-white shadow-xl" />
                         </div>
                         <h1 className="text-2xl font-black text-gray-900">{user.name}</h1>
+                        {user.username && (
+                            <p className="text-gray-500 text-center md:text-left">@{user.username}</p>
+                        )}
                         <Link to="/mypage/profile/edit" className="mt-6 px-8 py-2.5 bg-white border border-gray-200 text-gray-700 text-sm font-bold rounded-full shadow-sm hover:bg-gray-50 hover:border-gray-300 transition-all flex items-center gap-2">
                             プロフィールを編集
                         </Link>

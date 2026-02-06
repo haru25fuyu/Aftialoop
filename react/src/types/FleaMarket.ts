@@ -205,6 +205,7 @@ export type Reviews = {
 export type UserProfileData = {
   id: string;
   name: string;
+  username?: string;
   iconUrl: string;
   description: string;
   ratingAverage: number;
