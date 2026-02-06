@@ -2,14 +2,13 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 // import { jwtDecode } from "jwt-decode"; // 未使用なら消してOK
 
-import { FleaContent } from "../types/Content";
-import { FleaComment } from "../types/Content";
+import { FleaContent,FleaComment } from "../types/FleaMarket";
 
-import { CONFIG } from "../conf/config";
 import api from "../conf/api";
 
 import CommentList from "../component/CommentList";
 import { loadUserProfile } from "../conf/function";
+import { Avatar } from "../component/Avatar";
 
 type Props = {
     isOpen: boolean;
@@ -172,10 +171,6 @@ export default function QuestionModal({
     if (!isOpen) return null;
     if (!item) return null;
 
-    const seller_icon_url = item.seller_icon_url
-        ? CONFIG.BASE_URL + item.seller_icon_url
-        : "/default_shop_avatar.png";
-
     return createPortal(
         <div
             aria-modal="true"
@@ -189,9 +184,7 @@ export default function QuestionModal({
                 {/* ヘッダー：チャットルーム風 */}
                 <div className="px-4 py-3 border-b flex items-center gap-3">
                     <div className="relative">
-                        <img
-                            src={seller_icon_url}
-                            alt="shop avatar"
+                        <Avatar src={item.seller_icon_url} name={item.seller_name}
                             className="w-10 h-10 rounded-full object-cover"
                         />
                         <span

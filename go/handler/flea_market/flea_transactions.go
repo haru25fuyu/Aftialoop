@@ -243,9 +243,12 @@ func (h *FleaMarketHandler) AcceptPurchaseRequest(w http.ResponseWriter, r *http
 	}
 
 	// E. 購入者へメール通知
+	// E. 購入者へメール通知 & アプリ内通知 (非同期)
 	go func() {
 		subject := "【Aftialoop】購入申請が承認されました"
-		txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
+		// 通知用に相対パス、メール用に絶対パスを作成
+		txURLPath := fmt.Sprintf("/flea-market/transactions/%d", reqID)
+		txFullURL := fmt.Sprintf("%s%s", function.GetFrontendURL(), txURLPath)
 
 		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
 		htmlContent := fmt.Sprintf(`
@@ -271,13 +274,26 @@ func (h *FleaMarketHandler) AcceptPurchaseRequest(w http.ResponseWriter, r *http
     <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
 </body>
 </html>
-`, buyer.Name, seller.Name, txURL)
+`, buyer.Name, seller.Name, txFullURL)
 
-		err = function.SendEmailToUserID(h.db, pr.BuyerID, subject, htmlContent)
-		if err != nil {
+		// 1. メール送信
+		if err := function.SendEmailToUserID(h.db, pr.BuyerID, subject, htmlContent); err != nil {
 			log.Println("Error sending email to buyer:", err)
-			// メール送信失敗は致命的ではないので、ここでは処理を継続する
 		}
+
+		// -----------------------------------------------------
+		// 2. アプリ内通知作成
+		// -----------------------------------------------------
+		// 商品名を取得 (エラー時は汎用的な名前にする)
+		itemName := "出品した商品"
+		if item, err := h.db.GetFleaMarketItemByID(pr.BuyerID, pr.ItemID); err == nil {
+			itemName = item.Name
+		}
+
+		notifTitle := "購入申請が承認されました"
+		notifBody := fmt.Sprintf("「%s」の購入申請が承認されました。代金のお支払いをお願いします。", itemName)
+
+		_ = h.db.CreateNotification(&pr.BuyerID, "TRANSACTION", notifTitle, notifBody, txURLPath)
 	}()
 
 	// E. レスポンス
@@ -377,7 +393,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	provider := "NONE"
 
 	if chargeAmount > 0 {
-		// ★修正: 自作関数を呼び出す (float64をそのまま渡せば中で四捨五入してくれる)
+		// 自作関数を呼び出す (float64をそのまま渡せば中で四捨五入してくれる)
 		receiptURL, err := function.ChargeCard(user.CustomerID, *input.CardID, chargeAmount)
 		if err != nil {
 			log.Printf("Payment Failed: %v", err)
@@ -429,13 +445,15 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 5. メール送信 (非同期)
 	go func() {
-		subject := "【Aftialoop】お支払いが完了しました"
 		txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
 
+		// -----------------------------------------------------
+		// A. 購入者へメール (支払い完了)
+		// -----------------------------------------------------
+		buyerSubject := "【Aftialoop】お支払いが完了しました"
 		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
-		htmlContent := fmt.Sprintf(`
+		buyerHtmlContent := fmt.Sprintf(`
 <!DOCTYPE html>
 <html>
 <head><meta charset="UTF-8"></head>
@@ -460,13 +478,61 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 </html>
 `, user.Name, txURL)
 
-		if err := function.SendEmailToUserID(h.db, buyerID, subject, htmlContent); err != nil {
-			log.Println("Error sending payment confirmation email:", err)
+		if err := function.SendEmailToUserID(h.db, buyerID, buyerSubject, buyerHtmlContent); err != nil {
+			log.Println("Error sending payment confirmation email to buyer:", err)
+		}
+
+		// -----------------------------------------------------
+		// B. 出品者へメール (発送依頼)
+		// -----------------------------------------------------
+		// 出品者情報を取得
+		seller, err := h.db.GetUserDataByID(tx.SellerID)
+		if err == nil {
+			sellerSubject := "【Aftialoop】商品代金が支払われました"
+			sellerHtmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">商品代金が支払われました</h3>
+    <p>%s 様</p>
+    <p>購入者 %s 様が商品「%s」の支払いを完了しました。<br>
+    商品の発送準備をお願いします。</p>
+    
+    <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; color: #856404; margin: 20px 0;">
+        <p style="margin-top: 0; font-weight: bold;">【発送について】</p>
+        <p style="margin-bottom: 0;">商品を梱包・発送し、取引画面から「発送通知」を行ってください。</p>
+    </div>
+
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[4]s" style="color: #10b981;">%[4]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, seller.Name, user.Name, item.Name, txURL)
+
+			if err := function.SendEmailToUserID(h.db, tx.SellerID, sellerSubject, sellerHtmlContent); err != nil {
+				log.Println("Error sending payment notification email to seller:", err)
+			}
+
+			// 出品者へ通知
+			title := "商品が購入されました"
+			body := item.Name + " が購入されました。発送準備をお願いします。"
+			url := fmt.Sprintf("/flea-market/transactions/%d", tx.PurchaseRequestID)
+			h.db.CreateNotification(&tx.SellerID, "TRANSACTION", title, body, url)
+
 		}
 	}()
 
 	// 成功レスポンス
-
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]string{"status": "paid"})
 }
@@ -650,6 +716,24 @@ func (h *FleaMarketHandler) ShipTransaction(w http.ResponseWriter, r *http.Reque
 				log.Println("Error sending shipping email:", err)
 			}
 		}
+	}()
+
+	// -----------------------------------------------------
+	// ★通知作成: 購入者へ「発送されました」
+	// -----------------------------------------------------
+	go func() {
+		// 商品名取得のためにアイテム情報を取得
+		item, err := h.db.GetFleaMarketItemByID(sellerID, txData.ItemID)
+		if err != nil {
+			return
+		}
+
+		title := "商品が発送されました"
+		// ★ここに「受取評価よろしく」のメッセージを含めます
+		body := fmt.Sprintf("「%s」が発送されました。商品が届きましたら、中身を確認して受取評価をお願いします。", item.Name)
+		url := fmt.Sprintf("/flea-market/transactions/%d", txData.PurchaseRequestID)
+
+		_ = h.db.CreateNotification(&txData.BuyerID, "TRANSACTION", title, body, url)
 	}()
 
 	// -----------------------------------------------------
@@ -862,6 +946,22 @@ func (h *FleaMarketHandler) RateTransactionByBuyer(w http.ResponseWriter, r *htt
 	}()
 
 	// -----------------------------------------------------
+	// ★通知作成: 出品者へ「受取評価されました」
+	// -----------------------------------------------------
+	go func() {
+		item, err := h.db.GetFleaMarketItemByID(buyerID, txData.ItemID)
+		if err != nil {
+			return
+		}
+
+		title := "受取評価が届きました"
+		body := fmt.Sprintf("購入者が「%s」を受け取り評価しました。あなたも評価を返して取引を完了させてください。", item.Name)
+		url := fmt.Sprintf("/flea-market/transactions/%s", txData.PurchaseRequestID)
+
+		_ = h.db.CreateNotification(&txData.SellerID, "TRANSACTION", title, body, url)
+	}()
+
+	// -----------------------------------------------------
 	// D. レスポンス
 	// -----------------------------------------------------
 	resp := map[string]any{
@@ -1055,6 +1155,27 @@ func (h *FleaMarketHandler) CompleteTransactionBySeller(w http.ResponseWriter, r
 `, sellerName, buyerName, txURL)
 
 		_ = function.SendEmailToUserID(h.db, sellerID, subjectSeller, bodySeller)
+	}()
+
+	// -----------------------------------------------------
+	// ★通知作成: 双方へ「取引完了」
+	// -----------------------------------------------------
+	go func() {
+		item, err := h.db.GetFleaMarketItemByID(sellerID, txData.ItemID)
+		if err != nil {
+			return
+		}
+
+		txURL := fmt.Sprintf("/flea-market/transactions/%d", txData.PurchaseRequestID)
+		title := "取引が完了しました"
+		body := fmt.Sprintf("「%s」の取引が完了しました。ご利用ありがとうございました。", item.Name)
+
+		// 購入者へ
+		_ = h.db.CreateNotification(&txData.BuyerID, "TRANSACTION", title, body, txURL)
+
+		// 出品者へ (売上反映の旨を追加しても良い)
+		bodySeller := fmt.Sprintf("「%s」の取引が完了し、売上金が反映されました。", item.Name)
+		_ = h.db.CreateNotification(&sellerID, "TRANSACTION", title, bodySeller, txURL)
 	}()
 
 	// 7. レスポンス

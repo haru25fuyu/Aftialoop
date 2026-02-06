@@ -1,6 +1,6 @@
-import { FleaComment } from "../types/Content";
+import { FleaComment } from "../types/FleaMarket";
 
-import { CONFIG } from "../conf/config";
+import { Avatar } from "./Avatar";
 
 interface CommentItemProps {
     comment: FleaComment;
@@ -9,10 +9,6 @@ interface CommentItemProps {
 
 export const CommentItem: React.FC<CommentItemProps> = ({ comment, sellerId }) => {
     const isSeller = comment.userId === sellerId;
-
-    const user_icon = comment.userIcon
-        ? CONFIG.BASE_URL + comment.userIcon
-        : "/icons/default.png";
 
     const send_time = new Date(comment.createdAt).toLocaleString(
         undefined,
@@ -27,9 +23,9 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment, sellerId }) =
         <div className={`flex w-full min-w-0 mb-6 ${isSeller ? "justify-end" : "justify-start"}`}>
             {/* 左側：購入者アイコン */}
             {!isSeller && (
-                <img
-                    src={user_icon}
-                    alt={comment.userName}
+                <Avatar
+                    src={comment.userIcon}
+                    name={comment.userName}
                     className="w-8 h-8 rounded-full mr-2 object-cover shrink-0"
                 />
             )}
@@ -61,9 +57,8 @@ export const CommentItem: React.FC<CommentItemProps> = ({ comment, sellerId }) =
 
             {/* 右側：出品者アイコン */}
             {isSeller && (
-                <img
-                    src={user_icon}
-                    alt={comment.userName}
+                <Avatar
+                    src={comment.userIcon} name={comment.userName}
                     className="w-8 h-8 rounded-full ml-2 object-cover shrink-0"
                 />
             )}

@@ -147,6 +147,11 @@ func (h *FleaMarketHandler) AddFleaMarketItemMessage(w http.ResponseWriter, r *h
 
 			go function.SendEmailToUserID(h.db, item.UserID, subject, hbody)
 		}
+		// 商品の持ち主へ通知
+		title := "新着コメント"
+		body := item.Name + " にコメントがつきました。"
+		url := fmt.Sprintf("/flea-market/item/%d", item.ID)
+		h.db.CreateNotification(&item.UserID, "COMMENT", title, body, url)
 	}
 
 	json.NewEncoder(w).Encode(map[string]any{

@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -117,14 +118,68 @@ func (h *FleaMarketHandler) CreateFleaPurchaseRequest(w http.ResponseWriter, r *
 		http.Error(w, "seller not found", http.StatusNotFound)
 		return
 	}
-	sellerID := *sellerIDPtr
 
-	//　成功したら出品者に通知を送る（非同期）（初期はメール）
-	htmlContent := "<p>新しい購入リクエストが届きました。</p>" +
-		"<p>購入リクエストID: " + "</p>" +
-		"<p>マイページの購入リクエスト一覧からご確認ください。</p>"
+	// -----------------------------------------------------
+	// ★通知作成: 出品者へ「購入申請が届きました」
+	// -----------------------------------------------------
+	// 成功したら出品者に通知を送る（非同期）
+	go func() {
+		// 商品情報を取得 (商品名が必要なため)
+		// ※型変換エラー回避のため uint64(itemID) にキャストしています
+		item, err := h.db.GetFleaMarketItemByID(buyerID, uint64(itemID))
+		if err != nil {
+			log.Println("Failed to get item for email:", err)
+			return
+		}
 
-	err = function.SendEmailToUserID(h.db, sellerID, "新しい購入リクエストが届きました", htmlContent)
+		// 出品者・購入者の情報を取得
+		seller, _ := h.db.GetUserDataByID(item.UserID)
+		buyer, _ := h.db.GetUserDataByID(buyerID)
+
+		subject := "【Aftialoop】購入リクエストが届きました"
+
+		// リクエスト一覧ページへのURL (マイページの該当箇所)
+		reqURL := fmt.Sprintf("%s/mypage/flea-market/requests", function.GetFrontendURL())
+
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+		htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">購入リクエストが届きました</h3>
+    <p>%s 様</p>
+    <p>あなたが出品した商品「<strong>%s</strong>」に、%s 様から購入リクエストが届きました。<br>
+    以下のボタンから内容を確認し、承認または辞退を選択してください。</p>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">リクエストを確認する</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[4]s" style="color: #10b981;">%[4]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, seller.Name, item.Name, buyer.Name, reqURL)
+
+		// 出品者へ送信
+		if err := function.SendEmailToUserID(h.db, item.UserID, subject, htmlContent); err != nil {
+			log.Println("Failed to send purchase request email:", err)
+		}
+
+		// 通知を作成
+		title := "購入申請が届きました"
+		body := fmt.Sprintf("あなたの出品した商品「%s」に購入申請が届きました。確認して承認または辞退を行ってください。", item.Name)
+		url := "/mypage/requests" // 申請管理ページ
+
+		// item.UserID (出品者) に通知
+		_ = h.db.CreateNotification(&item.UserID, "TRANSACTION", title, body, url)
+	}()
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(CreateFleaPurchaseRequestResp{ID: id})

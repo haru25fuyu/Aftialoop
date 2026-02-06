@@ -58,6 +58,8 @@ import PasswordReset from './page/PasswordReset';
 import PasswordResetRequest from './page/PasswordResetRequest';
 import PasswordResetExecute from './page/PasswordResetExecute';
 import BlockedList from './page/mypage/BlockedList';
+import ContactComplete from './page/ContactComplete';
+import NotificationsPage from './page/Notifications';
 
 
 
@@ -79,6 +81,7 @@ const App: React.FC = () => {
           <Route path="/register/confirm" element={<RegisterConfirm />} />
           <Route path="/contact" element={<Contact />} />
           <Route path="/contact/form" element={<ContactForm />} />
+          <Route path="/contact/complete" element={<ContactComplete />} />
           <Route path="*" element={<NotFound />} />
           <Route path="/user/profile/:id" element={<RequireAuth><UserProfile /></RequireAuth>} />
           <Route path="/user/:username" element={<RequireAuth><UserProfile /></RequireAuth>} />
@@ -120,6 +123,7 @@ const App: React.FC = () => {
           <Route path="/mypage/transactions/history" element={<RequireAuth><HistoryPage /></RequireAuth>} />
           <Route path="/mypage/bank-account" element={<RequireAuth><ToastProvider><BankAccount /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/password" element={<RequireAuth><PasswordReset /></RequireAuth>} />
+          <Route path="/mypage/notifications" element={<RequireAuth><NotificationsPage /></RequireAuth>} />
           <Route path="/mypage/settings" element={<RequireAuth><Settings /></RequireAuth>} />
           <Route path="/mypage/settings/identity" element={<RequireAuth><ToastProvider><IdentityVerificationPage /></ToastProvider></RequireAuth>} />
           <Route path="/mypage/settings/phone" element={<RequireAuth><ToastProvider><SMSVerification /></ToastProvider></RequireAuth>} />

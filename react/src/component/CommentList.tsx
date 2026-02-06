@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from "react";
 
 
 import CommentItem from "./CommentItem";
-import { FleaComment } from "../types/Content";
+import { FleaComment } from "../types/FleaMarket";
 
 interface CommentListProps {
     comments: FleaComment[];

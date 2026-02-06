@@ -20,8 +20,7 @@ const ContactForm: React.FC = () => {
         setSendError(null);
         try {
             await api.post("/contact/send", data);
-            alert("お問い合わせを送信しました。");
-            navigate("/"); // 送信後はトップや完了画面へ
+            navigate("/contact/complete");
         } catch (error) {
             console.error(error);
             setSendError("送信に失敗しました。時間をおいて再度お試しください。");
@@ -36,7 +35,7 @@ const ContactForm: React.FC = () => {
 
                 <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-                        
+
                         {/* お名前 */}
                         <div>
                             <label className="block text-sm font-bold text-gray-700 mb-1">
@@ -60,7 +59,7 @@ const ContactForm: React.FC = () => {
                                 type="email"
                                 className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? "border-red-500" : "border-gray-300"}`}
                                 placeholder="例：taro@example.com"
-                                {...register("email", { 
+                                {...register("email", {
                                     required: "メールアドレスは必須です",
                                     pattern: {
                                         value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
@@ -99,7 +98,7 @@ const ContactForm: React.FC = () => {
                                 rows={6}
                                 className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.body ? "border-red-500" : "border-gray-300"}`}
                                 placeholder="具体的な内容をご記入ください"
-                                {...register("body", { 
+                                {...register("body", {
                                     required: "内容は必須です",
                                     minLength: { value: 10, message: "10文字以上で入力してください" }
                                 })}
