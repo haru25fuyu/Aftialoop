@@ -29,6 +29,7 @@ import Checkout from './page/Checkout';
 import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
 import CheckoutComplete from "./page/CheckoutComplete";
+import ContactForm from "./page/ContactForm";
 
 import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
 import FleaMarketList from './page/flea_market/FleaMarketList';
@@ -77,6 +78,7 @@ const App: React.FC = () => {
           <Route path="/signup/complete" element={<SignUpComplete />} />
           <Route path="/register/confirm" element={<RegisterConfirm />} />
           <Route path="/contact" element={<Contact />} />
+          <Route path="/contact/form" element={<ContactForm />} />
           <Route path="*" element={<NotFound />} />
           <Route path="/user/profile/:id" element={<RequireAuth><UserProfile /></RequireAuth>} />
           <Route path="/user/:username" element={<RequireAuth><UserProfile /></RequireAuth>} />

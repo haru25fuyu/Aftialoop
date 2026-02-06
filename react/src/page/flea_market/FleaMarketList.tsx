@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Header from "../../component/Header.tsx";
 import api, { getAccessToken } from "../../conf/api.ts";
 import { CONFIG } from "../../conf/config.ts";
@@ -30,13 +30,10 @@ function safeRate(v: number | null | undefined): number {
 }
 
 // レートの分子・分母を正しく整えて返すヘルパー
-// APIが "1.02" を返す場合と "10200" (den=10000) を返す場合の両方に対応
 function normalizeRate(rawRate: number, den: number) {
-    // レートが2.0より大きい（例: 10200）なら、それは分子そのものとみなす
     if (rawRate > 2.0) {
         return { num: Math.round(rawRate), den: den };
     }
-    // レートが小数の場合（例: 1.02）は、分母に合わせて分子を作る
     return { num: Math.round(rawRate * den), den: den };
 }
 
@@ -47,81 +44,107 @@ function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, 
 
     if (scaledRate <= den) return { discountYen: 0 };
 
-    // 1. 必要ポイントの計算（★変更点：Ceil→Floor）
-    //    端数を切り捨てることで、「1960.7pt必要」なら「1960pt」でOKにする（お客様有利）
-    //    式: floor(価格 * 分母 / 分子)
     const needPt = Math.floor((price * den) / scaledRate);
-
-    // 2. 実際に消費できるポイント
     const usePt = Math.min(point, needPt);
 
-    // 3. 充当される金額（円）
     let coveredYen;
-
     if (usePt >= needPt) {
-        // ★ポイントが必要数足りているなら、計算上の端数がどうあれ「全額カバー」とみなす
-        // 例: 1960pt * 1.02 = 1999.2円 だとしても、2000円の商品は買えることにする
         coveredYen = price;
     } else {
-        // 部分払いの場合：支払ったポイント分の価値だけ計算
         coveredYen = Math.floor((usePt * scaledRate) / den);
-        // 万が一、レート計算で価格を超えてしまった場合のキャップ
         coveredYen = Math.min(coveredYen, price);
     }
-
-    // 4. 「充当された金額」 - 「減ったポイント」 = 「浮いた金額」
-    //    例: 2000円 - 1960pt = 40円お得！
     const discountYen = Math.max(0, coveredYen - usePt);
-
     return { discountYen };
 }
 
 const FleaMarketList: React.FC = () => {
+    // --- 無限スクロール用 State ---
     const [contents, setContents] = useState<FleaListContent[]>([]);
+    const [offset, setOffset] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const [loading, setLoading] = useState(true);      // 初回ロード
+    const [loadingMore, setLoadingMore] = useState(false); // 追加ロード
+    const limit = 20;
+
     const [user, setUser] = useState<Customer | null>(null);
-    const [loading, setLoading] = useState(true);
     const pointBarRef = useRef<HTMLDivElement | null>(null);
     const [isPinned, setIsPinned] = useState(false);
-
-    // APIから受け取るレート分母
     const [rateDen, setRateDen] = useState<number>(10000);
 
+    // --- IntersectionObserver (スクロール検知) ---
+    const observer = useRef<IntersectionObserver | null>(null);
+    const lastElementRef = useCallback((node: HTMLAnchorElement | null) => {
+        if (loading || loadingMore) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setOffset(prev => prev + limit);
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [loading, loadingMore, hasMore]);
+
+    // 1. ユーザー情報取得 (初回のみ)
+    useEffect(() => {
+        const fetchUser = async () => {
+            try {
+                const token = getAccessToken();
+                if (token && token !== "undefined") {
+                    const res = await api.post("/customer", {});
+                    if (res.data?.user) {
+                        setUser(res.data.user);
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+            }
+        };
+        fetchUser();
+    }, []);
+
+    // 2. 商品リスト取得 (offset変更時に発火)
     useEffect(() => {
         const fetchData = async () => {
-            try {
-                setLoading(true);
-                const [listRes, userRes] = await Promise.all([
-                    api.post(`/flea-market/list`),
-                    (async () => {
-                        const token = getAccessToken();
-                        if (token && token !== "undefined") {
-                            return api.post("/customer", {});
-                        }
-                        return { data: { user: null } };
-                    })()
-                ]);
+            if (offset === 0) setLoading(true);
+            else setLoadingMore(true);
 
-                if (listRes.data && listRes.data.items) {
-                    setContents(listRes.data.items);
-                    if (listRes.data.rate_den) {
-                        setRateDen(Number(listRes.data.rate_den));
+            try {
+                // クエリパラメータで limit, offset を渡す
+                const res = await api.post(`/flea-market/list?limit=${limit}&offset=${offset}`);
+
+                let newItems: FleaListContent[] = [];
+                if (res.data && res.data.items) {
+                    newItems = res.data.items;
+                    if (res.data.rate_den) {
+                        setRateDen(Number(res.data.rate_den));
                     }
-                } else if (Array.isArray(listRes.data)) {
-                    setContents(listRes.data);
+                } else if (Array.isArray(res.data)) {
+                    newItems = res.data;
                 }
 
-                if (userRes.data?.user) {
-                    setUser(userRes.data.user);
+                setContents(prev => {
+                    // 重複排除して追加
+                    const existingIds = new Set(prev.map(item => item.id));
+                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                    return [...prev, ...uniqueNewItems];
+                });
+
+                // 取得数がlimit未満なら終了
+                if (newItems.length < limit) {
+                    setHasMore(false);
                 }
             } catch (err) {
                 console.error(err);
             } finally {
                 setLoading(false);
+                setLoadingMore(false);
             }
         };
         fetchData();
-    }, []);
+    }, [offset]);
 
+    // 3. スクロール追従バーの制御
     useEffect(() => {
         const el = pointBarRef.current;
         if (!el) return;
@@ -136,7 +159,7 @@ const FleaMarketList: React.FC = () => {
         return () => window.removeEventListener("scroll", handleScroll);
     }, [loading]);
 
-    // 一覧内の最大レート計算（ここも修正）
+    // レート計算
     const bestRateContent = useMemo(() => {
         return contents.reduce((max, item) => {
             const r = safeRate(item.seller_rate);
@@ -144,17 +167,11 @@ const FleaMarketList: React.FC = () => {
         }, DEFAULT_RATE);
     }, [contents]);
 
-    // 最大割引（Topバー表示用）
     const maxDiscountAnywhere = useMemo(() => {
         if (!user) return 0;
         const pt = Math.floor(user.point);
-
-        // normalizeRateを使って計算
         const { num, den } = normalizeRate(bestRateContent, rateDen);
-
-        // pt * 分子 / 分母
         const worthYen = Math.floor((pt * num) / den);
-
         return Math.max(0, worthYen - pt);
     }, [user, bestRateContent, rateDen]);
 
@@ -224,9 +241,93 @@ const FleaMarketList: React.FC = () => {
                         )}
 
                         {/* 商品グリッド */}
-                        {loading ? (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-                                {[...Array(8)].map((_, i) => (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-5">
+                            {contents.map((item, index) => {
+                                const price = Math.floor(item.price);
+                                const rawRate = safeRate(item.seller_rate);
+                                const isSoldOut = item.quantity <= 0;
+
+                                const { num, den } = normalizeRate(rawRate, rateDen);
+                                const isRateUp = num > den;
+
+                                const { discountYen } = user
+                                    ? calcRateDiscount(price, user.point, rawRate, rateDen)
+                                    : { discountYen: 0 };
+
+                                // ★修正: refは aタグ に直接付け、余計なdivは削除しました
+                                return (
+                                    <a
+                                        key={`${item.id}-${index}`}
+                                        ref={index === contents.length - 1 ? lastElementRef : null}
+                                        href={`/flea-market/item/${item.id}`}
+                                        className="group relative flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden"
+                                    >
+                                        <div className="relative aspect-square overflow-hidden bg-gray-100">
+                                            <img
+                                                src={item.main_image_url ? CONFIG.BASE_URL + item.main_image_url : "/data/noimage.png"}
+                                                alt={item.name}
+                                                className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isSoldOut ? "opacity-60 grayscale" : ""}`}
+                                            />
+                                            <div className="absolute top-2 left-2 z-10">
+                                                <img
+                                                    src={item.seller_icon_url ? CONFIG.BASE_URL + item.seller_icon_url : "/icons/default.png"}
+                                                    alt="seller"
+                                                    className="w-8 h-8 rounded-full border-2 border-white shadow-md object-cover"
+                                                />
+                                            </div>
+                                            {isSoldOut && (
+                                                <div className="absolute top-0 left-0 z-20">
+                                                    <div className="w-0 h-0 border-t-[80px] border-t-red-600 border-r-[80px] border-r-transparent"></div>
+                                                    <span className="absolute top-4 left-1 -rotate-45 text-white font-bold text-sm tracking-widest">SOLD</span>
+                                                </div>
+                                            )}
+                                            {/* 右下に配置 */}
+                                            <div className="absolute bottom-2 right-2">
+                                                <LikeButton
+                                                    itemId={item.id}
+                                                    initialLiked={item.is_liked}
+                                                    className="bg-white p-1.5 rounded-full shadow-sm bg-opacity-90"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div className="p-3 flex flex-col flex-1">
+                                            <h3 className="font-medium text-sm text-gray-800 leading-snug line-clamp-2 mb-1 min-h-[2.5em]">
+                                                {item.name}
+                                            </h3>
+
+                                            <div className="mt-auto">
+                                                <div className="flex items-baseline gap-1">
+                                                    <span className="text-lg font-bold text-gray-900">¥{price.toLocaleString()}</span>
+                                                    {item.shipping_fee_type === 0 && (
+                                                        <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">込</span>
+                                                    )}
+                                                </div>
+
+                                                {isRateUp && !isSoldOut && (
+                                                    <div className="mt-2 text-[11px]">
+                                                        {discountYen > 0 ? (
+                                                            <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 inline-block">
+                                                                ポイントで -{discountYen.toLocaleString()}円
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-emerald-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
+                                                                ポイントでおトク
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </a>
+                                );
+                            })}
+                        </div>
+
+                        {/* ローディング表示 */}
+                        {(loading || loadingMore) && (
+                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
+                                {[...Array(4)].map((_, i) => (
                                     <div key={i} className="bg-white rounded-2xl p-2 shadow-sm animate-pulse">
                                         <div className="w-full aspect-square bg-gray-200 rounded-xl mb-2"></div>
                                         <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
@@ -234,91 +335,9 @@ const FleaMarketList: React.FC = () => {
                                     </div>
                                 ))}
                             </div>
-                        ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-5">
-                                {contents.map((item) => {
-                                    const price = Math.floor(item.price);
-                                    const rawRate = safeRate(item.seller_rate);
-                                    const isSoldOut = item.quantity <= 0;
-
-                                    // 表示判定用に正規化レートを確認
-                                    const { num, den } = normalizeRate(rawRate, rateDen);
-                                    const isRateUp = num > den;
-
-                                    const { discountYen } = user
-                                        ? calcRateDiscount(price, user.point, rawRate, rateDen)
-                                        : { discountYen: 0 };
-
-                                    return (
-                                        <a
-                                            key={item.id}
-                                            href={`/flea-market/item/${item.id}`}
-                                            className="group relative flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 hover:shadow-lg hover:-translate-y-1 transition-all duration-300 overflow-hidden"
-                                        >
-                                            <div className="relative aspect-square overflow-hidden bg-gray-100">
-                                                <img
-                                                    src={item.main_image_url ? CONFIG.BASE_URL + item.main_image_url : "/data/noimage.png"}
-                                                    alt={item.name}
-                                                    className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-110 ${isSoldOut ? "opacity-60 grayscale" : ""}`}
-                                                />
-                                                <div className="absolute top-2 left-2 z-10">
-                                                    <img
-                                                        src={item.seller_icon_url ? CONFIG.BASE_URL + item.seller_icon_url : "/icons/default.png"}
-                                                        alt="seller"
-                                                        className="w-8 h-8 rounded-full border-2 border-white shadow-md object-cover"
-                                                    />
-                                                </div>
-                                                {isSoldOut && (
-                                                    <div className="absolute top-0 left-0 z-20">
-                                                        <div className="w-0 h-0 border-t-[80px] border-t-red-600 border-r-[80px] border-r-transparent"></div>
-                                                        <span className="absolute top-4 left-1 -rotate-45 text-white font-bold text-sm tracking-widest">SOLD</span>
-                                                    </div>
-                                                )}
-                                                {/* 右下に配置 */}
-                                                <div className="absolute bottom-2 right-2">
-                                                    <LikeButton
-                                                        itemId={item.id}
-                                                        initialLiked={item.is_liked}
-                                                        className="bg-white p-1.5 rounded-full shadow-sm bg-opacity-90"
-                                                    />
-                                                </div>
-                                            </div>
-
-                                            <div className="p-3 flex flex-col flex-1">
-                                                <h3 className="font-medium text-sm text-gray-800 leading-snug line-clamp-2 mb-1 min-h-[2.5em]">
-                                                    {item.name}
-                                                </h3>
-
-                                                <div className="mt-auto">
-                                                    <div className="flex items-baseline gap-1">
-                                                        <span className="text-lg font-bold text-gray-900">¥{price.toLocaleString()}</span>
-                                                        {item.shipping_fee_type === 0 && (
-                                                            <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">込</span>
-                                                        )}
-                                                    </div>
-
-                                                    {/* レート割引表記（バッジなし・差額のみ） */}
-                                                    {isRateUp && !isSoldOut && (
-                                                        <div className="mt-2 text-[11px]">
-                                                            {discountYen > 0 ? (
-                                                                <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 inline-block">
-                                                                    ポイントで -{discountYen.toLocaleString()}円
-                                                                </span>
-                                                            ) : (
-                                                                <span className="text-emerald-600 bg-gray-50 px-2 py-0.5 rounded border border-gray-200">
-                                                                    ポイントでおトク
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </a>
-                                    );
-                                })}
-                            </div>
                         )}
-                        {!loading && contents.length === 0 && (
+
+                        {!loading && !loadingMore && contents.length === 0 && (
                             <div className="py-20 text-center text-gray-500">
                                 <p>出品されている商品はありません</p>
                             </div>

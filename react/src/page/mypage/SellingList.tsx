@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Tag } from "lucide-react";
-import { Header } from "../../component/Header"; // パスは環境に合わせて調整してください
+import { Header } from "../../component/Header";
 import api from "../../conf/api";
 import { ListingItem } from "../../types/FleaMarket";
 import { CONFIG } from "../../conf/config";
@@ -10,13 +10,50 @@ export default function SellingListPage() {
     const navigate = useNavigate();
     const [items, setItems] = useState<ListingItem[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
+    const [offset, setOffset] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
+    const limit = 20;
+
+    const observer = useRef<IntersectionObserver | null>(null);
+    const lastElementRef = useCallback((node: HTMLAnchorElement | null) => {
+        if (loading || loadingMore) return;
+        if (observer.current) observer.current.disconnect();
+        observer.current = new IntersectionObserver(entries => {
+            if (entries[0].isIntersecting && hasMore) {
+                setOffset(prev => prev + limit);
+            }
+        });
+        if (node) observer.current.observe(node);
+    }, [loading, loadingMore, hasMore]);
 
     useEffect(() => {
-        api.get("/flea-market/selling/list?limit=20&offset=0")
-            .then((res) => setItems(res.data.items || []))
-            .catch((err) => console.error(err))
-            .finally(() => setLoading(false));
-    }, []);
+        const fetchItems = async () => {
+            if (offset === 0) setLoading(true);
+            else setLoadingMore(true);
+
+            try {
+                const res = await api.get(`/flea-market/selling/list?limit=${limit}&offset=${offset}`);
+                const newItems = res.data.items || [];
+
+                setItems(prev => {
+                    const existingIds = new Set(prev.map(i => i.id));
+                    const uniqueNew = newItems.filter((i: ListingItem) => !existingIds.has(i.id));
+                    return [...prev, ...uniqueNew];
+                });
+
+                if (newItems.length < limit) {
+                    setHasMore(false);
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setLoading(false);
+                setLoadingMore(false);
+            }
+        };
+        fetchItems();
+    }, [offset]);
 
     // ステータスバッジの表示ロジック
     const getStatusBadge = (status: number) => {
@@ -42,51 +79,58 @@ export default function SellingListPage() {
                     <h1 className="text-2xl font-bold text-gray-800">出品した商品</h1>
                 </div>
 
-                {loading ? (
-                    <div className="p-10 text-center text-gray-400">読み込み中...</div>
-                ) : items.length === 0 ? (
-                    <div className="p-10 text-center bg-white rounded-xl border border-gray-200 text-gray-500 shadow-sm">
-                        出品履歴はありません
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {items.map((item) => (
-                            <Link
-                                to={`/flea-market/item/${item.id}`}
-                                key={item.id}
-                                className="block bg-white p-4 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition group"
-                            >
-                                <div className="flex gap-4">
-                                    {/* 画像 */}
-                                    <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden relative">
-                                        <img src={CONFIG.BASE_URL + item.main_image_url} alt="" className="w-full h-full object-cover" />
-                                        {item.status >= 2 && (
-                                            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                                                <span className="text-white font-bold text-xs">SOLD</span>
-                                            </div>
-                                        )}
-                                    </div>
+                <div className="space-y-4">
+                    {items.map((item, index) => (
+                        <Link
+                            ref={index === items.length - 1 ? lastElementRef : null}
+                            to={`/flea-market/item/${item.id}`}
+                            key={`${item.id}-${index}`}
+                            className="block bg-white p-4 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition group"
+                        >
+                            <div className="flex gap-4">
+                                {/* 画像 */}
+                                <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 overflow-hidden relative">
+                                    <img src={CONFIG.BASE_URL + item.main_image_url} alt="" className="w-full h-full object-cover" />
+                                    {item.status >= 2 && (
+                                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+                                            <span className="text-white font-bold text-xs">SOLD</span>
+                                        </div>
+                                    )}
+                                </div>
 
-                                    {/* 詳細 */}
-                                    <div className="flex-1">
-                                        <div className="flex justify-between items-start">
-                                            <h3 className="font-bold text-gray-800 line-clamp-2">{item.name}</h3>
-                                            {getStatusBadge(item.status)}
-                                        </div>
-                                        <div className="mt-2 text-lg font-bold text-gray-900">
-                                            ¥{item.price.toLocaleString()}
-                                        </div>
-                                        <div className="text-xs text-gray-400 mt-1">
-                                            出品日: {new Date(item.created_at).toLocaleDateString()}
-                                        </div>
+                                {/* 詳細 */}
+                                <div className="flex-1">
+                                    <div className="flex justify-between items-start">
+                                        <h3 className="font-bold text-gray-800 line-clamp-2">{item.name}</h3>
+                                        {getStatusBadge(item.status)}
                                     </div>
-
-                                    <div className="flex items-center text-gray-300 group-hover:text-blue-500 transition">
-                                        <ChevronRight />
+                                    <div className="mt-2 text-lg font-bold text-gray-900">
+                                        ¥{item.price.toLocaleString()}
+                                    </div>
+                                    <div className="text-xs text-gray-400 mt-1">
+                                        出品日: {new Date(item.created_at).toLocaleDateString()}
                                     </div>
                                 </div>
-                            </Link>
-                        ))}
+
+                                <div className="flex items-center text-gray-300 group-hover:text-blue-500 transition">
+                                    <ChevronRight />
+                                </div>
+                            </div>
+                        </Link>
+                    ))}
+                </div>
+
+                {loading && (
+                    <div className="p-10 text-center text-gray-400">読み込み中...</div>
+                )}
+
+                {loadingMore && (
+                    <div className="py-4 text-center text-gray-400 text-sm">さらに読み込んでいます...</div>
+                )}
+
+                {!loading && !loadingMore && items.length === 0 && (
+                    <div className="p-10 text-center bg-white rounded-xl border border-gray-200 text-gray-500 shadow-sm">
+                        出品履歴はありません
                     </div>
                 )}
             </div>

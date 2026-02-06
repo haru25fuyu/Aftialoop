@@ -42,6 +42,9 @@ func (h *userDataHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/identity/image", h.GetIdentityImage).Methods("GET")
 
 	r.HandleFunc("/check/username", h.CheckUsername).Methods("POST")
+
+	r.HandleFunc("/users/{id}/listings", h.ListUserListings).Methods("GET")
+	r.HandleFunc("/users/{id}/reviews", h.ListUserReviews).Methods("GET")
 }
 
 // マイページの取得 (ダッシュボード用: 基本情報 + カウンターのみ)
@@ -428,7 +431,7 @@ func (h *userDataHandler) fetchAndRespondProfile(w http.ResponseWriter, r *http.
 	// 3. レビューリスト
 	eg.Go(func() error {
 		var err error
-		reviews, err = h.db.GetUserReviews(targetUserID, 20)
+		reviews, err = h.db.GetUserReviews(ctx, targetUserID, 20, 0)
 		if reviews == nil {
 			reviews = []utils.UserReviewResponse{}
 		}
@@ -525,4 +528,48 @@ func (h *userDataHandler) CheckUsername(w http.ResponseWriter, r *http.Request) 
 	w.WriteHeader(http.StatusOK)
 	// available: true (使われていない) / false (使われている)
 	json.NewEncoder(w).Encode(map[string]bool{"available": !taken})
+}
+
+// ListUserListings: 指定ユーザーの出品商品を取得 (公開されているもののみ)
+func (h *userDataHandler) ListUserListings(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	targetUserID := vars["id"]
+
+	// ページネーション
+	limit := utils.ParseInt(r.URL.Query().Get("limit"), 20)
+	offset := utils.ParseInt(r.URL.Query().Get("offset"), 0)
+
+	// includeDrafts = false (他人のリストなので下書きは含めない)
+	items, err := h.db.GetUserListings(r.Context(), targetUserID, false, limit, offset)
+	if err != nil {
+		http.Error(w, "failed to fetch listings", http.StatusInternalServerError)
+		return
+	}
+	if items == nil {
+		items = []utils.FleaMarketItemResponse{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"items": items})
+}
+
+// ListUserReviews: 指定ユーザーの評価一覧を取得
+func (h *userDataHandler) ListUserReviews(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	targetUserID := vars["id"]
+
+	limit := utils.ParseInt(r.URL.Query().Get("limit"), 20)
+	offset := utils.ParseInt(r.URL.Query().Get("offset"), 0)
+
+	reviews, err := h.db.GetUserReviews(r.Context(), targetUserID, limit, offset)
+	if err != nil {
+		http.Error(w, "failed to fetch reviews", http.StatusInternalServerError)
+		return
+	}
+	if reviews == nil {
+		reviews = []utils.UserReviewResponse{} // 空配列を返す
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{"reviews": reviews})
 }

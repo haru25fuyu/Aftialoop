@@ -2,7 +2,8 @@ package sql
 
 import (
 	"animaloop/utils"
-	"fmt"
+	"context"
+	"database/sql"
 	"log"
 )
 
@@ -32,33 +33,65 @@ func (d *Database) SaveFleaTransactionReview(
 	return nil
 }
 
-// 指定ユーザー(出品者)へのレビューを取得
-func (d *Database) GetUserReviews(sellerID string, limit int) ([]utils.UserReviewResponse, error) {
-	// flea_reviews テーブルを使用
-	// usersテーブルを結合してレビュアーの名前とアイコンを取得
-	// flea_itemsテーブルを結合して商品名を取得
-	query := `
-        SELECT 
-            r.id, 
-            r.rating, 
-            r.comment, 
-            r.created_at,
-            u.name AS reviewer_name,
-            u.icon_url AS reviewer_icon_url,
-            COALESCE(i.name, '削除された商品') AS item_name
-        FROM flea_reviews r
-        JOIN users u ON r.reviewer_id = u.id
-        LEFT JOIN flea_items i ON r.item_id = i.id
-        WHERE r.reviewee_id = ? 
-        ORDER BY r.created_at DESC
-    `
-	if limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", limit)
+// GetUserReviews: 指定したユーザー(reviewee)への評価を取得
+func (db *Database) GetUserReviews(ctx context.Context, revieweeID string, limit, offset int) ([]utils.UserReviewResponse, error) {
+	// 評価者(reviewer)の情報と、対象商品(item)の情報も一緒に取得
+	const q = `
+		SELECT
+			r.id,
+			r.rating,
+			r.comment,
+			r.created_at,
+			u.name AS reviewer_name,
+			u.icon_url AS reviewer_icon_url,
+			i.name AS item_name
+		FROM flea_reviews AS r
+		JOIN users AS u ON u.id = r.reviewer_id
+		LEFT JOIN flea_items AS i ON i.id = r.item_id
+		WHERE r.reviewee_id = ?
+		ORDER BY r.created_at DESC
+		LIMIT ? OFFSET ?
+	`
+
+	rows, err := db.DB.QueryContext(ctx, q, revieweeID, limit, offset)
+	if err != nil {
+		return nil, err
 	}
+	defer rows.Close()
 
 	var reviews []utils.UserReviewResponse
-	err := d.DB.Select(&reviews, query, sellerID)
-	return reviews, err
+	for rows.Next() {
+		var r utils.UserReviewResponse
+		var comment sql.NullString
+		var reviewerIcon sql.NullString
+		var itemName sql.NullString
+
+		if err := rows.Scan(
+			&r.ID,
+			&r.Rating,
+			&comment,
+			&r.CreatedAt,
+			&r.ReviewerName,
+			&reviewerIcon,
+			&itemName,
+		); err != nil {
+			return nil, err
+		}
+
+		if comment.Valid {
+			r.Comment = comment.String
+		}
+		if reviewerIcon.Valid {
+			r.ReviewerIconURL = &reviewerIcon.String
+		}
+		if itemName.Valid {
+			r.ItemName = &itemName.String
+		}
+
+		reviews = append(reviews, r)
+	}
+
+	return reviews, nil
 }
 
 // レビューの平均点と件数を取得

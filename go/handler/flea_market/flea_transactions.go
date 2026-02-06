@@ -243,20 +243,42 @@ func (h *FleaMarketHandler) AcceptPurchaseRequest(w http.ResponseWriter, r *http
 	}
 
 	// E. 購入者へメール通知
-	subject := "【Aftialoop】購入申請が承認されました"
-	htmlContent := `
-	<p>` + buyer.Name + ` 様</p>
-	<p>出品者 ` + seller.Name + ` 様が、あなたの購入申請を承認しました。</p>
-	<p>マイページの「フリーマーケット」から取引の詳細をご確認ください。</p>
-	<a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + strconv.FormatUint(txID, 10) + `">取引詳細ページへ</a>
-	<p>Aftialoopをご利用いただき、ありがとうございます。</p>
-	`
-	err = function.SendEmailToUserID(h.db, pr.BuyerID, subject, htmlContent)
+	go func() {
+		subject := "【Aftialoop】購入申請が承認されました"
+		txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
 
-	if err != nil {
-		log.Println("Error sending email to buyer:", err)
-		// メール送信失敗は致命的ではないので、ここでは処理を継続する
-	}
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+		htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">購入申請が承認されました</h3>
+    <p>%s 様</p>
+    <p>出品者 %s 様が、あなたの購入申請を承認しました。<br>
+    これにより取引が開始されました。</p>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[3]s" style="color: #10b981;">%[3]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, buyer.Name, seller.Name, txURL)
+
+		err = function.SendEmailToUserID(h.db, pr.BuyerID, subject, htmlContent)
+		if err != nil {
+			log.Println("Error sending email to buyer:", err)
+			// メール送信失敗は致命的ではないので、ここでは処理を継続する
+		}
+	}()
 
 	// E. レスポンス
 	resp := map[string]any{
@@ -407,21 +429,41 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// メール送信
-	subject := "【Aftialoop】お支払いが完了しました"
-	htmlContent := `
-	<p>` + user.Name + ` 様</p>
-	<p>フリーマーケットの取引に関するお支払いが完了しました。</p>
-	<p>マイページの「フリーマーケット」から取引の詳細をご確認ください。</p>
-	<a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + strconv.FormatUint(txID, 10) + `">取引詳細ページへ</a>
-	<p>Aftialoopをご利用いただき、ありがとうございます。</p>
-	`
-	err = function.SendEmailToUserID(h.db, buyerID, subject, htmlContent)
+	// 5. メール送信 (非同期)
+	go func() {
+		subject := "【Aftialoop】お支払いが完了しました"
+		txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
 
-	if err != nil {
-		log.Println("Error sending payment confirmation email:", err)
-		// メール送信失敗は致命的ではないので、ここでは処理を継続する
-	}
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+		htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">お支払いが完了しました</h3>
+    <p>%s 様</p>
+    <p>フリーマーケットの取引に関するお支払いが完了しました。<br>
+    以下のボタンから取引詳細をご確認ください。</p>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[2]s" style="color: #10b981;">%[2]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, user.Name, txURL)
+
+		if err := function.SendEmailToUserID(h.db, buyerID, subject, htmlContent); err != nil {
+			log.Println("Error sending payment confirmation email:", err)
+		}
+	}()
 
 	// 成功レスポンス
 
@@ -536,51 +578,79 @@ func (h *FleaMarketHandler) ShipTransaction(w http.ResponseWriter, r *http.Reque
 	// -----------------------------------------------------
 	// C. メール送信 (購入者へ通知)
 	// -----------------------------------------------------
-	// 購入者情報の取得
-	buyer, err := h.db.GetUserDataByID(txData.BuyerID)
-	if err != nil {
-		log.Println("Error getting buyer data for email:", err)
-		// DB更新は成功しているので、ここでreturnせずログだけ吐いて進む
-	} else {
-		// 出品者情報の取得 (メール本文用)
-		seller, _ := h.db.GetUserDataByID(sellerID)
-
-		subject := "【Aftialoop】商品が発送されました"
-
-		// 追跡番号がある場合の表示制御
-		trackingInfo := ""
-		if input.TrackingNumber != "" {
-			trackingInfo = `<p>追跡番号: <b>` + input.TrackingNumber + `</b></p>`
-		}
-
-		// メール送信時の日本語変換例
-		carrierName := input.ShippingCarrier
-		switch input.ShippingCarrier {
-		case "YAMATO":
-			carrierName = "ヤマト運輸"
-		case "SAGAWA":
-			carrierName = "佐川急便"
-		case "JAPAN_POST":
-			carrierName = "ゆうパック"
-		}
-
-		htmlContent := `
-		<p>` + buyer.Name + ` 様</p>
-		<p>出品者 ` + seller.Name + ` 様が商品を発送しました。</p>
-		<div style="background-color: #f3f4f6; padding: 10px; border-radius: 5px; margin: 10px 0;">
-			<p>配送業者: <b>` + carrierName + `</b></p>
-			` + trackingInfo + `
-		</div>
-		<p>商品が到着しましたら、中身を確認して「受取完了」ボタンを押してください。</p>
-		<a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + strconv.FormatUint(txID, 10) + `">取引詳細ページへ</a>
-		<p>Aftialoopをご利用いただき、ありがとうございます。</p>
-		`
-
-		err = function.SendEmailToUserID(h.db, txData.BuyerID, subject, htmlContent)
+	go func() {
+		buyer, err := h.db.GetUserDataByID(txData.BuyerID)
 		if err != nil {
-			log.Println("Error sending shipping email:", err)
+			log.Println("Error getting buyer data for email:", err)
+		} else {
+			// 出品者情報の取得 (メール本文用)
+			seller, _ := h.db.GetUserDataByID(sellerID)
+
+			subject := "【Aftialoop】商品が発送されました"
+
+			// メール送信時の日本語変換
+			carrierName := input.ShippingCarrier
+			switch input.ShippingCarrier {
+			case "YAMATO":
+				carrierName = "ヤマト運輸"
+			case "SAGAWA":
+				carrierName = "佐川急便"
+			case "JAPAN_POST":
+				carrierName = "ゆうパック"
+			}
+
+			// 追跡番号がある場合のテーブル行を作成
+			trackingRow := ""
+			if input.TrackingNumber != "" {
+				trackingRow = fmt.Sprintf(`
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; background-color: #f8f9fa;">追跡番号</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%s</td>
+        </tr>`, input.TrackingNumber)
+			}
+
+			txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
+
+			// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+			htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">商品が発送されました</h3>
+    <p>%s 様</p>
+    <p>出品者 %s 様が商品を発送しました。<br>
+    商品が到着しましたら、中身を確認して「受取完了」ボタンを押してください。</p>
+    
+    <table style="width: 100%%; max-width: 600px; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px;">
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; width: 140px; background-color: #f8f9fa;">配送業者</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%s</td>
+        </tr>
+        %s
+    </table>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[4]s" style="color: #10b981;">%[4]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, buyer.Name, seller.Name, carrierName, trackingRow, txURL)
+
+			err = function.SendEmailToUserID(h.db, txData.BuyerID, subject, htmlContent)
+			if err != nil {
+				log.Println("Error sending shipping email:", err)
+			}
 		}
-	}
+	}()
 
 	// -----------------------------------------------------
 	// D. レスポンス
@@ -703,38 +773,93 @@ func (h *FleaMarketHandler) RateTransactionByBuyer(w http.ResponseWriter, r *htt
 	// C. メール送信 (出品者へ通知: 評価依頼)
 	// -----------------------------------------------------
 	// 出品者情報の取得
-	seller, err := h.db.GetUserDataByID(txData.SellerID)
-	if err != nil {
-		log.Println("Error getting seller data for email:", err)
-	} else {
-		// 購入者情報の取得 (メール本文用)
-		buyer, _ := h.db.GetUserDataByID(buyerID)
+	go func() {
 
-		subject := "【Aftialoop】購入者が受取評価をしました"
-		htmlContent := `
-        <p>` + seller.Name + ` 様</p>
-        <p>購入者 ` + buyer.Name + ` 様が商品を受け取り、評価を送信しました。</p>
-        <p><b>取引を完了するために、あなたも購入者への評価を行ってください。</b></p>
-        <p>※双方が評価を終えると取引完了となり、売上金が反映されます。</p>
-        <div style="background-color: #f3f4f6; padding: 10px; border-radius: 5px; margin: 10px 0;">
-            <p>取引ID: <b>` + txIDStr + `</b></p>
-        </div>
-        <a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + txIDStr + `">取引詳細ページへ進む</a>
-        `
-
-		err = function.SendEmailToUserID(h.db, txData.SellerID, subject, htmlContent)
+		seller, err := h.db.GetUserDataByID(txData.SellerID)
 		if err != nil {
-			log.Println("Error sending rated notification to seller:", err)
-		}
-	}
+			log.Println("Error getting seller data for email:", err)
+		} else {
+			// 購入者情報の取得 (メール本文用)
+			buyer, _ := h.db.GetUserDataByID(buyerID)
 
-	// 購入者にも一応完了メールを送る（任意）
-	subjectBuyer := "【Aftialoop】評価送信完了のお知らせ"
-	htmlContentBuyer := `
-	<p>評価送信完了を完了しました。出品者の評価をお待ちください。</p>
-	<a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + txIDStr + `">取引詳細ページへ</a>
-	`
-	_ = function.SendEmailToUserID(h.db, buyerID, subjectBuyer, htmlContentBuyer)
+			subject := "【Aftialoop】購入者が受取評価をしました"
+			txURL := fmt.Sprintf("%s/flea-market/transactions/%s", function.GetFrontendURL(), txIDStr)
+
+			// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+			htmlContent := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">受取評価のお知らせ</h3>
+    <p>%s 様</p>
+    <p>購入者 %s 様が商品を受け取り、評価を送信しました。</p>
+    
+    <div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; color: #856404; margin: 20px 0;">
+        <p style="margin-top: 0; font-weight: bold;">【取引完了のお願い】</p>
+        <p style="margin-bottom: 0;">取引を完了するために、あなたも購入者への評価を行ってください。<br>
+        双方が評価を終えると取引完了となり、売上金が反映されます。</p>
+    </div>
+
+    <table style="width: 100%%; max-width: 600px; border-collapse: collapse; margin-bottom: 20px;">
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; width: 140px; background-color: #f8f9fa;">取引ID</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%s</td>
+        </tr>
+    </table>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ進む</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[4]s" style="color: #10b981;">%[4]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, seller.Name, buyer.Name, txIDStr, txURL)
+
+			err = function.SendEmailToUserID(h.db, txData.SellerID, subject, htmlContent)
+			if err != nil {
+				log.Println("Error sending rated notification to seller:", err)
+			}
+		}
+
+		// 購入者にも完了メールを送る
+		subjectBuyer := "【Aftialoop】評価送信完了のお知らせ"
+		txURL := fmt.Sprintf("%s/flea-market/transactions/%s", function.GetFrontendURL(), txIDStr)
+
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+		htmlContentBuyer := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">評価の送信が完了しました</h3>
+    <p>受取評価を送信しました。<br>
+    出品者からの評価をお待ちください。</p>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[1]s" style="color: #10b981;">%[1]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, txURL)
+
+		_ = function.SendEmailToUserID(h.db, buyerID, subjectBuyer, htmlContentBuyer)
+	}()
 
 	// -----------------------------------------------------
 	// D. レスポンス
@@ -852,24 +977,85 @@ func (h *FleaMarketHandler) CompleteTransactionBySeller(w http.ResponseWriter, r
 	}
 	// -----------------------------------------------------
 
-	// 6. 完了メール送信 (双方へ)
-	// 購入者へ: 「出品者からも評価され、取引が完了しました」
-	subjectBuyer := "【Aftialoop】取引完了のお知らせ"
-	htmlContentBuyer := `
-	<p>出品者 ` + sellerID + ` 様からも評価が送信され、取引が完了しました。</p>
-	<p>売上金が反映されましたので、マイページの「ポイント履歴」からご確認ください。</p>
-	<a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + strconv.FormatUint(txID, 10) + `">取引詳細ページへ</a>
-	`
-	_ = function.SendEmailToUserID(h.db, txData.BuyerID, subjectBuyer, htmlContentBuyer)
+	// 6. 完了メール送信 (双方へ) - 非同期
+	go func() {
+		// 名前取得 (IDしか持っていないためDBから取得)
+		sellerName := "出品者"
+		if u, err := h.db.GetUserDataByID(sellerID); err == nil {
+			sellerName = u.Name
+		}
+		buyerName := "購入者"
+		if u, err := h.db.GetUserDataByID(txData.BuyerID); err == nil {
+			buyerName = u.Name
+		}
 
-	// 出品者へ: 「取引完了。売上が反映されました」
-	subjectSeller := "【Aftialoop】取引完了のお知らせ"
-	htmlContentSeller := `
-	<p>購入者 ` + txData.BuyerID + ` 様からも評価が送信され、取引が完了しました。</p>
-	<p>売上金が反映されましたので、マイページの「ポイント履歴」からご確認ください。</p>
-	<a href="` + function.GetFrontendURL() + `/flea-market/transactions/` + strconv.FormatUint(txID, 10) + `">取引詳細ページへ</a>
-	`
-	_ = function.SendEmailToUserID(h.db, sellerID, subjectSeller, htmlContentSeller)
+		txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
+
+		// --- A. 購入者へ: 「出品者からも評価され、取引が完了しました」 ---
+		subjectBuyer := "【Aftialoop】取引完了のお知らせ"
+
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
+		bodyBuyer := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">取引が完了しました</h3>
+    <p>%s 様</p>
+    <p>出品者 %s 様からも評価が送信され、すべての取引手続きが完了しました。<br>
+    今回のお取引ありがとうございました。</p>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[3]s" style="color: #10b981;">%[3]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, buyerName, sellerName, txURL)
+
+		_ = function.SendEmailToUserID(h.db, txData.BuyerID, subjectBuyer, bodyBuyer)
+
+		// --- B. 出品者へ: 「取引完了。売上が反映されました」 ---
+		subjectSeller := "【Aftialoop】取引完了のお知らせ"
+		bodySeller := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">取引が完了しました</h3>
+    <p>%s 様</p>
+    <p>購入者 %s 様への評価を行い、すべての取引手続きが完了しました。</p>
+
+    <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #dcfce7; color: #166534; margin: 20px 0;">
+        <p style="margin-top: 0; font-weight: bold;">【売上金の反映について】</p>
+        <p style="margin-bottom: 0;">売上金が反映されました。<br>
+        詳細はマイページの「売上・ポイント履歴」からご確認ください。</p>
+    </div>
+    
+    <div style="margin: 25px 0;">
+        <a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">取引詳細ページへ</a>
+    </div>
+
+    <p style="color: #555; font-size: 13px;">
+    ※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+    <a href="%[3]s" style="color: #10b981;">%[3]s</a>
+    </p>
+
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, sellerName, buyerName, txURL)
+
+		_ = function.SendEmailToUserID(h.db, sellerID, subjectSeller, bodySeller)
+	}()
 
 	// 7. レスポンス
 	w.Header().Set("Content-Type", "application/json")
@@ -1368,32 +1554,74 @@ func (h *FleaMarketHandler) CancelTransaction(w http.ResponseWriter, r *http.Req
 
 	// 7. 通知メール送信 (双方へ)
 	go func() {
-		// 共通の文言
-		baseMsg := `
-        <p>取引 (ID: ` + txIDStr + `) がキャンセルされました。</p>
-        <p>理由: ` + input.Reason + `</p>
-        <hr>
-        `
+		// --- 共通パーツ: 取引詳細テーブル ---
+		// ※ fmt.Sprintfを使うため、CSS内の % は %% と記述します
+		// ※ white-space: pre-wrap で改行を維持します
+		commonTable := fmt.Sprintf(`
+	<table style="width: 100%%; max-width: 600px; border-collapse: collapse; margin-bottom: 20px;">
+		<tr>
+			<th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; width: 140px; background-color: #f8f9fa;">取引ID</th>
+			<td style="padding: 10px; border-bottom: 1px solid #eee;">%s</td>
+		</tr>
+		<tr>
+			<th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; background-color: #f8f9fa;">キャンセル理由</th>
+			<td style="padding: 10px; border-bottom: 1px solid #eee; white-space: pre-wrap;">%s</td>
+		</tr>
+	</table>
+`, txIDStr, input.Reason)
 
 		// --- A. 出品者へのメール (再出品の案内あり) ---
 		sellerSubject := "【Aftialoop】取引がキャンセルされました"
-		sellerContent := baseMsg + `
-        <p><b>【商品の状態について】</b></p>
-        <p>商品は現在<b>「下書き（非公開）」</b>状態に戻っています。</p>
-        <p>再出品される場合は、マイページの出品リストから「編集」を行い、再度公開してください。</p>
-        `
-		if err := function.SendEmailToUserID(h.db, txData.SellerID, sellerSubject, sellerContent); err != nil {
+		sellerBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+	<h3 style="color: #e74c3c;">取引がキャンセルされました</h3>
+	<p>以下の取引がキャンセルとなりました。</p>
+	
+	%s
+
+	<div style="background-color: #fff3cd; padding: 15px; border-radius: 8px; border: 1px solid #ffeeba; color: #856404;">
+		<p style="margin-top: 0; font-weight: bold;">【商品の状態について】</p>
+		<p style="margin-bottom: 0;">商品は現在<b>「下書き（非公開）」</b>状態に戻っています。<br>
+		再出品される場合は、マイページの出品リストから「編集」を行い、再度公開してください。</p>
+	</div>
+	
+	<p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, commonTable)
+
+		if err := function.SendEmailToUserID(h.db, txData.SellerID, sellerSubject, sellerBody); err != nil {
 			log.Printf("Failed to send cancel email to seller: %v", err)
 		}
 
 		// --- B. 購入者へのメール (返金の案内のみ) ---
 		buyerSubject := "【Aftialoop】取引がキャンセルされました"
-		buyerContent := baseMsg + `
-        <p>本取引は中止となりました。</p>
-        <p>お支払い済みの代金がある場合は、順次返金処理が行われます。</p>
-        <p>詳細はマイページの取引履歴をご確認ください。</p>
-        `
-		if err := function.SendEmailToUserID(h.db, txData.BuyerID, buyerSubject, buyerContent); err != nil {
+		buyerBody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+	<h3 style="color: #e74c3c;">取引がキャンセルされました</h3>
+	<p>以下の取引がキャンセルとなりました。</p>
+	
+	%s
+
+	<div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+		<p style="margin-top: 0; font-weight: bold;">【お支払いについて】</p>
+		<p style="margin-bottom: 0;">本取引は中止となりました。<br>
+		お支払い済みの代金がある場合は、順次返金処理が行われます。<br>
+		詳細はマイページの取引履歴をご確認ください。</p>
+	</div>
+
+	<p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, commonTable)
+
+		if err := function.SendEmailToUserID(h.db, txData.BuyerID, buyerSubject, buyerBody); err != nil {
 			log.Printf("Failed to send cancel email to buyer: %v", err)
 		}
 	}()

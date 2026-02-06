@@ -71,6 +71,7 @@ func (h *FleaMarketHandler) CreatePayoutRequest(w http.ResponseWriter, r *http.R
 	// -----------------------------------------------------
 	// 5. メール送信 (非同期)
 	// -----------------------------------------------------
+	// 5. メール送信 (非同期)
 	go func() {
 		user, _ := h.db.GetUserDataByID(userID)
 		// 振込先銀行名を取得するために再度DB叩くか、上記のCreatePayoutRequestで戻り値として返す等の工夫も可
@@ -79,23 +80,43 @@ func (h *FleaMarketHandler) CreatePayoutRequest(w http.ResponseWriter, r *http.R
 		transferAmount := req.Amount - fee
 
 		subject := "【Animaloop】振込申請を受け付けました"
+
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
 		body := fmt.Sprintf(`
-%s 様
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">振込申請を受け付けました</h3>
+    <p>%s 様</p>
+    <p>いつもご利用ありがとうございます。<br>
+    売上金の振込申請を受け付けました。</p>
 
-いつもご利用ありがとうございます。
-売上金の振込申請を受け付けました。
+    <table style="width: 100%%; max-width: 600px; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px;">
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; width: 140px; background-color: #f8f9fa;">申請金額</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%d 円</td>
+        </tr>
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; background-color: #f8f9fa;">振込手数料</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%d 円</td>
+        </tr>
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; background-color: #f8f9fa;">振込予定額</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold;">%d 円</td>
+        </tr>
+    </table>
 
-■ 申請内容
---------------------------------------------------
-申請金額　　： %d 円
-振込手数料　： %d 円
-振込予定額　： %d 円
---------------------------------------------------
+    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee;">
+        <p style="margin-top: 0; font-weight: bold; color: #555;">【振込について】</p>
+        <p style="margin-bottom: 0;">振込手続きには数日かかる場合がございます。<br>
+        振込完了時に改めて通知いたしますので、今しばらくお待ちください。</p>
+    </div>
 
-※ 振込手続きには数日かかる場合がございます。
-※ 振込完了時に改めて通知いたします。
-
-引き続き Animaloop をよろしくお願いいたします。
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
 `, user.Name, req.Amount, fee, transferAmount)
 
 		_ = function.SendEmailToUserID(h.db, userID, subject, body)

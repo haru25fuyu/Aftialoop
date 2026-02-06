@@ -75,23 +75,76 @@ func (h *FleaMarketHandler) AddFleaMarketItemMessage(w http.ResponseWriter, r *h
 	if err != nil {
 		log.Println("failed to get item for notification:", err)
 	} else {
+		// 通知処理
 		if item.UserID == user_id {
-			//出品者からのメッセージ
+			// ---------------------------------------------------------
+			// A. 出品者からのメッセージ -> コメント済みのユーザーへ通知
+			// ---------------------------------------------------------
 			userIDs, err := h.db.GetFleaItemMessageUserIDs(itemID, user_id)
 			if err != nil {
 				log.Println("failed to get message user ids for notification:", err)
 			} else {
-				subject := "【Animaloop】コメントした商品へのメッセージ通知"
-				hbody := fmt.Sprintf("あなたがコメントした商品「%s」にメッセージが届きました。Animaloopにログインして確認してください。\n\n商品URL: https://animaloop.com/flea-market/item/%d", item.Name, item.ID)
-				//通知メールの送信
+				subject := "【Animaloop】コメントした商品に新着メッセージがあります"
+				itemURL := fmt.Sprintf("%s/flea-market/item/%d", function.GetFrontendURL(), item.ID)
+
+				hbody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+	<h3 style="color: #2c3e50;">新着メッセージのお知らせ</h3>
+	<p>あなたがコメントした商品「<strong>%s</strong>」に出品者からメッセージが届きました。<br>
+	以下のボタンから内容をご確認ください。</p>
+	
+	<div style="margin: 25px 0;">
+		<a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">メッセージを確認する</a>
+	</div>
+
+	<p style="color: #555; font-size: 13px;">
+	※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+	<a href="%[2]s" style="color: #10b981;">%[2]s</a>
+	</p>
+
+	<p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, item.Name, itemURL)
+
+				// 対象ユーザー全員に送信
 				for _, toUserID := range userIDs {
 					go function.SendEmailToUserID(h.db, toUserID, subject, hbody)
 				}
 			}
 		} else {
-			subject := "【Animaloop】出品した商品へのメッセージ通知"
-			hbody := fmt.Sprintf("あなたが出品した商品「%s」にメッセージが届きました。Animaloopにログインして確認してください。\n\n商品URL: https://animaloop.com/flea-market/item/%d", item.Name, item.ID)
-			//購入希望者からのメッセージ
+			// ---------------------------------------------------------
+			// B. 購入希望者からのメッセージ -> 出品者へ通知
+			// ---------------------------------------------------------
+			subject := "【Animaloop】出品した商品に新着メッセージがあります"
+			itemURL := fmt.Sprintf("%s/flea-market/item/%d", function.GetFrontendURL(), item.ID)
+
+			hbody := fmt.Sprintf(`
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+	<h3 style="color: #2c3e50;">新着メッセージのお知らせ</h3>
+	<p>あなたが出品した商品「<strong>%s</strong>」に新しいメッセージが届きました。<br>
+	以下のボタンから内容をご確認ください。</p>
+	
+	<div style="margin: 25px 0;">
+		<a href="%s" style="background-color: #10b981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">メッセージを確認する</a>
+	</div>
+
+	<p style="color: #555; font-size: 13px;">
+	※ボタンが機能しない場合は、以下のURLをブラウザに貼り付けてください。<br>
+	<a href="%[2]s" style="color: #10b981;">%[2]s</a>
+	</p>
+
+	<p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
+`, item.Name, itemURL)
+
 			go function.SendEmailToUserID(h.db, item.UserID, subject, hbody)
 		}
 	}

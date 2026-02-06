@@ -366,12 +366,9 @@ func (h *FleaMarketHandler) ListLikes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 20
-	offset := 0
-	// ※ページネーションを入れるならクエリパラメータから取得
 	q := r.URL.Query()
-	limit = utils.ParseInt(q.Get("limit"), 20)
-	offset = utils.ParseInt(q.Get("offset"), 0)
+	limit := utils.ParseInt(q.Get("limit"), 20)
+	offset := utils.ParseInt(q.Get("offset"), 0)
 
 	items, err := h.db.ListLikedFleaItems(r.Context(), userID, limit, offset)
 	if err != nil {

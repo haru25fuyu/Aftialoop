@@ -79,27 +79,45 @@ func (h *FleaMarketHandler) ExchangeSalesToPoint(w http.ResponseWriter, r *http.
 	// -----------------------------------------------------
 	// ★ 3. メール送信処理 (ここを追加)
 	// -----------------------------------------------------
+	// 3. メール送信処理
 	go func() {
-		// ユーザー情報を取得して名前などを本文に入れると親切
+		// ユーザー情報を取得
 		user, _ := h.db.GetUserDataByID(userID)
 
 		subject := "【Animaloop】ポイントへの交換が完了しました"
+
+		// fmt.Sprintfを使うため、CSS内の % は %% と記述します
 		body := fmt.Sprintf(`
-%s 様
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body style="font-family: sans-serif; color: #333; line-height: 1.6;">
+    <h3 style="color: #2c3e50;">ポイントへの交換が完了しました</h3>
+    <p>%s 様</p>
+    <p>いつもご利用ありがとうございます。<br>
+    売上金からポイントへの交換が完了しました。</p>
 
-いつもご利用ありがとうございます。
-売上金からポイントへの交換が完了しました。
+    <table style="width: 100%%; max-width: 600px; border-collapse: collapse; margin-top: 20px; margin-bottom: 20px;">
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; width: 140px; background-color: #f8f9fa;">交換額</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%d 円</td>
+        </tr>
+        <tr>
+            <th style="text-align: left; padding: 10px; border-bottom: 1px solid #eee; background-color: #f8f9fa;">交換先</th>
+            <td style="padding: 10px; border-bottom: 1px solid #eee;">%d ポイント</td>
+        </tr>
+    </table>
 
-■ 交換内容
---------------------------------------------------
-交換額　　： %d 円
-交換先　　： %d ポイント
---------------------------------------------------
+    <div style="background-color: #f0fdf4; padding: 15px; border-radius: 8px; border: 1px solid #dcfce7; color: #166534;">
+        <p style="margin-top: 0; font-weight: bold;">【ポイントのご利用について】</p>
+        <p style="margin-bottom: 0;">交換したポイントは、商品購入時に「1ポイント=1円」としてご利用いただけます。<br>
+        現在のポイント残高はマイページの「ポイント履歴」からご確認いただけます。</p>
+    </div>
 
-交換したポイントは、商品購入時に「1ポイント=1円」としてご利用いただけます。
-マイページの「ポイント履歴」からもご確認いただけます。
-
-引き続き Animaloop をよろしくお願いいたします。
+    <p style="margin-top: 20px;">引き続き Animaloop をよろしくお願いいたします。</p>
+    <p style="margin-top: 20px; font-size: 12px; color: #777;">※本メールは自動送信です。</p>
+</body>
+</html>
 `, user.Name, req.Amount, req.Amount)
 
 		_ = function.SendEmailToUserID(h.db, userID, subject, body)
