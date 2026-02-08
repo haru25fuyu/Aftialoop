@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -65,7 +64,6 @@ func TryRefresh(db *db.Database, w http.ResponseWriter, r *http.Request) (string
 	if len(prefix) > 20 {
 		prefix = prefix[:20]
 	}
-	log.Println("[refresh cookie] len=", len(c.Value), "prefix=", prefix)
 
 	user, refreshExp, err := db.GetUserByRefreshToken(c.Value)
 	if err != nil || user == nil || user.ID == "" {

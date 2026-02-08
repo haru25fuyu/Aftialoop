@@ -1,8 +1,8 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useFleaItemForm } from "../../hooks/useFleaItemForm";
 import { useToast } from "../../conf/function";
 import { ItemType } from "../../types/Market";
-import { CategorySearchResult, PublishSummary } from "../../types/FleaMarketForm";
+import { PublishSummary } from "../../types/FleaMarketForm";
 
 // コンポーネント群のインポート
 import { HeaderArea } from "../../component/FleaMarket/CreateItemHeaderArea";
@@ -17,6 +17,12 @@ import { ConfirmDialog } from "../../modal/ConfirmDialog";
 import { PublishCompleteDialog } from "../../modal/PublishCompleteDialog";
 import AddImagesModal from "../../modal/AddImagesModal";
 import TinySavedPopup from "../../component/TinySavedPopup";
+
+type CategorySearchResult = {
+    id: number;
+    name: string;
+    built_in_type?: string;
+};
 
 export default function FleaItemCreatePage() {
     const toast = useToast();
@@ -33,24 +39,14 @@ export default function FleaItemCreatePage() {
     const handleCategorySelect = (item: CategorySearchResult) => {
         setters.setName(item.name);
 
+        // item.built_in_type があれば型キャストしてセット
         if (item.built_in_type) {
             setters.setType(item.built_in_type as ItemType);
         } else {
-            // ★修正: データがない場合に勝手に INSECT にしない！
-            // ログを出して、開発者に気づかせる（本番では消してもOK）
-            console.warn(`カテゴリー「${item.name}」には built_in_type が設定されていません。`);
-
-            // 何もしない（ユーザーが手動で変えるのを待つ）か、
-            // 名前から推測するロジックを入れる（プードルならMAMMALなど）
-            if (item.name.includes("プードル") || item.name.includes("犬") || item.name.includes("猫")) {
-                setters.setType("MAMMAL");
-            } else {
-                // 本当にわからなければデフォルト（INSECT）でもいいが、
-                // ユーザーが「爬虫類」を選んでいたのに勝手に「昆虫」に戻るのはストレスなので
-                // ここでは「何もしない（setTypeを呼ばない）」のが安全です。
-            }
+            setters.setType("INSECT");
         }
 
+        // ▼ 修正: prev は自動推論されるので、(prev: any) ではなく (prev) でOK
         setters.setLiveDetails((prev) => ({
             ...prev,
             category_id: item.id,
@@ -61,32 +57,20 @@ export default function FleaItemCreatePage() {
     };
 
     const summaryData: PublishSummary = {
-        name: formState.name,
-        description: formState.description,
-
-        // 型変換: string -> number
+        name: formState.name    ,
         price: Number(formState.price) || 0,
-
-        // キー名変換: sellerPlusPct -> seller_plus_pct
         seller_plus_pct: formState.sellerPlusPct,
-
-        quantity: formState.quantity,
+        quantity: formState.isMultiPurchasable ? formState.quantity : 1,
+        total: (Number(formState.price) || 0) * (formState.isMultiPurchasable ? formState.quantity : 1),
         isMultiPurchasable: formState.isMultiPurchasable,
         type: formState.type,
+        description: formState.description,
         shippingFeeType: formState.shippingFeeType,
-
-        // undefined考慮
-        shipFromId: formState.shipFromId || undefined,
+        shipFromId: formState.shipFromId || null,
         shipsWithinDays: formState.shipsWithinDays === "" ? undefined : Number(formState.shipsWithinDays),
-
-        images: formState.images,
         mainIndex: formState.mainIndex,
-
-        // 詳細情報の統合
-        details: formState.type !== "SUPPLY" ? formState.liveDetails : formState.supplyDetails,
-
-        // 合計金額の計算
-        total: (Number(formState.price) || 0) * (formState.isMultiPurchasable ? formState.quantity : 1),
+        details: formState.type === "ANIMAL" ? formState.liveDetails : formState.supplyDetails,
+        images: formState.images,
     };
 
     const handlePublishClick = () => {
@@ -142,7 +126,7 @@ export default function FleaItemCreatePage() {
                             setters={setters}
                             errors={systemState.errors}
                             onCategorySelect={handleCategorySelect}
-                            supplyTypes={systemState.supplyTypes || []} // Hook側でreturnに追加する必要あり
+                            supplyTypes={systemState.supplyTypes || []}
                         />
                         <ShippingPriceSection
                             formState={formState}
@@ -192,10 +176,7 @@ export default function FleaItemCreatePage() {
                 open={addOpen}
                 initialImages={formState.images}
                 onClose={() => setAddOpen(false)}
-                onSave={(imgs) => {
-                    actions.handleAddImages(imgs);
-                    setAddOpen(false);
-                }}
+                onSave={(imgs) => { setters.setImages(imgs); setAddOpen(false); }}
             />
             <PublishCompleteDialog
                 open={completeOpen}

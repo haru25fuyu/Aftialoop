@@ -169,10 +169,12 @@ type UploadResponse struct {
 }
 
 func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Request) {
-	// 1. 画像サイズの制限 (例: 10MB)
-	r.ParseMultipartForm(10 << 20)
+	// 1. 最大10MB制限
+	if err := r.ParseMultipartForm(10 << 20); err != nil {
+		http.Error(w, "File too large", http.StatusBadRequest)
+		return
+	}
 
-	// 2. フロントから送られてきた "image" を取得
 	file, handler, err := r.FormFile("image")
 	if err != nil {
 		http.Error(w, "Error retrieving the file", http.StatusBadRequest)
@@ -180,20 +182,21 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 	}
 	defer file.Close()
 
-	// 3. 保存先ディレクトリの作成 (なければ作る)
-	uploadDir := "/static/flea_drafts/"
-
-	// ディレクトリがなければ作る（権限エラーが出る場合は事前にmkdirが必要かも）
-	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
-		os.MkdirAll(uploadDir, 0755)
+	// 2. 保存ディレクトリ（相対パスに変更）
+	uploadDir := "static/flea_drafts"
+	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		http.Error(w, "Error creating directory", http.StatusInternalServerError)
+		return
 	}
 
-	// 4. ユニークなファイル名を生成 (タイムスタンプ + 元のファイル名)
-	filename := fmt.Sprintf("%d-%s", time.Now().UnixNano(), handler.Filename)
-	filepath := filepath.Join(uploadDir, filename)
+	// 3. 安全なファイル名の生成
+	// filepath.Base でパス操作を防ぎ、拡張子を保持しつつユニーク化
+	cleanFileName := filepath.Base(handler.Filename)
+	filename := fmt.Sprintf("%d-%s", time.Now().UnixNano(), cleanFileName)
+	savePath := filepath.Join(uploadDir, filename)
 
-	// 5. ファイルを保存
-	dst, err := os.Create(filepath)
+	// 4. ファイルの保存
+	dst, err := os.Create(savePath)
 	if err != nil {
 		http.Error(w, "Error saving the file", http.StatusInternalServerError)
 		return
@@ -205,9 +208,8 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 6. DBに情報を保存 (IDを発番するため)
-	// ※ 公開用URL: "/static/flea_drafts/" というパスでアクセスできる前提とします
-	publicURL := fmt.Sprintf("/static/flea_drafts/%s", filename)
+	// 5. DB保存用のURL作成（ブラウザからアクセス可能な形式）
+	publicURL := "/" + filepath.ToSlash(savePath)
 
 	id, err := h.db.UploadImageAsset(publicURL)
 	if err != nil {
@@ -215,10 +217,9 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 7. JSONで結果を返す
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(UploadResponse{
 		ID:  id,
-		URL: publicURL, // フロントエンドはこのURLを使って画像を表示します
+		URL: publicURL,
 	})
 }

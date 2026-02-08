@@ -18,8 +18,8 @@ type BasicInfoSectionProps = {
 };
 
 export function BasicInfoSection({ formState, setters, errors, onCategorySelect, supplyTypes }: BasicInfoSectionProps) {
-    const { name, type, liveDetails, supplyDetails, description, quantity, isMultiPurchasable } = formState;
-    const { setName, setType, setSupplyDetails, setDescription, setQuantity, setIsMultiPurchasable } = setters;
+    const { name, type, liveDetails, supplyDetails, description,/* quantity, isMultiPurchasable*/ } = formState;
+    const { setName, setType, setSupplyDetails, setDescription, /* setQuantity, setIsMultiPurchasable */ } = setters;
     const [categoryModalOpen, setCategoryModalOpen] = React.useState(false);
 
     // 現在のタイプに対応するオプション情報
@@ -128,9 +128,9 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                     {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
                 </div>
 
-                {/* 4. 数量・オプション */}
-                <div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-6">
-                    <div /> {/* 左側スペース埋め（必要なら何か入れる） */}
+                {/* 4. 数量・オプション（一時的に非表示：常に数量1とする） */}
+                {/*<div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-6">
+                    <div /> {/* 左側スペース埋め（必要なら何か入れる） 
                     <div>
                         <label className={labelClass}>数量</label>
                         <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden h-[50px]">
@@ -144,14 +144,16 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                         </label>
                     </div>
                 </div>
+                */}
             </div>
+
             {/* モーダルの配置 */}
             <CategorySelectModal
                 open={categoryModalOpen}
                 onClose={() => setCategoryModalOpen(false)}
-                onSelect={(item) => {                    
+                onSelect={(item) => {
                     onCategorySelect(item);
-                }}        
+                }}
             />
         </section >
     );

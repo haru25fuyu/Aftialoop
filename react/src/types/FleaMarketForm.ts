@@ -100,7 +100,7 @@ export type PublishSummary = {
     isMultiPurchasable: boolean;
     type: ItemType;
     shippingFeeType: 0 | 1 | 2;
-    shipFromId?: number;
+    shipFromId: number | null;
     shipsWithinDays?: number;
     images: ImageAsset[];
     mainIndex: number;

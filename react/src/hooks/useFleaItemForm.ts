@@ -1,24 +1,23 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import axios from "axios";
-
 import { CONFIG } from "../conf/config";
 import api, { getAccessToken } from "../conf/api";
 import { useToast } from "../conf/function";
 import { upsertAnimalDetails, upsertSupplyDetails } from "../conf/fleaDetails";
-
-import { ItemType } from "../types/Market";
+// Import types
 import { ImageAsset } from "../types/FleaMarket";
-import { LiveDetails, SupplyDetails } from "../types/FleaMarketForm";
+import {
+  FormState,
+  FormSetters,
+  FormCalculations,
+  LiveDetails,
+  SupplyDetails,
+  ApiErrorResponse,
+} from "../types/FleaMarketForm";
+import { ItemType } from "../types/Market";
 
-// 型定義
-export type SexType = "male" | "female" | "unknown" | "pair";
-type ApiErrorResponse = {
-  message?: string;
-  errors?: Array<{ field: string; msg: string }>;
-};
-type StepKey = "main" | "details";
-
+// Constants
 const FEE_BASE = 0.1;
 const FEE_PER_PLUS_PCT = 0.01;
 const FEE_MAX = 0.25;
@@ -27,47 +26,50 @@ const MAX_PLUS_PCT = 8;
 const STEP_PLUS_PCT = 1;
 const AUTOSAVE_MS = 1500;
 
+type StepKey = "main" | "details";
+
 export function useFleaItemForm() {
   const toast = useToast();
   const navigate = useNavigate();
   const { id: pathParamId } = useParams();
   const [searchParams] = useSearchParams();
-  const targetDraftId = pathParamId || searchParams.get("id");
+  const queryParamId = searchParams.get("id");
+  const targetDraftId = pathParamId || queryParamId;
 
-  // ===== States =====
-  const [name, setName] = useState("");
-  const [price, setPrice] = useState("");
+  // ===== States (Explicit Types) =====
+  const [name, setName] = useState<string>("");
+  const [price, setPrice] = useState<string>("");
   const [sellerPlusPct, setSellerPlusPct] = useState<number>(0);
-  const [quantity, setQuantity] = useState(1);
-  const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
-  const [type, setType] = useState<ItemType>("ANIMAL");
-  const [description, setDescription] = useState("");
+  const [quantity, setQuantity] = useState<number>(1);
+  const [isMultiPurchasable, setIsMultiPurchasable] = useState<boolean>(false);
+  const [type, setType] = useState<ItemType>("INSECT");
+  const [description, setDescription] = useState<string>("");
   const [shippingFeeType, setShippingFeeType] = useState<0 | 1 | 2>(0);
   const [shipFromId, setShipFromId] = useState<number | null>(null);
   const [shipsWithinDays, setShipsWithinDays] = useState<number | "">(2);
   const [images, setImages] = useState<ImageAsset[]>([]);
   const [mainIndex, setMainIndex] = useState<number>(0);
 
+  // Details States
   const [liveDetails, setLiveDetails] = useState<LiveDetails>({
+    category_id: null,
+    category_name: "",
     locality: "",
     hatch_date: "",
     generation: "",
     size: "",
-    sex: "unknown" as SexType,
-    category_id: null as number | null,
-    category_name: "",
+    sex: "unknown",
   });
-  
   const [supplyDetails, setSupplyDetails] = useState<SupplyDetails>({
-     brand: "",;
+    brand: "",
     sku: "",
     net_weight_g: "",
     supply_type_id: null,
     target_category_id: null,
     target_category_name: "",
-
   });
 
+  // System States
   const [draftId, setDraftId] = useState<number | null>(null);
   const [currentStep, setCurrentStep] = useState<StepKey>("main");
   const [submitting, setSubmitting] = useState(false);
@@ -77,6 +79,9 @@ export function useFleaItemForm() {
   const [saving, setSaving] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
+  const [supplyTypes, setSupplyTypes] = useState<
+    { id: number; name: string }[]
+  >([]);
 
   // Refs
   const isSubmittingRef = useRef(false);
@@ -88,47 +93,121 @@ export function useFleaItemForm() {
     draftIdRef.current = draftId;
   }, [draftId]);
 
-  // ===== Calculations =====
-  const priceNum = Number(price) || 0;
-  const plusPct = Math.max(
-    MIN_PLUS_PCT,
-    Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)),
-  );
-  const feeRate = Math.min(FEE_MAX, FEE_BASE + plusPct * FEE_PER_PLUS_PCT);
-  const feeYen = Math.floor(priceNum * feeRate);
-  const payoutYen = Math.max(0, Math.floor(priceNum - feeYen));
-  const sellerPlusPctOptions = useMemo(
-    () =>
-      Array.from(
-        {
-          length: Math.round((MAX_PLUS_PCT - MIN_PLUS_PCT) / STEP_PLUS_PCT) + 1,
-        },
-        (_, i) => MIN_PLUS_PCT + STEP_PLUS_PCT * i,
-      ),
-    [],
-  );
+  // ===== Initial Data Load =====
+  useEffect(() => {
+    api
+      .get("/supply-types")
+      .then((res) => setSupplyTypes(res.data))
+      .catch(console.error);
+  }, []);
 
-  // ===== Helpers =====
-  const normalizeType = (t: string): "ANIMAL" | "SUPPLY" =>
-    t === "SUPPLY" ? "SUPPLY" : "ANIMAL";
-  const prune = <T extends object>(obj: T): Partial<T> =>
-    Object.fromEntries(
+  // ===== Logic: Draft Restore =====
+  const fetchDraftData = async (id: number) => {
+    try {
+      const res = await api.get(`/flea-market/draft/${id}`);
+      const d = res.data;
+
+      console.log("Draft Data:", d);
+
+      if (d.name) setName(d.name);
+      if (d.price) setPrice(d.price);
+      if (typeof d.seller_plus_pct === "number")
+        setSellerPlusPct(d.seller_plus_pct);
+      if (d.quantity) setQuantity(d.quantity);
+      if (d.type) setType(d.type as ItemType);
+      if (d.description) setDescription(d.description);
+      if (d.shipping_fee_type !== undefined)
+        setShippingFeeType(Number(d.shipping_fee_type) as 0 | 1 | 2);
+      if (d.ship_from || d.ship_from_id)
+        setShipFromId(Number(d.ship_from ?? d.ship_from_id));
+      if (d.ships_within_days !== undefined)
+        setShipsWithinDays(Number(d.ships_within_days) || "");
+
+      // Robust Image Restoration
+      if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
+        // any回避のための型定義
+        type RawDraftImage = {
+          id?: string | number;
+          url?: string;
+          serverId?: number;
+          server_id?: number;
+        };
+        const rawImages = d.uploaded_images as RawDraftImage[];
+
+        const restoredImages: ImageAsset[] = rawImages.map((img) => ({
+          id:
+            img.id && typeof img.id === "string"
+              ? img.id
+              : Math.random().toString(36).substring(2, 15),
+          url: img.url || "",
+          serverId:
+            img.serverId ??
+            img.server_id ??
+            (typeof img.id === "number" ? img.id : undefined),
+        }));
+        setImages(restoredImages.filter((i) => !!i.url));
+      }
+
+      if (d.details) {
+        if (d.type !== "SUPPLY") {
+          setLiveDetails((prev) => ({
+            ...prev,
+            ...d.details,
+            category_id: d.details.category_id,
+            category_name: d.details.category_name || "",
+          }));
+        } else {
+          setSupplyDetails((prev) => ({ ...prev, ...d.details }));
+        }
+      }
+      setDraftId(id);
+      if (d.updated_at) setLastSavedAt(d.updated_at);
+      setSaving("saved");
+    } catch (e) {
+      console.error("Fetch Draft Error:", e);
+      toast({ text: "下書きが見つかりませんでした", kind: "error" });
+      navigate("/flea-market/sell/create", { replace: true });
+    }
+  };
+
+  useEffect(() => {
+    if (targetDraftId) {
+      const id = Number(targetDraftId);
+      if (!isNaN(id) && id > 0) {
+        fetchDraftData(id);
+        return;
+      }
+    }
+    const saved = localStorage.getItem("flea_item_draft");
+    if (saved) {
+      try {
+        const d = JSON.parse(saved);
+        if (d._draftId) fetchDraftData(d._draftId);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, [targetDraftId]);
+
+  // ===== Logic: Payload & Autosave =====
+  const prune = <T extends object>(obj: T): Partial<T> => {
+    return Object.fromEntries(
       Object.entries(obj).filter(([, v]) => v !== undefined),
     ) as Partial<T>;
+  };
 
-  // Payload Builder
-  const buildDraftPayload = useCallback(() => {
+  const buildPayload = useCallback(() => {
     const p = Number(price);
     const details =
-      type === "ANIMAL"
+      type !== "SUPPLY"
         ? {
             kind: "ANIMAL",
+            category_id: liveDetails.category_id || undefined,
             locality: liveDetails.locality || undefined,
             hatch_date: liveDetails.hatch_date || undefined,
             generation: liveDetails.generation || undefined,
             size: liveDetails.size || undefined,
             sex: liveDetails.sex || "unknown",
-            category_id: liveDetails.category_id || undefined,
           }
         : {
             kind: "SUPPLY",
@@ -139,35 +218,37 @@ export function useFleaItemForm() {
               !isNaN(Number(supplyDetails.net_weight_g))
                 ? Number(supplyDetails.net_weight_g)
                 : undefined,
+            supply_type_id: supplyDetails.supply_type_id || undefined,
+            target_category_id: supplyDetails.target_category_id || undefined,
           };
-
-    const uploadedImages = images
-      .filter((img) => img.serverId && img.url)
-      .map((img) => ({ id: img.id, serverId: img.serverId, url: img.url }));
 
     return {
       name: name.trim() || undefined,
       description: description.trim() || undefined,
       price: price !== "" && !isNaN(p) && p > 0 ? String(p) : undefined,
-      seller_plus_pct: plusPct,
+      seller_plus_pct: Math.max(
+        MIN_PLUS_PCT,
+        Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)),
+      ),
       quantity: isMultiPurchasable ? Math.max(1, quantity) : 1,
-      type: normalizeType(type),
+      type,
       is_multi_purchasable: isMultiPurchasable ? 1 : 0,
       shipping_fee_type: shippingFeeType,
       ship_from: shipFromId ? Number(shipFromId) : undefined,
       ships_within_days:
         shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
       details,
-      uploaded_images: uploadedImages,
+      uploaded_images: images
+        .filter((img) => img.serverId && img.url)
+        .map((img) => ({ id: img.id, serverId: img.serverId, url: img.url })),
       main_index: mainIndex,
-      main_image_url:
-        uploadedImages.length > 0 ? uploadedImages[0].url : undefined,
+      main_image_url: images.length > 0 ? images[0].url : undefined,
     };
   }, [
     name,
     description,
     price,
-    plusPct,
+    sellerPlusPct,
     isMultiPurchasable,
     quantity,
     type,
@@ -180,87 +261,94 @@ export function useFleaItemForm() {
     mainIndex,
   ]);
 
-  // ===== Autosave =====
   const autosaveNow = useCallback(
     async (signal?: AbortSignal) => {
       if (isSavingRef.current || isSubmittingRef.current) return;
-      const rawPayload = buildDraftPayload();
-      if (Number.isNaN(Number(rawPayload.price))) rawPayload.price = undefined;
-      const payload = prune(rawPayload);
-      const currentId = draftIdRef.current;
+
+      const payload = prune(buildPayload());
+      if (Number.isNaN(Number(payload.price))) payload.price = undefined;
 
       try {
         isSavingRef.current = true;
         setSaving("saving");
         const res = await api.post(
           "/flea-market/draft/save",
-          { draft_id: currentId ?? undefined, payload },
+          { draft_id: draftIdRef.current, payload },
           { signal },
         );
-        const { draft_id, saved_at } = res.data;
-
-        if (draft_id) {
-          draftIdRef.current = draft_id;
-          setDraftId((prev) => (prev !== draft_id ? draft_id : prev));
+        if (res.data.draft_id) {
+          draftIdRef.current = res.data.draft_id;
+          setDraftId((prev) =>
+            prev !== res.data.draft_id ? res.data.draft_id : prev,
+          );
         }
-        if (saved_at) setLastSavedAt(saved_at);
+        if (res.data.saved_at) setLastSavedAt(res.data.saved_at);
         setSaving("saved");
       } catch (e: unknown) {
-        if (axios.isCancel(e)) return;
-        console.error("autosave error", e);
-        setSaving("error");
+        if (!axios.isCancel(e)) setSaving("error");
       } finally {
         isSavingRef.current = false;
       }
     },
-    [buildDraftPayload],
+    [buildPayload],
   );
 
   useEffect(() => {
     const controller = new AbortController();
-    if (autosaveTimerRef.current) window.clearTimeout(autosaveTimerRef.current);
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     autosaveTimerRef.current = window.setTimeout(
       () => autosaveNow(controller.signal),
       AUTOSAVE_MS,
     );
     return () => {
       controller.abort();
-      if (autosaveTimerRef.current)
-        window.clearTimeout(autosaveTimerRef.current);
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
     };
   }, [autosaveNow]);
 
-  // Save on Leave
+  // ===== Save on Leave Logic =====
   useEffect(() => {
     const endpoint = CONFIG.BASE_URL + "/flea-market/draft/save";
     const saveOnLeave = () => {
-      if (isSubmittingRef.current || getAccessToken() == null) return;
+      if (isSubmittingRef.current) return;
       try {
+        if (getAccessToken() == null) return;
+        const currentId = draftIdRef.current;
         const body = JSON.stringify({
-          draft_id: draftIdRef.current,
-          payload: buildDraftPayload(),
+          draft_id: currentId,
+          payload: buildPayload(), // Note: buildPayload might depend on state that is stale in closure if not careful, but usually okay for unload
         });
+
         fetch(endpoint, {
           method: "POST",
           body,
           keepalive: true,
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+          },
+          // Add credentials if needed, often 'include' or tokens in headers
         }).catch(() => void 0);
-      } catch {}
+      } catch {
+        // ignore
+      }
     };
+
     const onPageHide = () => saveOnLeave();
-    const onVisChange = () => {
+    const onVisibilityChange = () => {
       if (document.visibilityState === "hidden") saveOnLeave();
     };
+    const onBeforeUnload = () => saveOnLeave();
+
     window.addEventListener("pagehide", onPageHide);
-    document.addEventListener("visibilitychange", onVisChange);
-    window.addEventListener("beforeunload", saveOnLeave);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("beforeunload", onBeforeUnload);
+
     return () => {
       window.removeEventListener("pagehide", onPageHide);
-      document.removeEventListener("visibilitychange", onVisChange);
-      window.removeEventListener("beforeunload", saveOnLeave);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [buildDraftPayload]);
+  }, [buildPayload]); // Re-bind when payload builder changes
 
   // ===== Validation =====
   const validate = (): boolean => {
@@ -279,10 +367,8 @@ export function useFleaItemForm() {
     setErrors(e);
     return Object.keys(e).length === 0;
   };
-  const validateStep = (key: StepKey) => (key === "main" ? validate() : true);
 
-  // ===== Image Upload =====
-  // ★ここ重要: フック内に移動しました
+  // ===== Image Upload Helper =====
   const uploadImageFile = async (
     file: File,
   ): Promise<{ url: string; serverId: number } | null> => {
@@ -299,23 +385,33 @@ export function useFleaItemForm() {
     }
   };
 
+  // ===== Handle Adding Images (Public Action) =====
   const handleAddImages = async (nextImages: ImageAsset[]) => {
-    // ユーザー提供のコードと同じロジック
+    // 1. Update UI immediately
     setImages(nextImages);
-    // モーダルを閉じる処理はUI側でやるか、ここでコールバックをもらうかですが、
-    // 今回はstate操作だけ提供します
 
+    // 2. Upload new images in background
     const uploadedAssets = await Promise.all(
       nextImages.map(async (img) => {
-        if (img.serverId) return img;
-        if (!img.file) return img;
+        if (img.serverId) return img; // Already uploaded
+        if (!img.file) return img; // No file to upload
+
         const result = await uploadImageFile(img.file);
-        if (result)
+        if (result) {
           return { ...img, url: result.url, serverId: result.serverId };
+        }
         return img;
       }),
     );
+
+    // 3. Update state with uploaded details
     setImages(uploadedAssets);
+
+    // 4. Trigger autosave to persist new image IDs
+    // We don't call autosaveNow() directly here to avoid race conditions,
+    // relying on the useEffect timer or user action is safer,
+    // but if you want immediate save, you can trigger it.
+    // actions.autosaveNow();
   };
 
   // ===== Submit =====
@@ -327,25 +423,24 @@ export function useFleaItemForm() {
     try {
       setSubmitting(true);
       const fd = new FormData();
-      fd.append("name", name.trim());
-      fd.append("price", String(Number(price)));
-      fd.append("seller_plus_pct", String(plusPct));
-      fd.append("quantity", String(isMultiPurchasable ? quantity : 1));
-      fd.append("is_multi_purchasable", String(isMultiPurchasable ? 1 : 0));
-      fd.append("type", normalizeType(type));
-      fd.append("description", description.trim());
-      fd.append("shipping_fee_type", String(shippingFeeType));
-      if (shipFromId !== null) fd.append("ship_from_id", String(shipFromId));
-      if (shipsWithinDays !== "")
-        fd.append("ships_within_days", String(shipsWithinDays));
-      fd.append("main_index", String(mainIndex));
-      if (draftId != null) fd.append("draft_id", String(draftId));
+      const p = buildPayload();
 
-      images.forEach((img, i) => {
-        if (img.serverId) fd.append("image_ids", String(img.serverId));
-        else if (img.file)
-          fd.append("images", img.file, img.file.name || `image_${i}.jpg`);
+      // Payload to FormData
+      Object.entries(p).forEach(([k, v]) => {
+        if (k === "details" || k === "uploaded_images") return;
+        if (v !== undefined) fd.append(k, String(v));
       });
+
+      // Image Handling for Submit
+      images.forEach((img, i) => {
+        if (img.serverId) {
+          fd.append("image_ids", String(img.serverId));
+        } else if (img.file) {
+          fd.append("images", img.file, img.file.name || `image_${i}.jpg`);
+        }
+      });
+
+      if (draftId) fd.append("draft_id", String(draftId));
 
       const res = await api.post("/flea-market/add/item", fd, {
         headers: { "Content-Type": undefined },
@@ -354,30 +449,32 @@ export function useFleaItemForm() {
       setLastItemId(newId);
 
       if (newId) {
-        if (type === "ANIMAL") await upsertAnimalDetails(newId, liveDetails);
-        else if (type === "SUPPLY")
-          await upsertSupplyDetails(newId, supplyDetails);
+        if (type !== "SUPPLY") await upsertAnimalDetails(newId, liveDetails);
+        else await upsertSupplyDetails(newId, supplyDetails);
       }
 
       localStorage.removeItem("flea_item_draft");
-      if (draftId)
+      if (draftId) {
         await api
           .delete(CONFIG.BASE_URL + "/flea-market/draft/" + draftId)
           .catch(() => {});
+      }
+
       toast({ text: "出品が完了しました！", kind: "success" });
-      return true; // 完了
+      return true;
     } catch (err: unknown) {
       let msg = "エラーが発生しました";
       if (axios.isAxiosError(err)) {
         const data = err.response?.data as ApiErrorResponse | undefined;
-        if (err.response?.status === 400 && data?.errors) {
-          const map: Record<string, string> = {};
-          for (const e of data.errors) map[e.field] = e.msg;
-          setErrors(map);
-          window.scrollTo({ top: 0, behavior: "smooth" });
-          return false;
+        msg = data?.message ?? "通信エラーが発生しました";
+
+        if (data?.errors && Array.isArray(data.errors)) {
+          const serverErrors: Record<string, string> = {};
+          data.errors.forEach((e) => {
+            serverErrors[e.field] = e.msg;
+          });
+          setErrors((prev) => ({ ...prev, ...serverErrors }));
         }
-        msg = data?.message ?? "通信に失敗しました。";
       }
       toast({ text: msg, kind: "error" });
       return false;
@@ -387,20 +484,15 @@ export function useFleaItemForm() {
     }
   };
 
-  // ===== Reset =====
+  // Reset Form
   const resetForm = useCallback(() => {
-    if (
-      !window.confirm(
-        "入力内容をクリアして、新規作成に戻りますか？\n（現在の下書きへの変更は保存されません）",
-      )
-    )
-      return;
+    if (!window.confirm("入力内容をクリアしますか？")) return;
     setName("");
     setPrice("");
     setSellerPlusPct(0);
     setQuantity(1);
     setIsMultiPurchasable(false);
-    setType("ANIMAL");
+    setType("INSECT");
     setDescription("");
     setShippingFeeType(0);
     setShipFromId(null);
@@ -408,15 +500,22 @@ export function useFleaItemForm() {
     setImages([]);
     setMainIndex(0);
     setLiveDetails({
+      category_id: null,
+      category_name: "",
       locality: "",
       hatch_date: "",
       generation: "",
       size: "",
       sex: "unknown",
-      category_id: null,
-      category_name: "",
     });
-    setSupplyDetails({ brand: "", sku: "", net_weight_g: "", supply_type_id: null, target_category_id: null, target_category_name: "" });
+    setSupplyDetails({
+      brand: "",
+      sku: "",
+      net_weight_g: "",
+      supply_type_id: null,
+      target_category_id: null,
+      target_category_name: "",
+    });
     setDraftId(null);
     setLastItemId(null);
     setLastSavedAt(null);
@@ -425,181 +524,90 @@ export function useFleaItemForm() {
     navigate("/flea-market/sell/create", { replace: true });
   }, [navigate]);
 
-  // ===== Fetch =====
-  const fetchDraftData = async (id: number) => {
-    try {
-      const res = await api.get(`/flea-market/draft/${id}`);
-      const d = res.data;
-      // ... (省略: セットロジックは提供コードと同じ) ...
-      if (d.name) setName(d.name);
-      if (d.price) setPrice(d.price);
-      if (typeof d.seller_plus_pct === "number")
-        setSellerPlusPct(d.seller_plus_pct);
-      if (d.quantity) setQuantity(d.quantity);
-      if (d.type) setType(d.type);
-      if (d.description) setDescription(d.description);
-      if (d.shipping_fee_type !== undefined)
-        setShippingFeeType(Number(d.shipping_fee_type) as 0 | 1 | 2);
-      if (d.ship_from || d.ship_from_id)
-        setShipFromId(Number(d.ship_from ?? d.ship_from_id));
-      if (d.ships_within_days !== undefined)
-        setShipsWithinDays(Number(d.ships_within_days) || "");
+  // Calculations
+  const feeRate = Math.min(
+    FEE_MAX,
+    FEE_BASE +
+      Math.max(
+        MIN_PLUS_PCT,
+        Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)),
+      ) *
+        FEE_PER_PLUS_PCT,
+  );
+  const feeYen = Math.floor((Number(price) || 0) * feeRate);
+  const payoutYen = Math.max(0, Math.floor((Number(price) || 0) - feeYen));
+  const sellerPlusPctOptions = useMemo(
+    () =>
+      Array.from(
+        {
+          length: Math.round((MAX_PLUS_PCT - MIN_PLUS_PCT) / STEP_PLUS_PCT) + 1,
+        },
+        (_, i) => MIN_PLUS_PCT + STEP_PLUS_PCT * i,
+      ),
+    [],
+  );
 
-      if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
-        type RawDraftImage = {
-          id?: string | number;
-          url?: string;
-          serverId?: number;
-          server_id?: number;
-        };
-        const rawImages = d.uploaded_images as RawDraftImage[];
-        const restoredImages: ImageAsset[] = rawImages.map((img) => ({
-          id:
-            img.id && typeof img.id === "string"
-              ? img.id
-              : Math.random().toString(36).substring(2, 15),
-          url: img.url || "",
-          serverId:
-            img.serverId ??
-            img.server_id ??
-            (typeof img.id === "number" ? img.id : undefined),
-        }));
-        setImages(restoredImages.filter((i) => !!i.url));
-      }
-      if (d.details) {
-        if (d.type === "ANIMAL")
-          setLiveDetails((prev) => ({ ...prev, ...d.details }));
-        else if (d.type === "SUPPLY")
-          setSupplyDetails((prev) => ({ ...prev, ...d.details }));
-      }
-      setDraftId(id);
-      if (d.updated_at) setLastSavedAt(d.updated_at);
-      setSaving("saved");
-    } catch (e) {
-      console.error("Failed to fetch draft:", e);
-      toast({ text: "下書きが見つかりませんでした", kind: "error" });
-      localStorage.removeItem("flea_item_draft");
-      setDraftId(null);
-      navigate("/flea-market/sell/create", { replace: true });
-    }
+  const formState: FormState = {
+    name,
+    price,
+    sellerPlusPct,
+    quantity,
+    isMultiPurchasable,
+    type,
+    description,
+    shippingFeeType,
+    shipFromId,
+    shipsWithinDays,
+    images,
+    mainIndex,
+    liveDetails,
+    supplyDetails,
+  };
+  const systemState = {
+    draftId,
+    currentStep,
+    submitting,
+    errors,
+    lastItemId,
+    lastSavedAt,
+    saving,
+    supplyTypes,
+  };
+  const calc: FormCalculations = {
+    feeRate,
+    feeYen,
+    payoutYen,
+    sellerPlusPctOptions,
+  };
+  const setters: FormSetters = {
+    setName,
+    setPrice,
+    setSellerPlusPct,
+    setQuantity,
+    setIsMultiPurchasable,
+    setType,
+    setDescription,
+    setShippingFeeType,
+    setShipFromId,
+    setShipsWithinDays,
+    setImages,
+    setMainIndex,
+    setLiveDetails,
+    setSupplyDetails,
+    setCurrentStep,
   };
 
-  useEffect(() => {
-    // 1. URLパラメータ (?draft_id=123) がある場合
-    if (targetDraftId) {
-      const id = Number(targetDraftId);
-      if (!isNaN(id) && id > 0) {
-        // LocalStorageは見ずに、サーバーから直接データを取る
-        fetchDraftData(id);
-        return;
-      }
-    }
-
-    // 2. URL指定がない場合、LocalStorage から復元
-    const saved = localStorage.getItem("flea_item_draft");
-    let restoredId: number | null = null;
-
-    if (saved) {
-      try {
-        const d = JSON.parse(saved);
-        if (d.name) setName(d.name);
-        if (d.price) setPrice(d.price);
-        if (typeof d.sellerPlusPct === "number")
-          setSellerPlusPct(d.sellerPlusPct);
-        if (d.quantity) setQuantity(d.quantity);
-        if (d.isMultiPurchasable !== undefined)
-          setIsMultiPurchasable(d.isMultiPurchasable);
-        if (d.type) setType(d.type);
-        if (d.description) setDescription(d.description);
-        if (d.shippingFeeType !== undefined)
-          setShippingFeeType(d.shippingFeeType);
-        if (d.shipFromId) setShipFromId(d.shipFromId);
-        if (d.shipsWithinDays) setShipsWithinDays(d.shipsWithinDays);
-        if (d.mainIndex) setMainIndex(d.mainIndex);
-        if (d._draftId) setDraftId(d._draftId);
-        if (d.liveDetails)
-          setLiveDetails((prev) => ({ ...prev, ...d.liveDetails }));
-        if (d.supplyDetails)
-          setSupplyDetails((prev) => ({ ...prev, ...d.supplyDetails }));
-        if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
-          const restoredImages: ImageAsset[] = d.uploaded_images.map(
-            (img: ImageAsset) => ({
-              id: img.id || Math.random().toString(36), // IDがなければ仮発行
-              url: img.url,
-              serverId: img.serverId,
-              // file: undefined  // 復元時はファイル実体はない
-            }),
-          );
-          setImages(restoredImages);
-          if (d._draftId) {
-            setDraftId(d._draftId);
-            restoredId = d._draftId;
-          }
-        }
-
-        if (d.mainIndex !== undefined) setMainIndex(d.mainIndex);
-      } catch (e) {
-        console.error(e);
-      }
-    }
-    // 2. IDがあれば、サーバーから最新情報を取得して上書き（確実性のため）
-    if (restoredId) {
-      fetchDraftData(restoredId);
-    }
-  }, [targetDraftId]);
-
-  // Return
   return {
-    formState: {
-      name,
-      price,
-      sellerPlusPct,
-      quantity,
-      isMultiPurchasable,
-      type,
-      description,
-      shippingFeeType,
-      shipFromId,
-      shipsWithinDays,
-      images,
-      mainIndex,
-      liveDetails,
-      supplyDetails,
-    },
-    systemState: {
-      draftId,
-      currentStep,
-      submitting,
-      errors,
-      lastItemId,
-      lastSavedAt,
-      saving,
-    },
-    setters: {
-      setName,
-      setPrice,
-      setSellerPlusPct,
-      setQuantity,
-      setIsMultiPurchasable,
-      setType,
-      setDescription,
-      setShippingFeeType,
-      setShipFromId,
-      setShipsWithinDays,
-      setImages,
-      setMainIndex,
-      setLiveDetails,
-      setSupplyDetails,
-      setCurrentStep,
-    },
-    calc: { feeRate, feeYen, payoutYen, sellerPlusPctOptions },
+    formState,
+    systemState,
+    calc,
+    setters,
     actions: {
       autosaveNow,
       doSubmit,
       resetForm,
       validate,
-      validateStep,
-      handleAddImages,
+      handleAddImages, // Added this action
     },
   };
 }
