@@ -1,7 +1,8 @@
 // src/modal/ConfirmDialog.tsx
 import React, { useMemo, useEffect } from "react";
 import { CONFIG, PREFS } from "../conf/config";
-import { ImageAsset } from "../types/FleaMarket";
+//import { ImageAsset } from "../types/FleaMarket";
+import { PublishSummary } from "../types/FleaMarketForm";
 
 // ★詳細情報の型定義を追加（ページ側のStateと合わせる）
 type LiveDetails = {
@@ -18,23 +19,6 @@ type SupplyDetails = {
     net_weight_g: string;
 };
 
-type Summary = {
-    name: string;
-    price: number;
-    quantity: number;
-    total: number;
-    isMultiPurchasable: boolean;
-    seller_plus_pct?: number;
-    type: string;
-    description: string;
-    shippingFeeType: 0 | 1 | 2;
-    shipFromId: number | null;
-    shipsWithinDays?: number;
-    images: ImageAsset[];
-    mainIndex: number;
-    details: LiveDetails | SupplyDetails;
-};
-
 export function ConfirmDialog({
     open,
     onClose,
@@ -46,7 +30,7 @@ export function ConfirmDialog({
     onClose: () => void;
     onConfirm: () => void;
     submitting: boolean;
-    summary: Summary;
+    summary: PublishSummary;
 }) {
     const displayUrls = useMemo(() => {
         return summary.images.map(img => {

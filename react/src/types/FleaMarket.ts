@@ -3,14 +3,12 @@ import {
   ShippingFeePref,
   ShippingMethod,
 } from "../conf/FleaMarket";
-import { Address } from "./Address";
+import { Address }  from "./Address";
+import { ItemType } from "../types/Market";
 
 export type TxRole = "BUYER" | "SELLER";
 
 export type FleaThreadKind = "transaction" | "purchase_request";
-
-export const FLEA_ITEM_TYPES = ["ANIMAL", "SUPPLY", "GOODS"] as const;
-export type FleaItemType = (typeof FLEA_ITEM_TYPES)[number];
 export interface FleaContent {
   id: number;
   isMultiPurchasable: boolean;
@@ -24,7 +22,7 @@ export interface FleaContent {
   shipsWithinDays: number;
   description: string | null;
   status: number;
-  type: FleaItemType;
+  type: ItemType;
   userId: string;
   is_liked: boolean;
 
@@ -62,7 +60,7 @@ export interface FleaListContent {
   seller_name: string;
   seller_icon_url: string | null;
 
-  type: FleaItemType;
+  type: ItemType;
 }
 
 export interface FleaComment {

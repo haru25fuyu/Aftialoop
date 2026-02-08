@@ -64,6 +64,7 @@ func main() {
 	handler.NewPasswordHandler(db).RegisterRoutes(r)
 	handler.NewContactHandler(db).RegisterRoutes(r)
 	handler.NewNotificationHandler(db).RegisterRoutes(r)
+	handler.NewCategoryHandler(db).RegisterRoutes(r)
 
 	flea.NewFleaMarketHandler(db).RegisterRoutes(r)
 
@@ -85,7 +86,6 @@ func main() {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		log.Println("[refresh] got cookie refresh_token len=", len(c.Value))
 
 		user, expUnix, err := db.GetUserByRefreshToken(c.Value)
 		if err != nil {
@@ -93,7 +93,6 @@ func main() {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
 			return
 		}
-		log.Println("[refresh] user ok:", user.ID, "refreshExp:", time.Unix(expUnix, 0).UTC())
 
 		user.Limit = 15 * 60
 		access, err := function.GenerateToken(user)

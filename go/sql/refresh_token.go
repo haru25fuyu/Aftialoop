@@ -4,7 +4,6 @@ import (
 	"animaloop/utils"
 	"database/sql"
 	"errors"
-	"log"
 	"time"
 )
 
@@ -34,8 +33,6 @@ func (d *Database) GetUserByRefreshToken(token string) (*utils.User, int64, erro
 		WHERE refresh_token = ?
 		LIMIT 1
 	`, token).Scan(&userID, &expiresAt)
-
-	log.Println("GetUserByRefreshToken:", token, userID, expiresAt, err)
 
 	if err != nil {
 		if err == sql.ErrNoRows {

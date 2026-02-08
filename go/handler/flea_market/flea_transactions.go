@@ -66,12 +66,14 @@ func (h *FleaMarketHandler) GetFleaTransaction(w http.ResponseWriter, r *http.Re
 
 		item, err := h.db.GetFleaMarketItemByID(userID, txRow.ItemID)
 		if err != nil {
+			log.Printf("Error getting item detail for transaction: %v", err)
 			http.Error(w, "failed to get item detail", http.StatusInternalServerError)
 			return
 		}
 
 		address, err := h.db.GetAddress(txRow.AddressID, txRow.BuyerID)
 		if err != nil {
+			log.Printf("Error getting address for transaction: %v", err)
 			http.Error(w, "failed to get address", http.StatusInternalServerError)
 			return
 		}
@@ -113,11 +115,13 @@ func (h *FleaMarketHandler) GetFleaTransaction(w http.ResponseWriter, r *http.Re
 
 	item, err := h.db.GetFleaMarketItemByID(userID, prRow.ItemID)
 	if err != nil {
+		log.Printf("Error getting item detail for purchase request: %v", err)
 		http.Error(w, "failed to get item detail", http.StatusInternalServerError)
 		return
 	}
 	address, err := h.db.GetAddress(prRow.AddressID, prRow.BuyerID)
 	if err != nil {
+		log.Printf("Error getting address for purchase request: %v", err)
 		http.Error(w, "failed to get address", http.StatusInternalServerError)
 		return
 	}
@@ -956,7 +960,7 @@ func (h *FleaMarketHandler) RateTransactionByBuyer(w http.ResponseWriter, r *htt
 
 		title := "受取評価が届きました"
 		body := fmt.Sprintf("購入者が「%s」を受け取り評価しました。あなたも評価を返して取引を完了させてください。", item.Name)
-		url := fmt.Sprintf("/flea-market/transactions/%s", txData.PurchaseRequestID)
+		url := fmt.Sprintf("/flea-market/transactions/%d", txData.PurchaseRequestID)
 
 		_ = h.db.CreateNotification(&txData.SellerID, "TRANSACTION", title, body, url)
 	}()

@@ -181,7 +181,7 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 	defer file.Close()
 
 	// 3. 保存先ディレクトリの作成 (なければ作る)
-	uploadDir := "/static/flea/flea_drafts/"
+	uploadDir := "/static/flea_drafts/"
 
 	// ディレクトリがなければ作る（権限エラーが出る場合は事前にmkdirが必要かも）
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
@@ -206,8 +206,8 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 	}
 
 	// 6. DBに情報を保存 (IDを発番するため)
-	// ※ 公開用URL: "/static/flea/flea_drafts/" というパスでアクセスできる前提とします
-	publicURL := fmt.Sprintf("/static/flea/flea_drafts/%s", filename)
+	// ※ 公開用URL: "/static/flea_drafts/" というパスでアクセスできる前提とします
+	publicURL := fmt.Sprintf("/static/flea_drafts/%s", filename)
 
 	id, err := h.db.UploadImageAsset(publicURL)
 	if err != nil {

@@ -50,7 +50,6 @@ func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlU
 		return user, err
 	}
 
-	log.Println("GetUserDataクエリ成功:", user.Point)
 	return user, nil
 }
 

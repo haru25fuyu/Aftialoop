@@ -12,8 +12,8 @@ import { FleaThreadResponse } from "../../types/FleaMarket";
 
 import TxHeader from "../../component/TxHeader";
 import TxTimeline from "../../component/TxTimeline";
-import PhasePanel from "../../component/FleaMarketPhases/PhasePanel";
-import SellerSetTerms from "../../component/FleaMarketPhases/SellerSetTerms";
+import PhasePanel from "../../component/FleaMarket/FleaMarketPhases/PhasePanel";
+import SellerSetTerms from "../../component/FleaMarket/FleaMarketPhases/SellerSetTerms";
 
 import Header from "../../component/Header";
 import LoginModal from '../../modal/Login'; // Import LoginModal

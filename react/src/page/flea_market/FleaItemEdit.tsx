@@ -4,9 +4,11 @@ import { Loader2, ArrowLeft } from "lucide-react";
 
 import api from "../../conf/api";
 import { useToast } from "../../conf/function";
-import { CATEGORY_OPTIONS, SHIPPING_FEE_TYPES_MAP, FleaItemStatus } from "../../conf/FleaMarket";
+import { SHIPPING_FEE_TYPES_MAP, FleaItemStatus } from "../../conf/FleaMarket";
+import { CATEGORY_OPTIONS } from "../../conf/Market";
 
-import { ImageAsset, FleaItemType } from "../../types/FleaMarket";
+import { ItemType } from "../../types/Market";
+import { ImageAsset } from "../../types/FleaMarket";
 
 import InlineSortableImages from "../../component/InlineSortableImages";
 import ShipFromSelect from "../../component/ShipFromSelect";
@@ -17,7 +19,7 @@ import AddImagesModal from "../../modal/AddImagesModal";
 type SexType = "male" | "female" | "unknown" | "pair";
 type StepKey = "main" | "details";
 
- const FleaItemEdit: React.FC = () => {
+const FleaItemEdit: React.FC = () => {
     const { id } = useParams();
     const navigate = useNavigate();
     const toast = useToast();
@@ -34,7 +36,7 @@ type StepKey = "main" | "details";
     const [price, setPrice] = useState<number | "">("");
     const [quantity, setQuantity] = useState(1);
     const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
-    const [type, setType] = useState<FleaItemType>("ANIMAL");
+    const [type, setType] = useState<ItemType>("ANIMAL");
     const [description, setDescription] = useState("");
     const [status, setStatus] = useState<number>(0);
 
