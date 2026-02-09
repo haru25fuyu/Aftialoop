@@ -47,6 +47,7 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
             price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
             quantity = ?,
             type = ?,
+			category_id = ?,
             is_multi_purchasable = COALESCE(?, 0),
             main_image_url = ?,
             status = 0,
@@ -54,7 +55,7 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
             shipping_fee_type = ?,
             ships_within_days = ?,
             
-            details = ?,  -- ★ここにJSON文字列を入れる
+            details = ?,
             
             created_at = UTC_TIMESTAMP(),
             updated_at = UTC_TIMESTAMP()
@@ -64,6 +65,7 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 		p.Price, p.Price, p.Price,
 		p.Quantity,
 		p.Type,
+		p.CategoryID,
 		p.IsMultiPurchasable,
 		p.MainImageURL,
 		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
@@ -147,6 +149,7 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
                price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
                quantity = COALESCE(?, quantity),
                type = COALESCE(?, type),
+			   category_id = COALESCE(?, category_id),
                is_multi_purchasable = COALESCE(?, is_multi_purchasable),
                main_image_url = ?,
                ship_from = COALESCE(?, ship_from),
@@ -160,7 +163,7 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
     `,
 		p.Name, p.Description,
 		p.Price, p.Price, p.Price,
-		p.Quantity, p.Type, p.IsMultiPurchasable, p.MainImageURL,
+		p.Quantity, p.Type, p.CategoryID, p.IsMultiPurchasable, p.MainImageURL,
 		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
 		detailsJSON,
 		draftID, userID,
@@ -208,19 +211,27 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
 
 	// SELECT実行
 	err := db.DB.QueryRowContext(ctx, `
-        SELECT id, name, description,
-               CASE WHEN price IS NULL THEN NULL ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM price)) END,
-               quantity, type, is_multi_purchasable,
-               main_image_url,
-               ship_from, shipping_fee_type, ships_within_days, 
-               
-               details, -- ★取得
-               
-               updated_at
-          FROM flea_item_drafts
-         WHERE id = ? AND user_id = ? AND status = 0
+        SELECT 
+            d.id, 
+            d.name, 
+            d.description,
+            CASE WHEN d.price IS NULL THEN NULL ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM d.price)) END,
+            d.quantity, 
+            d.type, 
+            d.category_id, 
+            c.name AS category_name,  -- ★ここに追加！ (テーブル名 c に注意)
+            d.is_multi_purchasable,
+            d.main_image_url,
+            d.ship_from, 
+            d.shipping_fee_type, 
+            d.ships_within_days, 
+            d.details,
+            d.updated_at
+        FROM flea_item_drafts AS d
+        LEFT JOIN categories AS c ON d.category_id = c.id  -- ★JOINを追加
+        WHERE d.id = ? AND d.user_id = ? AND d.status = 0
     `, draftID, userID).Scan(
-		&out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type, &out.IsMultiPurchasable,
+		&out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type, &out.CategoryID, &out.CategoryName, &out.IsMultiPurchasable,
 		&out.MainImageURL, &out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays,
 
 		&detailsString, // ★受け取る

@@ -265,7 +265,7 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
             created_at,
             updated_at
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
         )
     `
 
@@ -284,8 +284,9 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
 		p.ShipFrom,
 		p.ShippingFeeType,
 		p.ShipsWithinDays,
-		p.SellerRateBP,
-		p.CommissionRateBP, // 最後の ? に対応
+		p.SellerRateBP, // seller_rate (?)
+		// 1 (status) is hardcoded in VALUES
+		p.CommissionRateBP, // commission_rate (?)
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert item: %w", err)

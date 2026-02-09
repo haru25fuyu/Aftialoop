@@ -48,11 +48,12 @@ export default function FleaItemCreatePage() {
             setters.setType("INSECT");
         }
 
-        // ▼ 修正: prev は自動推論されるので、(prev: any) ではなく (prev) でOK
+        setters.setCategoryId(item.id);
+        setters.setCategoryName(item.name);
+
+        // ▼ prev は自動推論されるので、(prev) でOK
         setters.setLiveDetails((prev) => ({
             ...prev,
-            category_id: item.id,
-            category_name: item.name
         }));
 
         toast({ text: `「${item.name}」を設定しました`, kind: "success" });
@@ -63,7 +64,7 @@ export default function FleaItemCreatePage() {
         if (formState.type === "SUPPLY") {
             return formState.supplyDetails;
         }
-        
+
         // 共通の入力値
         const d = formState.liveDetails;
 
@@ -135,7 +136,7 @@ export default function FleaItemCreatePage() {
         shipFromId: formState.shipFromId || undefined,
         shipsWithinDays: formState.shipsWithinDays === "" ? undefined : Number(formState.shipsWithinDays),
         mainIndex: formState.mainIndex,
-        
+
         category_name: formState.categoryName, // カテゴリー名
 
         // ★修正: ここで変換関数を呼ぶ！
@@ -247,7 +248,11 @@ export default function FleaItemCreatePage() {
                 open={addOpen}
                 initialImages={formState.images}
                 onClose={() => setAddOpen(false)}
-                onSave={(imgs) => { setters.setImages(imgs); setAddOpen(false); }}
+                // ▼ 修正: 単なるstateセットではなく、アップロード処理(handleAddImages)を呼ぶ
+                onSave={(imgs) => {
+                    actions.handleAddImages(imgs);
+                    setAddOpen(false);
+                }}
             />
             <PublishCompleteDialog
                 open={completeOpen}

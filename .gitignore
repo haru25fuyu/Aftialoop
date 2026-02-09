@@ -2,3 +2,11 @@ go/.env
 go/static/
 go/uploads/
 mysql/
+
+# ビルドされたバイナリを除外
+main
+server
+*.exe
+
+# 圧縮ファイルなどを除外
+*.tar.gz
