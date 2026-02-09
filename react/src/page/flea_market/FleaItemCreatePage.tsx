@@ -18,6 +18,8 @@ import { PublishCompleteDialog } from "../../modal/PublishCompleteDialog";
 import AddImagesModal from "../../modal/AddImagesModal";
 import TinySavedPopup from "../../component/TinySavedPopup";
 
+import { AnyDetails } from "../../types/FleaMarketForm";
+
 type CategorySearchResult = {
     id: number;
     name: string;
@@ -56,8 +58,72 @@ export default function FleaItemCreatePage() {
         toast({ text: `「${item.name}」を設定しました`, kind: "success" });
     };
 
+    // 表示用にデータを変換する関数
+    const getFormattedDetails = () => {
+        if (formState.type === "SUPPLY") {
+            return formState.supplyDetails;
+        }
+        
+        // 共通の入力値
+        const d = formState.liveDetails;
+
+        // カテゴリーに合わせてキー名を変換 (buildPayloadと同じロジック)
+        switch (formState.type) {
+            case "REPTILE":
+            case "AMPHIBIAN":
+                return {
+                    kind: formState.type,
+                    morph: d.locality,       // locality -> morph
+                    birth_date: d.hatch_date,// hatch_date -> birth_date
+                    lineage: d.generation,   // generation -> lineage
+                    size: d.size,
+                    sex: d.sex
+                };
+            case "PLANT_ORNAMENTAL":
+            case "PLANT_FOOD":
+                return {
+                    kind: "PLANT",
+                    origin: d.locality,           // locality -> origin
+                    acquisition_date: d.hatch_date, // hatch_date -> acquisition_date
+                    propagation: d.generation,    // generation -> propagation
+                    size: d.size
+                    // sexなし
+                };
+            case "MAMMAL":
+                return {
+                    kind: "MAMMAL",
+                    origin: d.locality,
+                    birth_date: d.hatch_date,
+                    lineage: d.generation,
+                    size: d.size,
+                    sex: d.sex
+                };
+            case "FISH":
+                return {
+                    kind: "FISH",
+                    origin: d.locality,
+                    arrival_date: d.hatch_date,
+                    generation: d.generation,
+                    size: d.size,
+                    sex: d.sex
+                };
+            case "INSECT":
+            default:
+                // 昆虫はそのまま (LiveDetailsとキー名がほぼ同じ)
+                return {
+                    kind: "INSECT",
+                    locality: d.locality,
+                    hatch_date: d.hatch_date,
+                    generation: d.generation,
+                    size: d.size,
+                    sex: d.sex
+                };
+        }
+    };
+
+    // Summary作成 (Dialog用)
     const summaryData: PublishSummary = {
-        name: formState.name    ,
+        name: formState.name,
         price: Number(formState.price) || 0,
         seller_plus_pct: formState.sellerPlusPct,
         quantity: formState.isMultiPurchasable ? formState.quantity : 1,
@@ -66,10 +132,15 @@ export default function FleaItemCreatePage() {
         type: formState.type,
         description: formState.description,
         shippingFeeType: formState.shippingFeeType,
-        shipFromId: formState.shipFromId || null,
+        shipFromId: formState.shipFromId || undefined,
         shipsWithinDays: formState.shipsWithinDays === "" ? undefined : Number(formState.shipsWithinDays),
         mainIndex: formState.mainIndex,
-        details: formState.type === "ANIMAL" ? formState.liveDetails : formState.supplyDetails,
+        
+        category_name: formState.categoryName, // カテゴリー名
+
+        // ★修正: ここで変換関数を呼ぶ！
+        details: getFormattedDetails() as AnyDetails, // 型合わせ (AnyDetails)
+
         images: formState.images,
     };
 

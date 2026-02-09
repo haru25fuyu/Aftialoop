@@ -1,23 +1,26 @@
 import { Dispatch, SetStateAction } from "react";
-import { ImageAsset } from "./FleaMarket"; // 既存の定義ファイルをインポート
+import { ImageAsset } from "./FleaMarket";
 import { ItemType } from "./Market";
 
-// 性別型
-export type SexType = "male" | "female" | "unknown" | "pair";
+// ==========================================
+// 1. 共通定義
+// ==========================================
+export type SexType = "male" | "female" | "unknown" | "pair" | "none";
 
-// 生体詳細情報の型
+// ==========================================
+// 2. 入力フォーム用 State型 (FormStateで使用)
+// ※ 入力欄を共通化するため、抽象的な名前(locality, hatch_date等)を使います
+// ==========================================
 export type LiveDetails = {
-  category_id: number | null;
-  category_name: string;
-  locality: string;
-  hatch_date: string;
-  generation: string;
-  size: string;
-  sex: SexType;
+  locality: string; // 産地 / モルフ / 入手元
+  hatch_date: string; // 羽化日 / 生年月日 / 入荷日
+  generation: string; // 累代 / 血統 / 品種
+  size: string; // サイズ / 全長 / 体重
+  sex: SexType; // 性別
 };
 
-// 用品詳細情報の型
 export type SupplyDetails = {
+  kind: "SUPPLY"; // State管理の都合上、固定値を入れることも考慮
   brand: string;
   sku: string;
   net_weight_g: string;
@@ -26,7 +29,9 @@ export type SupplyDetails = {
   target_category_name: string;
 };
 
-// フォーム全体のState型
+// ==========================================
+// 3. フォーム全体のState定義
+// ==========================================
 export type FormState = {
   name: string;
   price: string;
@@ -34,17 +39,21 @@ export type FormState = {
   quantity: number;
   isMultiPurchasable: boolean;
   type: ItemType;
+  categoryId: number | null; // キャメルケース
+  categoryName: string | null; // キャメルケース
   description: string;
   shippingFeeType: 0 | 1 | 2;
   shipFromId: number | null;
   shipsWithinDays: number | "";
   images: ImageAsset[];
   mainIndex: number;
+
+  // 入力中は汎用型を使う
   liveDetails: LiveDetails;
   supplyDetails: SupplyDetails;
 };
 
-// Setter関数の型 (ReactのDispatch型を使用)
+// Setter関数の型
 export type FormSetters = {
   setName: Dispatch<SetStateAction<string>>;
   setPrice: Dispatch<SetStateAction<string>>;
@@ -52,6 +61,8 @@ export type FormSetters = {
   setQuantity: Dispatch<SetStateAction<number>>;
   setIsMultiPurchasable: Dispatch<SetStateAction<boolean>>;
   setType: Dispatch<SetStateAction<ItemType>>;
+  setCategoryId: Dispatch<SetStateAction<number | null>>;
+  setCategoryName: Dispatch<SetStateAction<string | null>>;
   setDescription: Dispatch<SetStateAction<string>>;
   setShippingFeeType: Dispatch<SetStateAction<0 | 1 | 2>>;
   setShipFromId: Dispatch<SetStateAction<number | null>>;
@@ -63,47 +74,106 @@ export type FormSetters = {
   setCurrentStep: Dispatch<SetStateAction<"main" | "details">>;
 };
 
-// カテゴリー検索結果のアイテム型
-export type CategorySearchResult = {
-  id: number;
-  name: string;
-  built_in_type?: string;
-  path?: string;
-  // その他APIが返すフィールド
-};
-
+// ==========================================
+// 4. 計算結果の型
+// ==========================================
 export type FormCalculations = {
-  feeRate: number; // 手数料率 (0.10 など)
-  feeYen: number; // 手数料額 (円)
-  payoutYen: number; // 販売利益 (円)
-  sellerPlusPctOptions: number[]; // 割引率の選択肢配列
+  feeRate: number;
+  feeYen: number;
+  payoutYen: number;
+  sellerPlusPctOptions: number[];
 };
 
-// APIのエラー詳細（バリデーションエラーなど）
-export type ApiValidationError = {
-  field: string;
-  msg: string;
+// ==========================================
+// 5. 保存・確認用 詳細型 (PublishSummaryで使用)
+// ※ ここで厳密に型を分けます
+// ==========================================
+
+// 昆虫 (INSECT)
+export type InsectDetails = {
+  kind: "INSECT";
+  locality: string;
+  hatch_date: string;
+  generation: string;
+  size: string;
+  sex: SexType;
 };
 
-// APIのエラーレスポンス全体
+// 爬虫類・両生類 (REPTILE, AMPHIBIAN)
+export type ReptileDetails = {
+  kind: "REPTILE" | "AMPHIBIAN";
+  morph: string; // locality -> morph
+  birth_date: string; // hatch_date -> birth_date
+  lineage: string; // generation -> lineage
+  size: string;
+  sex: SexType;
+};
+
+// 植物 (PLANT)
+export type PlantDetails = {
+  kind: "PLANT";
+  origin: string; // locality -> origin
+  acquisition_date: string; // hatch_date -> acquisition_date
+  propagation: string; // generation -> propagation
+  size: string;
+  // sexなし
+};
+
+// 哺乳類 (MAMMAL)
+export type MammalDetails = {
+  kind: "MAMMAL";
+  origin: string;
+  birth_date: string;
+  lineage: string;
+  size: string;
+  sex: SexType;
+};
+
+// 魚類 (FISH)
+export type FishDetails = {
+  kind: "FISH";
+  origin: string;
+  arrival_date: string;
+  generation: string;
+  size: string;
+  sex: SexType;
+};
+
+// すべての詳細型のユニオン
+export type AnyDetails =
+  | InsectDetails
+  | ReptileDetails
+  | PlantDetails
+  | MammalDetails
+  | FishDetails
+  | SupplyDetails;
+
+// ==========================================
+// 6. 確認画面・送信用のサマリー型
+// ==========================================
+export type PublishSummary = {
+  name: string;
+  price: number;
+  seller_plus_pct: number;
+  quantity: number;
+  total: number;
+  isMultiPurchasable: boolean;
+  type: ItemType;
+  description: string;
+  shippingFeeType: 0 | 1 | 2;
+  shipFromId: number | undefined;
+  shipsWithinDays: number | undefined;
+  mainIndex: number;
+
+  category_name?: string | null; // 表示用
+
+  details: AnyDetails;
+
+  images: ImageAsset[];
+};
+
+// エラーレスポンス用
 export type ApiErrorResponse = {
   message?: string;
-  errors?: ApiValidationError[];
-};
-
-export type PublishSummary = {
-    name: string;
-    description: string;
-    price: number;       // formState.priceはstringなので変換が必要
-    seller_plus_pct: number; // formStateは sellerPlusPct なのでマッピングが必要
-    quantity: number;
-    isMultiPurchasable: boolean;
-    type: ItemType;
-    shippingFeeType: 0 | 1 | 2;
-    shipFromId: number | null;
-    shipsWithinDays?: number;
-    images: ImageAsset[];
-    mainIndex: number;
-    details: LiveDetails | SupplyDetails;
-    total: number;       // 計算が必要
+  errors?: Array<{ field: string; msg: string }>;
 };

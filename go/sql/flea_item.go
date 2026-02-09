@@ -15,29 +15,104 @@ import (
 // フリマ商品関係
 // ============================================================
 
-// 引数に userID を追加
-func (db *Database) ListFleaMarketItemsLite(ctx context.Context, userID string, limit, offset int) ([]utils.FleaMarketListLite, error) {
-	const q = `
+// SearchFleaItems は条件に基づいて商品一覧を取得します
+func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarketRequest, currentUserID int64) ([]utils.FleaMarketListLite, error) {
+	// 1. ベースのクエリ
+	// ★修正: フロントエンドに必要な quantity, status, shipping_fee_type, likes_count を追加
+	query := `
         SELECT
-          f.id,
-          f.name,
-          f.price,
-          f.seller_rate,
-          f.type,
-          f.main_image_url,
-          u.name    AS seller_name,
-          u.icon_url AS seller_icon_url,
-          EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked
+            f.id,
+            f.name,
+            f.price,
+            f.seller_rate,
+            f.type,
+            f.main_image_url,
+            f.status,             -- 追加
+            f.quantity,           -- 追加
+            f.shipping_fee_type,  -- 追加
+            u.name     AS seller_name,
+            u.icon_url AS seller_icon_url,
+            EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked,
+            (SELECT COUNT(*) FROM flea_likes WHERE item_id = f.id) AS likes_count -- 追加
         FROM flea_items AS f
-        LEFT JOIN users   AS u ON u.id     = f.user_id
+        LEFT JOIN users AS u ON u.id = f.user_id
         WHERE f.deleted_at IS NULL
-        AND f.status = ?
-        ORDER BY f.created_at DESC
-        LIMIT ? OFFSET ?;
     `
 
-	// ★Queryの引数順序に注意: userID -> status -> limit -> offset
-	rows, err := db.DB.QueryContext(ctx, q, userID, config.FleaItemStatusActive, limit, offset)
+	args := []interface{}{currentUserID}
+
+	// ---------------------------------------------------------
+	// 2. 検索条件の追加
+	// ---------------------------------------------------------
+
+	if req.Keyword != "" {
+		query += " AND (f.name LIKE ? OR f.description LIKE ?)"
+		search := "%" + req.Keyword + "%"
+		args = append(args, search, search)
+	}
+
+	if req.Type != "" {
+		query += " AND f.type = ?"
+		args = append(args, req.Type)
+	}
+
+	if req.CategoryID > 0 {
+		query += " AND f.category_id = ?"
+		args = append(args, req.CategoryID)
+	}
+
+	if req.MinPrice != nil {
+		query += " AND f.price >= ?"
+		args = append(args, *req.MinPrice)
+	}
+
+	if req.MaxPrice != nil {
+		query += " AND f.price <= ?"
+		args = append(args, *req.MaxPrice)
+	}
+
+	if req.Status != 0 {
+		query += " AND f.status = ?"
+		args = append(args, req.Status)
+	}
+
+	// ---------------------------------------------------------
+	// 3. 並び替え
+	// ---------------------------------------------------------
+	// likes順の場合はエイリアスではなくサブクエリかカラム指定が必要なケースがあるが
+	// MySQLはORDER BY句でSELECT句のエイリアス(likes_count)を使えることが多い
+	switch req.Sort {
+	case "price_asc":
+		query += " ORDER BY f.price ASC"
+	case "price_desc":
+		query += " ORDER BY f.price DESC"
+	case "likes":
+		query += " ORDER BY likes_count DESC" // エイリアスを使用
+	case "oldest":
+		query += " ORDER BY f.created_at ASC"
+	default:
+		query += " ORDER BY f.created_at DESC"
+	}
+
+	// ---------------------------------------------------------
+	// 4. ページネーション
+	// ---------------------------------------------------------
+	query += " LIMIT ? OFFSET ?"
+
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := (req.Page - 1) * limit
+	if offset < 0 {
+		offset = 0
+	}
+	args = append(args, limit, offset)
+
+	// ---------------------------------------------------------
+	// 5. 実行 & スキャン
+	// ---------------------------------------------------------
+	rows, err := db.DB.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -51,9 +126,10 @@ func (db *Database) ListFleaMarketItemsLite(ctx context.Context, userID string, 
 			mainURL       sql.NullString
 			sellerName    sql.NullString
 			sellerIconURL sql.NullString
+			shippingFee   sql.NullInt64 // NULL許容のため
 		)
 
-		// ★Scanに &it.IsLiked を追加 (最後)
+		// SELECTしたカラム数・順番に合わせてScan
 		if err := rows.Scan(
 			&it.ID,
 			&it.Name,
@@ -61,9 +137,13 @@ func (db *Database) ListFleaMarketItemsLite(ctx context.Context, userID string, 
 			&it.SellerRate,
 			&it.Type,
 			&mainURL,
+			&it.Status,   // 追加
+			&it.Quantity, // 追加
+			&shippingFee, // 追加 (NullInt64)
 			&sellerName,
 			&sellerIconURL,
-			&it.IsLiked, // ここに追加
+			&it.IsLiked,
+			&it.LikesCount, // 追加
 		); err != nil {
 			return nil, err
 		}
@@ -79,9 +159,15 @@ func (db *Database) ListFleaMarketItemsLite(ctx context.Context, userID string, 
 			s := sellerIconURL.String
 			it.SellerIconURL = &s
 		}
+		if shippingFee.Valid {
+			it.ShippingFeeType = int(shippingFee.Int64)
+		} else {
+			it.ShippingFeeType = 0 // デフォルト
+		}
 
 		items = append(items, it)
 	}
+
 	return items, rows.Err()
 }
 
@@ -148,7 +234,7 @@ func (d *Database) GetFleaMarketItemImages(itemID uint64) ([]utils.ItemImage, er
 
 // utils.CreateFleaMarketItemInput に ImageURLs []string がある前提です
 
-func (db *Database) CreateFleaMarketItem(userID string, p utils.CreateFleaMarketItemInput) (int64, error) {
+func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p utils.CreateFleaMarketItemInput) (int64, error) {
 	// 1. トランザクション開始
 	tx, err := db.DB.Begin()
 	if err != nil {
@@ -157,27 +243,58 @@ func (db *Database) CreateFleaMarketItem(userID string, p utils.CreateFleaMarket
 	defer tx.Rollback()
 
 	// 2. flea_items テーブルへの保存 (ここは既存のまま)
-	res, err := tx.Exec(`
+	query := `
         INSERT INTO flea_items (
-            user_id, name, description, price, 
-            quantity, type, is_multi_purchasable, 
-            main_image_url, 
-            ship_from, shipping_fee_type, ships_within_days, 
-            seller_rate, commission_rate, 
-            created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
-    `,
-		userID, p.Name, p.Description, p.Price,
-		p.Quantity, p.Type, p.IsMultiPurchasable,
-		p.MainImageURL, // ← ここには1枚目のURLが入ります
-		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
-		p.SellerRateBP, p.CommissionRateBP,
+            user_id,
+            name,
+            description,
+            price,
+            quantity,
+            type,
+            category_id,
+            category_name,
+            is_multi_purchasable,
+            main_image_url,
+            details,
+            ship_from,
+            shipping_fee_type,
+            ships_within_days,
+            seller_rate,
+			status,
+            commission_rate,
+            created_at,
+            updated_at
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+        )
+    `
+
+	res, err := db.DB.ExecContext(ctx, query,
+		userID,
+		p.Name,
+		p.Description,
+		p.Price,
+		p.Quantity,
+		p.Type,
+		p.CategoryID,
+		p.CategoryName,
+		p.IsMultiPurchasable,
+		p.MainImageURL,
+		p.Details,
+		p.ShipFrom,
+		p.ShippingFeeType,
+		p.ShipsWithinDays,
+		p.SellerRateBP,
+		p.CommissionRateBP, // 最後の ? に対応
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert item: %w", err)
 	}
 
-	itemID, _ := res.LastInsertId()
+	itemID, err := res.LastInsertId()
+	if err != nil {
+		return 0, fmt.Errorf("get last insert id: %w", err)
+	}
 
 	// ------------------------------------------------------------
 	// ★★★  flea_item_images への保存処理 ★★★
@@ -210,12 +327,13 @@ func (db *Database) CreateFleaMarketItem(userID string, p utils.CreateFleaMarket
 }
 
 // UpdateFleaItem: 商品テキスト情報の更新
-func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, method, fee string, from, days, status int) error {
+func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, categoryID *int64, method, fee string, from, days, status int) error {
 	_, err := d.DB.Exec(`
         UPDATE flea_items
         SET name = ?, 
             description = ?, 
             price = ?, 
+			category_id = ?,
             shipping_method = ?,
             shipping_fee_type = ?,
             ship_from = ?, 
@@ -223,7 +341,7 @@ func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, m
             status = ?,
             updated_at = UTC_TIMESTAMP()
         WHERE id = ?
-    `, name, desc, price, method, fee, from, days, status, itemID) // 引数追加
+    `, name, desc, price, categoryID, method, fee, from, days, status, itemID) // 引数追加
 	return err
 }
 

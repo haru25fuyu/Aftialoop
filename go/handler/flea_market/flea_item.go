@@ -63,28 +63,67 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(resp)
 }
 
-// GET /flea-market/list?limit=20&offset=0 でもOK（POSTならBodyから取得）
 func (h *FleaMarketHandler) ListFleaMarket(w http.ResponseWriter, r *http.Request) {
-	userID, _ := function.CheckUser(h.db, w, r)
+	// 1. ユーザーIDの取得
+	// ※ CheckUserはログインしていなくてもエラーにせず、単に空文字を返す想定
+	// もし未ログイン時に 401 を返してしまう仕様なら、ここを調整する必要があります
+	userIDStr, _ := function.CheckUser(h.db, w, r)
 
-	limit, offset := 20, 0
+	var userID int64
+	if userIDStr != "" {
+		if id, err := strconv.ParseInt(userIDStr, 10, 64); err == nil {
+			userID = id
+		}
+	}
 
-	// クエリパラメータからページング取得
-	q := r.URL.Query()
-	limit = utils.ParseInt(q.Get("limit"), 20)
-	offset = utils.ParseInt(q.Get("offset"), 0)
+	// 2. リクエストボディのパース
+	// デフォルト値
+	req := utils.ListFleaMarketRequest{
+		Page:   1,
+		Limit:  20,
+		Status: config.FleaItemStatusActive, // デフォルトは販売中のみにしておくと安全
+	}
 
-	items, err := h.db.ListFleaMarketItemsLite(r.Context(), userID, limit, offset)
+	if r.Method == http.MethodPost && r.Body != nil {
+		// JSONデコード
+		// 構造体のタグ (`json:"keyword"`) にマッチするフィールドに値が入ります
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			log.Println("ListFleaMarket decode warn:", err)
+		}
+	} else {
+		// GET用フォールバック (ページネーションのみ)
+		q := r.URL.Query()
+		req.Limit = utils.ParseInt(q.Get("limit"), 20)
+		offset := utils.ParseInt(q.Get("offset"), 0)
+		if req.Limit > 0 {
+			req.Page = (offset / req.Limit) + 1
+		}
+	}
+
+	// 3. 検索実行
+	// h.db.SearchFleaItems の第一引数が context, 第二引数が utils.ListFleaMarketRequest であることを確認
+	items, err := h.db.SearchFleaItems(r.Context(), req, userID)
+	log.Println("SearchFleaItems returned items count:", len(items))
 	if err != nil {
-		log.Println("failed to fetch flea items:", err)
+		log.Println("failed to search flea items:", err)
 		http.Error(w, "failed to fetch items", http.StatusInternalServerError)
 		return
 	}
+
+	// 4. レスポンス生成
 	fcg := config.GetFleaConfig()
 
-	resp := map[string]any{"items": items, "rate_den": fcg.RateDen}
+	// nilなら空配列
+	if items == nil {
+		items = []utils.FleaMarketListLite{}
+	}
 
-	w.WriteHeader(http.StatusOK)
+	resp := map[string]any{
+		"items":    items,
+		"rate_den": fcg.RateDen,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)
 }
 
@@ -96,59 +135,57 @@ func (h *FleaMarketHandler) ListFleaMarket(w http.ResponseWriter, r *http.Reques
 //   - shipping_fee_type, ship_from_id, ships_within_days (任意), main_index
 //   - images[] (複数)
 func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Request) {
-	// 認証チェック
+	// 1. 認証チェック
 	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil || userID == "" {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
 
-	// 20MB まで
+	// 2. マルチパートフォームのパース (最大20MB)
 	if err := r.ParseMultipartForm(20 << 20); err != nil {
 		http.Error(w, "invalid form", http.StatusBadRequest)
 		return
 	}
 
-	// ---- フィールド取り出し・型変換 ----
+	// ---------------------------------------------------------
+	// 3. フィールド取り出し & 型変換
+	// ---------------------------------------------------------
 	name := r.FormValue("name")
-	desc := r.FormValue("description")
-	var description *string
-	if desc != "" {
-		description = &desc
-	}
-
+	description := r.FormValue("description")
 	price := utils.ParseInt(r.FormValue("price"), 0)
-	sellerPlusPct := utils.ParseInt(r.FormValue("seller_plus_pct"), 0)
-
-	// サーバー側設定
-	cfg := config.GetFleaConfig()
-	baseBP := cfg.BaseRate // 10200 (1.02%)
-	maxBP := cfg.MaxRate   // 11000 (1.10%)
-	baseCR := cfg.CommissionRate
-
-	// 【修正3】 計算ロジックの修正
-	// 例: RateDen=10000 (100%) の場合、1% は 100 BP
-	bpPerPct := cfg.RateDen / 100
-
-	// 最大何%上乗せできるか (例: (11000-10200)/100 = 8%)
-	maxPlusPct := int((maxBP - baseBP) / bpPerPct)
-
-	if sellerPlusPct < 0 || sellerPlusPct > maxPlusPct {
-		http.Error(w, "invalid seller_plus_pct", http.StatusBadRequest)
-		return
-	}
-
-	// 上乗せ分を加算 (例: 5%上乗せ -> 10200 + 5*100 = 10700)
-	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(bpPerPct)
-	commissionRateBP := baseCR + int64(sellerPlusPct)*int64(bpPerPct)
-
 	quantity := utils.ParseInt(r.FormValue("quantity"), 1)
 	isMulti := utils.ParseBool(r.FormValue("is_multi_purchasable"))
+	itemType := r.FormValue("type")
+	mainIndex := utils.ParseInt(r.FormValue("main_index"), 0)
+
+	// カテゴリーID
+	var categoryID int64
+	if cidStr := r.FormValue("category_id"); cidStr != "" {
+		categoryID, _ = strconv.ParseInt(cidStr, 10, 64)
+	}
+
+	// カテゴリー名
+	categoryName := r.FormValue("category_name")
+
+	// 詳細情報 (JSON文字列として送られてくる想定)
+	detailsJSON := r.FormValue("details")
+
+	// 配送関連
 	shipFeeType := utils.ParseInt(r.FormValue("shipping_fee_type"), 0)
 	shipFrom := utils.ParseInt(r.FormValue("ship_from_id"), 0)
-	shipsWithin := utils.ParseOptInt(r.FormValue("ships_within_days"))
-	mainIndex := utils.ParseInt(r.FormValue("main_index"), 0)
-	type_ := r.FormValue("type")
+	shipsWithin := utils.ParseInt(r.FormValue("ships_within_days"), 0)
+
+	// 手数料計算 (SellerPlus)
+	sellerPlusPct := utils.ParseInt(r.FormValue("seller_plus_pct"), 0)
+	cfg := config.GetFleaConfig()
+	baseBP := cfg.BaseRate
+	baseCR := cfg.CommissionRate
+	bpPerPct := cfg.RateDen / 100
+
+	// 上乗せ計算
+	sellerRateBP := baseBP + int64(sellerPlusPct)*int64(bpPerPct)
+	commissionRateBP := baseCR + int64(sellerPlusPct)*int64(bpPerPct)
 
 	// ---- 新規画像の保存 ----
 	files := r.MultipartForm.File["images"]
@@ -238,28 +275,35 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	// ---------------------------------------------------------
-	// DB登録用データの作成
+	// DB登録用データの作成 (既存の構造体 utils.CreateFleaMarketItemInput を使用)
 	// ---------------------------------------------------------
 	in := utils.CreateFleaMarketItemInput{
 		Name:               name,
 		Price:              int64(price),
 		Quantity:           quantity,
 		IsMultiPurchasable: isMulti,
-		Type:               type_,
-		Description:        description,
+		Type:               itemType,
+		CategoryID:         &categoryID,
+
+		CategoryName: &categoryName,
+
+		Description: &description,
 
 		MainImageURL: mainURL,
-		ImageURLs:    finalImageURLs, // ★全URLを渡す
+		ImageURLs:    finalImageURLs,
+
+		// 詳細情報JSONを入れる
+		Details: detailsJSON,
 
 		ShippingFeeType:  shipFeeType,
 		ShipFrom:         &shipFrom,
-		ShipsWithinDays:  shipsWithin,
+		ShipsWithinDays:  &shipsWithin,
 		SellerRateBP:     int64(sellerRateBP),
 		CommissionRateBP: int64(commissionRateBP),
 	}
 
-	// ★ここで「item作成」と「image紐付け」が一気に行われる
-	itemID, err := h.db.CreateFleaMarketItem(userID, in)
+	// 既存のメソッドを呼ぶ
+	itemID, err := h.db.CreateFleaMarketItem(r.Context(), userID, in)
 	if err != nil {
 		http.Error(w, "failed to create item", http.StatusInternalServerError)
 		log.Println("failed to create flea item:", err)
@@ -433,6 +477,12 @@ func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Reques
 	shipFrom, _ := strconv.Atoi(r.FormValue("ship_from"))
 	daysToShip, _ := strconv.Atoi(r.FormValue("days_to_ship"))
 	status, _ := strconv.Atoi(r.FormValue("status"))
+	var categoryID *int64 // デフォルトは nil (NULL)
+	if cidStr := r.FormValue("category_id"); cidStr != "" {
+		if cid, err := strconv.ParseInt(cidStr, 10, 64); err == nil {
+			categoryID = &cid // int64変数のアドレスを取る
+		}
+	}
 
 	// 6. 画像の更新処理
 	// 6-A. 不要な画像の削除 (kept_image_ids を使う既存ロジックはそのまま利用)
@@ -489,7 +539,7 @@ func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 7. アイテム情報の更新
-	if err := h.db.UpdateFleaItem(itemID, name, desc, price, shippingMethod, shippingFeeType, shipFrom, daysToShip, status); err != nil {
+	if err := h.db.UpdateFleaItem(itemID, name, desc, price, categoryID, shippingMethod, shippingFeeType, shipFrom, daysToShip, status); err != nil {
 		log.Println("Failed to update flea item:", err)
 		http.Error(w, "failed to update item", http.StatusInternalServerError)
 		return

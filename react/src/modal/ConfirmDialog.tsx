@@ -1,23 +1,7 @@
-// src/modal/ConfirmDialog.tsx
 import React, { useMemo, useEffect } from "react";
 import { CONFIG, PREFS } from "../conf/config";
-//import { ImageAsset } from "../types/FleaMarket";
-import { PublishSummary } from "../types/FleaMarketForm";
-
-// ★詳細情報の型定義を追加（ページ側のStateと合わせる）
-type LiveDetails = {
-    locality: string;
-    hatch_date: string;
-    generation: string;
-    size: string;
-    sex: "male" | "female" | "unknown" | "pair";
-};
-
-type SupplyDetails = {
-    brand: string;
-    sku: string;
-    net_weight_g: string;
-};
+import { PublishSummary, LiveDetails, SupplyDetails } from "../types/FleaMarketForm";
+import { TYPE_LABELS } from "../conf/Market";
 
 export function ConfirmDialog({
     open,
@@ -50,18 +34,23 @@ export function ConfirmDialog({
     const {
         name, price, quantity, total, isMultiPurchasable, seller_plus_pct,
         type, description, shippingFeeType, shipFromId, shipsWithinDays, mainIndex,
-        details, // ★受け取る
+        details,
+        category_name,
     } = summary;
 
     const fmt = (n: number) => n.toLocaleString("ja-JP");
-    const typeLabel = type === "ANIMAL" ? "生体" : type === "SUPPLY" ? "用品" : "未選択";
+
+    const typeLabel = TYPE_LABELS[type] || "その他";
+
+    const isSupply = type === "SUPPLY";
+    const isLivingThing = !isSupply;
+
     const shipFeeLabel = shippingFeeType === 0 ? "送料込み (出品者負担)" : "着払い (購入者負担)";
     const shipsLabel = shipsWithinDays == null ? "未選択" :
         shipsWithinDays === 1 ? "1日以内" :
             shipsWithinDays === 2 ? "2〜3日" :
                 shipsWithinDays === 4 ? "4〜7日" : `${shipsWithinDays}日以内`;
 
-    // 性別の表示用ラベル
     const getSexLabel = (sex: string) => {
         switch (sex) {
             case "male": return "オス";
@@ -75,7 +64,6 @@ export function ConfirmDialog({
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm transition-opacity">
             <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
 
-                {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between shrink-0">
                     <h3 className="text-xl font-bold text-gray-800">出品内容の確認</h3>
                     <button onClick={onClose} className="p-2 -mr-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
@@ -83,10 +71,8 @@ export function ConfirmDialog({
                     </button>
                 </div>
 
-                {/* Content */}
                 <div className="p-6 overflow-y-auto custom-scrollbar space-y-8">
-
-                    {/* 画像 (そのまま) */}
+                    {/* 画像 */}
                     <div className="space-y-3">
                         <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">商品画像</h4>
                         <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
@@ -109,7 +95,19 @@ export function ConfirmDialog({
                         <div className="bg-gray-50 rounded-xl p-5 border border-gray-100">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
                                 <Row label="商品名" value={name} isLarge />
-                                <Row label="出品タイプ" value={<span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${type === "ANIMAL" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>{typeLabel}</span>} />
+                                <Row label="カテゴリー" value={category_name} />
+
+                                {/* ★修正: マッピングされた詳細なラベルを表示 */}
+                                <Row
+                                    label="出品カテゴリー"
+                                    value={
+                                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${isLivingThing ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"
+                                            }`}>
+                                            {typeLabel}
+                                        </span>
+                                    }
+                                />
+
                                 <div className="col-span-1 md:col-span-2 my-2 border-t border-gray-200" />
                                 <Row label="販売価格" value={`¥ ${fmt(price)}`} isMoney />
                                 <Row label="数量" value={`${quantity} 個 ${isMultiPurchasable ? "(複数可)" : ""}`} />
@@ -123,11 +121,12 @@ export function ConfirmDialog({
                     <div className="space-y-3">
                         <h4 className="text-sm font-bold text-gray-500 uppercase tracking-wider">詳細スペック ({typeLabel})</h4>
                         <div className="bg-white border border-gray-200 rounded-xl p-5">
-                            {type === "ANIMAL" ? (
+                            {/* 用品以外（昆虫、爬虫類、植物など）は共通の詳細フォーマットを表示 */}
+                            {isLivingThing ? (
                                 <div className="grid grid-cols-2 gap-4">
-                                    {/* TypeScriptの型ガード的にキャストするか、プロパティアクセスを工夫 */}
                                     <Row label="産地" value={(details as LiveDetails).locality} />
-                                    <Row label="羽化日" value={(details as LiveDetails).hatch_date} />
+                                    {/* 植物などの場合、羽化日や性別が空なら「-」が表示されます */}
+                                    <Row label="羽化日/採取日" value={(details as LiveDetails).hatch_date} />
                                     <Row label="サイズ" value={(details as LiveDetails).size} />
                                     <Row label="累代" value={(details as LiveDetails).generation} />
                                     <Row label="性別" value={getSexLabel((details as LiveDetails).sex)} />
@@ -161,7 +160,7 @@ export function ConfirmDialog({
                     </div>
                 </div>
 
-                {/* Footer Buttons */}
+                {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
                     <button onClick={onClose} className="w-full sm:w-auto px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">修正する</button>
                     <button onClick={onConfirm} disabled={submitting} className="w-full sm:w-auto px-8 py-2.5 rounded-lg bg-red-600 text-white font-bold shadow-sm hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">

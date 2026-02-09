@@ -293,15 +293,32 @@ type PurchaseHistory struct {
 ========================= */
 
 type FleaMarketListLite struct {
-	ID            uint64  `json:"id"`
-	Name          string  `json:"name"`
-	Price         int64   `json:"price"`
-	SellerRate    int64   `json:"seller_rate"`
-	Type          string  `json:"type"`
-	MainImageURL  *string `json:"main_image_url"`
-	SellerName    string  `json:"seller_name"`
-	SellerIconURL *string `json:"seller_icon_url"`
-	IsLiked       bool    `json:"is_liked"`
+	ID            int64    `json:"id"`
+	Name          string   `json:"name"`
+	Price         int64    `json:"price"`
+	SellerRate    *float64 `json:"seller_rate"`
+	Type          string   `json:"type"`
+	Quantity      int      `json:"quantity"`
+	MainImageURL  *string  `json:"main_image_url"`
+	SellerName    string   `json:"seller_name"`
+	SellerIconURL *string  `json:"seller_icon_url"`
+	IsLiked       bool     `json:"is_liked"`
+	Status        int      `json:"status"`
+	LikesCount    int      `json:"likes_count"`
+
+	ShippingFeeType int `json:"shipping_fee_type"`
+}
+
+type ListFleaMarketRequest struct {
+	Page       int    `json:"page"`
+	Limit      int    `json:"limit"`
+	Keyword    string `json:"keyword"`     // キーワード
+	Type       string `json:"type"`        // カテゴリー (INSECT, REPTILE...)
+	CategoryID int64  `json:"category_id"` // 具体的なカテゴリーID
+	MinPrice   *int   `json:"min_price"`   // 下限価格
+	MaxPrice   *int   `json:"max_price"`   // 上限価格
+	Status     int    `json:"status"`      // "selling", "sold", "all"
+	Sort       string `json:"sort"`        // "newest", "price_asc", "price_desc", "likes"
 }
 
 type FleaMarketItem struct {
@@ -387,10 +404,13 @@ type CreateFleaMarketItemInput struct {
 	Quantity           int      `json:"quantity"`
 	IsMultiPurchasable bool     `json:"isMultiPurchasable"`
 	Type               string   `json:"type"`
+	CategoryID         *int64   `json:"category_id"`
+	CategoryName       *string  `json:"category_name"`
 	Description        *string  `json:"description,omitempty"`
 	MainImageURL       string   `json:"main_image_url"`
-	ImageURLs          []string `json:"imageUrls"`       // 画像を先にアップしてURL化しておく想定
-	ShippingFeeType    int      `json:"shippingFeeType"` // 0送料込み/1着払い/2送料別
+	Details            string   `json:"details,omitempty"` // JSON文字列
+	ImageURLs          []string `json:"imageUrls"`         // 画像を先にアップしてURL化しておく想定
+	ShippingFeeType    int      `json:"shippingFeeType"`   // 0送料込み/1着払い/2送料別
 	ShipFrom           *int     `json:"shipFrom,omitempty"`
 	ShipsWithinDays    *int     `json:"shipsWithinDays,omitempty"`
 	AssetIDs           []string `json:"asset_ids,omitempty"` // 画像アセットID群
@@ -561,6 +581,8 @@ type LatestDraftResponse struct {
 	Price              *string               `json:"price"` // 文字列(OK)
 	Quantity           *int                  `json:"quantity"`
 	Type               *string               `json:"type"`
+	CategoryID         *int64                `json:"category_id"`
+	CategoryName       *string               `json:"category_name"`
 	Details            interface{}           `json:"details,omitempty"`
 	IsMultiPurchasable *int                  `json:"is_multi_purchasable"`
 	ShippingFeeType    *int                  `json:"shipping_fee_type"`
@@ -577,6 +599,7 @@ type DraftPayload struct {
 	Price              *string `json:"price"`
 	Quantity           *int    `json:"quantity"`
 	Type               *string `json:"type"`
+	CategoryID         *int64  `json:"category_id"`
 	IsMultiPurchasable *int    `json:"is_multi_purchasable"`
 	ShippingFeeType    *int    `json:"shipping_fee_type"`
 

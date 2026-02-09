@@ -4,7 +4,7 @@ import axios from "axios";
 import { CONFIG } from "../conf/config";
 import api, { getAccessToken } from "../conf/api";
 import { useToast } from "../conf/function";
-import { upsertAnimalDetails, upsertSupplyDetails } from "../conf/fleaDetails";
+//import { upsertAnimalDetails, upsertSupplyDetails } from "../conf/fleaDetails";
 // Import types
 import { ImageAsset } from "../types/FleaMarket";
 import {
@@ -14,6 +14,8 @@ import {
   LiveDetails,
   SupplyDetails,
   ApiErrorResponse,
+  AnyDetails,
+  SexType,
 } from "../types/FleaMarketForm";
 import { ItemType } from "../types/Market";
 
@@ -50,10 +52,11 @@ export function useFleaItemForm() {
   const [images, setImages] = useState<ImageAsset[]>([]);
   const [mainIndex, setMainIndex] = useState<number>(0);
 
+  const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [categoryName, setCategoryName] = useState<string | null>("");
+
   // Details States
   const [liveDetails, setLiveDetails] = useState<LiveDetails>({
-    category_id: null,
-    category_name: "",
     locality: "",
     hatch_date: "",
     generation: "",
@@ -61,6 +64,7 @@ export function useFleaItemForm() {
     sex: "unknown",
   });
   const [supplyDetails, setSupplyDetails] = useState<SupplyDetails>({
+    kind: "SUPPLY",
     brand: "",
     sku: "",
     net_weight_g: "",
@@ -106,7 +110,6 @@ export function useFleaItemForm() {
     try {
       const res = await api.get(`/flea-market/draft/${id}`);
       const d = res.data;
-
       console.log("Draft Data:", d);
 
       if (d.name) setName(d.name);
@@ -122,6 +125,8 @@ export function useFleaItemForm() {
         setShipFromId(Number(d.ship_from ?? d.ship_from_id));
       if (d.ships_within_days !== undefined)
         setShipsWithinDays(Number(d.ships_within_days) || "");
+      if (d.category_id) setCategoryId(d.category_id);
+      if (d.category_name) setCategoryName(d.category_name);
 
       // Robust Image Restoration
       if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
@@ -153,8 +158,6 @@ export function useFleaItemForm() {
           setLiveDetails((prev) => ({
             ...prev,
             ...d.details,
-            category_id: d.details.category_id,
-            category_name: d.details.category_name || "",
           }));
         } else {
           setSupplyDetails((prev) => ({ ...prev, ...d.details }));
@@ -198,46 +201,107 @@ export function useFleaItemForm() {
 
   const buildPayload = useCallback(() => {
     const p = Number(price);
-    const details =
-      type !== "SUPPLY"
-        ? {
-            kind: "ANIMAL",
-            category_id: liveDetails.category_id || undefined,
-            locality: liveDetails.locality || undefined,
-            hatch_date: liveDetails.hatch_date || undefined,
-            generation: liveDetails.generation || undefined,
-            size: liveDetails.size || undefined,
-            sex: liveDetails.sex || "unknown",
-          }
-        : {
-            kind: "SUPPLY",
-            brand: supplyDetails.brand || undefined,
-            sku: supplyDetails.sku || undefined,
-            net_weight_g:
-              supplyDetails.net_weight_g &&
-              !isNaN(Number(supplyDetails.net_weight_g))
-                ? Number(supplyDetails.net_weight_g)
-                : undefined,
-            supply_type_id: supplyDetails.supply_type_id || undefined,
-            target_category_id: supplyDetails.target_category_id || undefined,
+
+    let details: AnyDetails;
+
+    if (type === "SUPPLY") {
+      details = {
+        kind: "SUPPLY",
+        brand: supplyDetails.brand || "",
+        sku: supplyDetails.sku || "",
+        net_weight_g:
+          supplyDetails.net_weight_g &&
+          !isNaN(Number(supplyDetails.net_weight_g))
+            ? String(supplyDetails.net_weight_g)
+            : "",
+        supply_type_id: supplyDetails.supply_type_id || null,
+        target_category_id: supplyDetails.target_category_id || null,
+        target_category_name: "", // 必要なら入れる
+      };
+    } else {
+      const d = liveDetails;
+      // 性別の型合わせ (string -> SexType)
+      const sexValue = (d.sex || "unknown") as SexType;
+
+      switch (type) {
+        case "REPTILE":
+        case "AMPHIBIAN":
+          details = {
+            kind: type, // "REPTILE" | "AMPHIBIAN"
+            morph: d.locality || "",
+            birth_date: d.hatch_date || "",
+            lineage: d.generation || "",
+            size: d.size || "",
+            sex: sexValue,
           };
+          break;
+
+        case "PLANT_ORNAMENTAL":
+        case "PLANT_FOOD":
+          details = {
+            kind: "PLANT",
+            origin: d.locality || "",
+            acquisition_date: d.hatch_date || "",
+            propagation: d.generation || "",
+            size: d.size || "",
+            // sexプロパティは存在しないので指定しない
+          };
+          break;
+
+        case "MAMMAL":
+          details = {
+            kind: "MAMMAL",
+            origin: d.locality || "",
+            birth_date: d.hatch_date || "",
+            lineage: d.generation || "",
+            size: d.size || "",
+            sex: sexValue,
+          };
+          break;
+
+        case "FISH":
+          details = {
+            kind: "FISH",
+            origin: d.locality || "",
+            arrival_date: d.hatch_date || "",
+            generation: d.generation || "",
+            size: d.size || "",
+            sex: sexValue,
+          };
+          break;
+
+        case "INSECT":
+        default:
+          details = {
+            kind: "INSECT",
+            locality: d.locality || "",
+            hatch_date: d.hatch_date || "",
+            generation: d.generation || "",
+            size: d.size || "",
+            sex: sexValue,
+          };
+          break;
+      }
+    }
 
     return {
+      // ... (以下変更なし)
       name: name.trim() || undefined,
       description: description.trim() || undefined,
       price: price !== "" && !isNaN(p) && p > 0 ? String(p) : undefined,
-      seller_plus_pct: Math.max(
-        MIN_PLUS_PCT,
-        Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)),
-      ),
+      seller_plus_pct: Math.max(0, Math.min(10, Math.floor(sellerPlusPct))),
       quantity: isMultiPurchasable ? Math.max(1, quantity) : 1,
       type,
+      category_id: categoryId || undefined,
+      category_name: categoryName || undefined,
       is_multi_purchasable: isMultiPurchasable ? 1 : 0,
       shipping_fee_type: shippingFeeType,
       ship_from: shipFromId ? Number(shipFromId) : undefined,
       ships_within_days:
         shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
-      details,
+
+      details, // 型が一致しているのでエラー消えるはず
+
       uploaded_images: images
         .filter((img) => img.serverId && img.url)
         .map((img) => ({ id: img.id, serverId: img.serverId, url: img.url })),
@@ -252,6 +316,8 @@ export function useFleaItemForm() {
     isMultiPurchasable,
     quantity,
     type,
+    categoryId,
+    categoryName,
     shippingFeeType,
     shipFromId,
     shipsWithinDays,
@@ -423,15 +489,31 @@ export function useFleaItemForm() {
     try {
       setSubmitting(true);
       const fd = new FormData();
-      const p = buildPayload();
+      const p = buildPayload(); // ここで適切な details オブジェクトが作られている前提
 
       // Payload to FormData
       Object.entries(p).forEach(([k, v]) => {
-        if (k === "details" || k === "uploaded_images") return;
-        if (v !== undefined) fd.append(k, String(v));
+        // ★修正1: "details" を除外しない！
+        if (k === "uploaded_images") return;
+
+        // ★修正2: details は JSON文字列に変換して FormData に入れる
+        if (k === "details") {
+          fd.append(k, JSON.stringify(v));
+          return;
+        }
+
+        if (v !== undefined && v !== null) {
+          fd.append(k, String(v));
+        }
       });
 
-      // Image Handling for Submit
+      // カテゴリー名などが buildPayload に含まれていない場合の予備処理
+      if (!p.category_id && categoryId)
+        fd.append("category_id", String(categoryId));
+      if (!p.category_name && categoryName)
+        fd.append("category_name", categoryName);
+
+      // 画像処理 (既存のまま)
       images.forEach((img, i) => {
         if (img.serverId) {
           fd.append("image_ids", String(img.serverId));
@@ -442,17 +524,18 @@ export function useFleaItemForm() {
 
       if (draftId) fd.append("draft_id", String(draftId));
 
+      // API送信
       const res = await api.post("/flea-market/add/item", fd, {
         headers: { "Content-Type": undefined },
       });
+
       const newId = res.data?.itemId ?? null;
       setLastItemId(newId);
 
-      if (newId) {
-        if (type !== "SUPPLY") await upsertAnimalDetails(newId, liveDetails);
-        else await upsertSupplyDetails(newId, supplyDetails);
-      }
+      // ★修正3: 以前あった upsertAnimalDetails / upsertSupplyDetails の呼び出しを削除！
+      // バックエンド側で一括保存されるようになったため不要です。
 
+      // ローカルストレージとドラフトの削除 (既存のまま)
       localStorage.removeItem("flea_item_draft");
       if (draftId) {
         await api
@@ -463,6 +546,7 @@ export function useFleaItemForm() {
       toast({ text: "出品が完了しました！", kind: "success" });
       return true;
     } catch (err: unknown) {
+      // エラーハンドリング (既存のまま)
       let msg = "エラーが発生しました";
       if (axios.isAxiosError(err)) {
         const data = err.response?.data as ApiErrorResponse | undefined;
@@ -493,6 +577,8 @@ export function useFleaItemForm() {
     setQuantity(1);
     setIsMultiPurchasable(false);
     setType("INSECT");
+    setCategoryId(null);
+    setCategoryName("");
     setDescription("");
     setShippingFeeType(0);
     setShipFromId(null);
@@ -500,8 +586,6 @@ export function useFleaItemForm() {
     setImages([]);
     setMainIndex(0);
     setLiveDetails({
-      category_id: null,
-      category_name: "",
       locality: "",
       hatch_date: "",
       generation: "",
@@ -509,6 +593,7 @@ export function useFleaItemForm() {
       sex: "unknown",
     });
     setSupplyDetails({
+      kind: "SUPPLY",
       brand: "",
       sku: "",
       net_weight_g: "",
@@ -554,6 +639,8 @@ export function useFleaItemForm() {
     quantity,
     isMultiPurchasable,
     type,
+    categoryId,
+    categoryName,
     description,
     shippingFeeType,
     shipFromId,
@@ -586,6 +673,8 @@ export function useFleaItemForm() {
     setQuantity,
     setIsMultiPurchasable,
     setType,
+    setCategoryId,
+    setCategoryName,
     setDescription,
     setShippingFeeType,
     setShipFromId,
