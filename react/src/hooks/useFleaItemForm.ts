@@ -437,7 +437,7 @@ export function useFleaItemForm() {
           draftIdRef.current = newDraftId;
           setDraftId((prev) => (prev !== newDraftId ? newDraftId : prev));
 
-          // ▼ 追加: ローカルストレージにIDを保存
+          // ▼ ローカルストレージにIDを保存
           localStorage.setItem(
             "flea_item_draft",
             JSON.stringify({ _draftId: newDraftId }),
