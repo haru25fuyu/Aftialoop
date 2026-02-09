@@ -96,7 +96,7 @@ export function useFleaItemForm() {
   // ===== Initial Data Load =====
   useEffect(() => {
     api
-      .get("/supply-types")
+      .get("api/supply-types")
       .then((res) => setSupplyTypes(res.data))
       .catch(console.error);
   }, []);
