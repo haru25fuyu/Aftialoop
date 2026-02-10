@@ -19,6 +19,31 @@ import {
 } from "../types/FleaMarketForm";
 import { ItemType } from "../types/Market";
 
+type DraftResponse = {
+  draft_id: number;
+  name?: string;
+  description?: string;
+  price?: string;
+  quantity?: number;
+  type?: string; // APIからは文字列で来る
+  category_id?: number;
+  category_name?: string;
+  details?: AnyDetails; // ここで AnyDetails を使う
+  is_multi_purchasable?: number;
+  shipping_fee_type?: number;
+  ship_from?: number;
+  ship_from_id?: number;
+  ships_within_days?: number;
+  main_image_url?: string;
+  uploaded_images?: Array<{
+    id?: string | number;
+    serverId?: number;
+    url?: string;
+  }>;
+  seller_plus_pct?: number;
+  updated_at?: string;
+};
+
 // Constants
 const FEE_BASE = 0.1;
 const FEE_PER_PLUS_PCT = 0.01;
@@ -109,7 +134,8 @@ export function useFleaItemForm() {
   const fetchDraftData = async (id: number) => {
     try {
       const res = await api.get(`/flea-market/draft/${id}`);
-      const d = res.data;
+      // ▼ 修正: ここで型アサーションを行う
+      const d = res.data as DraftResponse;
       console.log("Draft Data:", d);
 
       if (d.name) setName(d.name);
@@ -128,39 +154,102 @@ export function useFleaItemForm() {
       if (d.category_id) setCategoryId(d.category_id);
       if (d.category_name) setCategoryName(d.category_name);
 
-      // Robust Image Restoration
+      // ▼ 修正: 画像の型定義と復元
       if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
-        // any回避のための型定義
-        type RawDraftImage = {
-          id?: string | number;
-          url?: string;
-          serverId?: number;
-          server_id?: number;
-        };
-        const rawImages = d.uploaded_images as RawDraftImage[];
-
-        const restoredImages: ImageAsset[] = rawImages.map((img) => ({
+        const restoredImages: ImageAsset[] = d.uploaded_images.map((img) => ({
           id:
             img.id && typeof img.id === "string"
               ? img.id
               : Math.random().toString(36).substring(2, 15),
           url: img.url || "",
+          // serverId があることで「アップロード済み」と判定される
           serverId:
-            img.serverId ??
-            img.server_id ??
-            (typeof img.id === "number" ? img.id : undefined),
+            img.serverId ?? (typeof img.id === "number" ? img.id : undefined),
         }));
         setImages(restoredImages.filter((i) => !!i.url));
       }
 
+      // ▼ 修正: 詳細情報の復元 (any を使わず型安全に)
       if (d.details) {
         if (d.type !== "SUPPLY") {
-          setLiveDetails((prev) => ({
-            ...prev,
-            ...d.details,
-          }));
+          const restored: LiveDetails = {
+            locality: "",
+            hatch_date: "",
+            generation: "",
+            size: "",
+            sex: "unknown",
+          };
+
+          // details は AnyDetails 型なので、type に応じて適切な型として扱う
+          switch (d.type) {
+            case "REPTILE":
+            case "AMPHIBIAN": {
+              // Extract<T, U> で AnyDetails から特定の型を抜き出す
+              const det = d.details as Extract<
+                AnyDetails,
+                { kind: "REPTILE" | "AMPHIBIAN" }
+              >;
+              restored.locality = det.morph; // locality <- morph
+              restored.hatch_date = det.birth_date; // hatch_date <- birth_date
+              restored.generation = det.lineage; // generation <- lineage
+              restored.size = det.size;
+              restored.sex = det.sex;
+              break;
+            }
+            case "MAMMAL": {
+              const det = d.details as Extract<AnyDetails, { kind: "MAMMAL" }>;
+              restored.locality = det.origin;
+              restored.hatch_date = det.birth_date;
+              restored.generation = det.lineage;
+              restored.size = det.size;
+              restored.sex = det.sex;
+              break;
+            }
+            case "FISH": {
+              const det = d.details as Extract<AnyDetails, { kind: "FISH" }>;
+              restored.locality = det.origin;
+              restored.hatch_date = det.arrival_date;
+              restored.generation = det.generation;
+              restored.size = det.size;
+              restored.sex = det.sex;
+              break;
+            }
+            case "PLANT_ORNAMENTAL":
+            case "PLANT_FOOD": {
+              const det = d.details as Extract<AnyDetails, { kind: "PLANT" }>;
+              restored.locality = det.origin;
+              restored.hatch_date = det.acquisition_date;
+              restored.generation = det.propagation;
+              restored.size = det.size;
+              // sex なし
+              break;
+            }
+            default: {
+              // INSECT など
+              // 共通項目の fallback
+              if ("locality" in d.details)
+                restored.locality = d.details.locality;
+              if ("hatch_date" in d.details)
+                restored.hatch_date = d.details.hatch_date;
+              if ("generation" in d.details)
+                restored.generation = d.details.generation;
+              if ("size" in d.details) restored.size = d.details.size;
+              if ("sex" in d.details) restored.sex = d.details.sex as SexType;
+              break;
+            }
+          }
+          setLiveDetails(restored);
         } else {
-          setSupplyDetails((prev) => ({ ...prev, ...d.details }));
+          // SUPPLY
+          const det = d.details as Extract<AnyDetails, { kind: "SUPPLY" }>;
+          setSupplyDetails((prev) => ({
+            ...prev,
+            brand: det.brand,
+            sku: det.sku,
+            net_weight_g: det.net_weight_g,
+            supply_type_id: det.supply_type_id,
+            target_category_id: det.target_category_id,
+          }));
         }
       }
       setDraftId(id);
@@ -342,12 +431,19 @@ export function useFleaItemForm() {
           { draft_id: draftIdRef.current, payload },
           { signal },
         );
+
         if (res.data.draft_id) {
-          draftIdRef.current = res.data.draft_id;
-          setDraftId((prev) =>
-            prev !== res.data.draft_id ? res.data.draft_id : prev,
+          const newDraftId = res.data.draft_id;
+          draftIdRef.current = newDraftId;
+          setDraftId((prev) => (prev !== newDraftId ? newDraftId : prev));
+
+          // ▼ ローカルストレージにIDを保存
+          localStorage.setItem(
+            "flea_item_draft",
+            JSON.stringify({ _draftId: newDraftId }),
           );
         }
+
         if (res.data.saved_at) setLastSavedAt(res.data.saved_at);
         setSaving("saved");
       } catch (e: unknown) {
@@ -356,7 +452,7 @@ export function useFleaItemForm() {
         isSavingRef.current = false;
       }
     },
-    [buildPayload],
+    [buildPayload], // 依存配列はそのままでOK
   );
 
   useEffect(() => {

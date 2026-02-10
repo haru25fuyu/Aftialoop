@@ -1,11 +1,10 @@
-import React from "react";
+import React, { useState } from "react";
 import AutocompleteInput from "../component/AutocompleteInput";
 import { CATEGORY_OPTIONS } from "../conf/Market";
 import { ItemType } from "../types/Market";
-import { FormState, FormSetters, CategorySearchResult } from "../types/FleaMarketForm";
+import { FormState, FormSetters,CategorySearchResult } from "../types/FleaMarketForm";
 import CategorySelectModal from "../modal/CategorySelectModal";
 
-// 共通スタイル
 const inputClass = "w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 transition-colors";
 const labelClass = "block mb-2 text-sm font-bold text-gray-700";
 
@@ -18,12 +17,18 @@ type BasicInfoSectionProps = {
 };
 
 export function BasicInfoSection({ formState, setters, errors, onCategorySelect, supplyTypes }: BasicInfoSectionProps) {
-    const { name, type, liveDetails, supplyDetails, description,/* quantity, isMultiPurchasable*/ } = formState;
-    const { setName, setType, setSupplyDetails, setDescription, /* setQuantity, setIsMultiPurchasable */ } = setters;
-    const [categoryModalOpen, setCategoryModalOpen] = React.useState(false);
+    // ★ここ重要: category_id, category_name (スネークケース) で受け取る
+    const { name, type, categoryId, categoryName, supplyDetails, description } = formState;
+    const { setName, setType, setSupplyDetails, setDescription } = setters;
 
-    // 現在のタイプに対応するオプション情報
+    // モーダルの開閉管理
+    const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+
+    // 現在のタイプに対応するオプション
     const currentCategoryOption = CATEGORY_OPTIONS.find(opt => opt.value === type);
+
+    // デバッグ用: 値が来ているか確認
+    console.log("BasicInfoSection Render:", { categoryId, categoryName });
 
     return (
         <section className="bg-white p-5 md:p-6 rounded-xl border border-gray-200 shadow-sm">
@@ -36,8 +41,8 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                     <AutocompleteInput
                         className={inputClass}
                         value={name}
-                        onChange={setName}
-                        onSelect={onCategorySelect}
+                        onChange={setName}                    
+                        onSelect={onCategorySelect} 
                         placeholder="商品名（必須 40文字まで）"
                         error={errors.name}
                     />
@@ -48,7 +53,9 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                     {type !== "SUPPLY" ? (
                         <div className="animate-in fade-in slide-in-from-top-2">
                             <label className={labelClass}>品種・分類</label>
-                            {liveDetails.category_id ? (
+
+                            {/* ★ category_id があれば青いボックスを表示 */}
+                            {categoryId ? (
                                 <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-between">
                                     <div>
                                         <span className="text-xs text-blue-500 font-bold block mb-1">
@@ -56,7 +63,8 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                                         </span>
                                         <div className="font-bold text-gray-800 flex items-center gap-2">
                                             <span>{currentCategoryOption?.icon || "🪲"}</span>
-                                            {liveDetails.category_name || "名称不明"}
+                                            {/* ★ category_name を表示 */}
+                                            {categoryName || "名称不明"}
                                         </div>
                                     </div>
                                     <button
@@ -69,11 +77,11 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                                 </div>
                             ) : (
                                 <div className="p-4 bg-gray-50 border border-gray-200 border-dashed rounded-lg text-center text-sm text-gray-500">
-                                    商品名を入力すると自動設定されます<br />
+                                    <span className="text-gray-400 block mb-2">カテゴリーが未設定です</span>
                                     <button
                                         type="button"
                                         onClick={() => setCategoryModalOpen(true)}
-                                        className="text-blue-600 font-bold hover:underline mt-1"
+                                        className="text-blue-600 font-bold hover:underline"
                                     >
                                         一覧から選択する
                                     </button>
@@ -99,11 +107,11 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                         </div>
                     )}
 
-                    {/* カテゴリー手動変更 */}
+                    {/* カテゴリー手動変更 (デバッグ用にも便利) */}
                     <div className="mt-3 flex justify-end items-center gap-2">
-                        <span className="text-xs text-gray-400">カテゴリー手動設定:</span>
+                        <span className="text-xs text-gray-400">大分類:</span>
                         <select
-                            className="text-xs border-gray-300 rounded shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+                            className="text-xs border-gray-300 rounded shadow-sm focus:border-blue-300"
                             value={type}
                             onChange={(e) => setType(e.target.value as ItemType)}
                         >
@@ -127,32 +135,16 @@ export function BasicInfoSection({ formState, setters, errors, onCategorySelect,
                     />
                     {errors.description && <p className="text-xs text-red-500 mt-1">{errors.description}</p>}
                 </div>
-
-                {/* 4. 数量・オプション（一時的に非表示：常に数量1とする） */}
-                {/*<div className="grid grid-cols-2 gap-4 border-t border-gray-100 pt-6">
-                    <div /> {/* 左側スペース埋め（必要なら何か入れる） 
-                    <div>
-                        <label className={labelClass}>数量</label>
-                        <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden h-[50px]">
-                            <button className="w-10 h-full bg-gray-50 hover:bg-gray-100 text-gray-600 border-r" onClick={() => setQuantity((q: number) => Math.max(1, q - 1))}>－</button>
-                            <div className="flex-1 text-center font-bold text-lg">{isMultiPurchasable ? quantity : 1}</div>
-                            <button className="w-10 h-full bg-gray-50 hover:bg-gray-100 text-gray-600 border-l disabled:opacity-50" onClick={() => setQuantity((q: number) => q + 1)} disabled={!isMultiPurchasable}>＋</button>
-                        </div>
-                        <label className="flex items-center gap-2 mt-2 text-xs text-gray-600 justify-end cursor-pointer">
-                            <input type="checkbox" className="rounded text-blue-600" checked={isMultiPurchasable} onChange={(e) => setIsMultiPurchasable(e.target.checked)} />
-                            複数購入可
-                        </label>
-                    </div>
-                </div>
-                */}
             </div>
 
-            {/* モーダルの配置 */}
+            {/* モーダル */}
             <CategorySelectModal
                 open={categoryModalOpen}
                 onClose={() => setCategoryModalOpen(false)}
                 onSelect={(item) => {
+                    // console.log("Modal Selected:", item); // デバッグ用
                     onCategorySelect(item);
+                    setCategoryModalOpen(false); // ★選択したら閉じる
                 }}
             />
         </section >

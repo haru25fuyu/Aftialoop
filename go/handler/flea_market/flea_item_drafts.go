@@ -54,6 +54,7 @@ func (h *FleaMarketHandler) SaveFleaDraft(w http.ResponseWriter, r *http.Request
 				http.Error(w, "create failed", 500)
 				return
 			}
+			log.Printf("[draft.save] created new draft %d", id)
 			json.NewEncoder(w).Encode(utils.SaveDraftResponse{DraftID: id, SavedAt: savedAt.UTC().Format(time.RFC3339)})
 			return
 		}
@@ -67,9 +68,11 @@ func (h *FleaMarketHandler) SaveFleaDraft(w http.ResponseWriter, r *http.Request
 					http.Error(w, "create failed", 500)
 					return
 				}
+				log.Printf("[draft.save] draft %d not found, created new draft %d", *req.DraftID, id)
 				json.NewEncoder(w).Encode(utils.SaveDraftResponse{DraftID: id, SavedAt: savedAt2.UTC().Format(time.RFC3339)})
 				return
 			}
+			log.Printf("[draft.save] update failed: %v", err)
 			http.Error(w, "update failed", http.StatusInternalServerError)
 			return
 		}

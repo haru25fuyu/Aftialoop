@@ -177,3 +177,9 @@ export type ApiErrorResponse = {
   message?: string;
   errors?: Array<{ field: string; msg: string }>;
 };
+
+export type CategorySearchResult = {
+    id: number;
+    name: string;
+    built_in_type?: string;
+};
