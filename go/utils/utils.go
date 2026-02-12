@@ -293,32 +293,40 @@ type PurchaseHistory struct {
 ========================= */
 
 type FleaMarketListLite struct {
-	ID            int64    `json:"id"`
-	Name          string   `json:"name"`
-	Price         int64    `json:"price"`
-	SellerRate    *float64 `json:"seller_rate"`
-	Type          string   `json:"type"`
-	Quantity      int      `json:"quantity"`
-	MainImageURL  *string  `json:"main_image_url"`
-	SellerName    string   `json:"seller_name"`
-	SellerIconURL *string  `json:"seller_icon_url"`
-	IsLiked       bool     `json:"is_liked"`
-	Status        int      `json:"status"`
-	LikesCount    int      `json:"likes_count"`
+	ID            int64    `db:"id" json:"id"`
+	Name          string   `db:"name" json:"name"`
+	Price         int64    `db:"price" json:"price"`
+	SellerRate    *float64 `db:"seller_rate" json:"seller_rate"`
+	Type          string   `db:"type" json:"type"`
+	CategoryID    uint64   `db:"category_id" json:"category_id"`
+	SupplyTypeID  *uint64  `db:"supply_type_id" json:"supply_type_id"`
+	Quantity      int      `db:"quantity" json:"quantity"`
+	MainImageURL  *string  `db:"main_image_url" json:"main_image_url"`
+	SellerName    string   `db:"seller_name" json:"seller_name"`
+	SellerIconURL *string  `db:"seller_icon_url" json:"seller_icon_url"`
+	IsLiked       bool     `db:"is_liked" json:"is_liked"`
+	Status        int      `db:"status" json:"status"`
+	LikesCount    int      `db:"likes_count" json:"likes_count"`
 
-	ShippingFeeType int `json:"shipping_fee_type"`
+	ShippingFeeType int `db:"shipping_fee_type" json:"shipping_fee_type"`
 }
 
 type ListFleaMarketRequest struct {
-	Page       int    `json:"page"`
-	Limit      int    `json:"limit"`
-	Keyword    string `json:"keyword"`     // キーワード
-	Type       string `json:"type"`        // カテゴリー (INSECT, REPTILE...)
-	CategoryID int64  `json:"category_id"` // 具体的なカテゴリーID
-	MinPrice   *int   `json:"min_price"`   // 下限価格
-	MaxPrice   *int   `json:"max_price"`   // 上限価格
-	Status     int    `json:"status"`      // "selling", "sold", "all"
-	Sort       string `json:"sort"`        // "newest", "price_asc", "price_desc", "likes"
+	Page         int     `json:"page"`
+	Limit        int     `json:"limit"`
+	Keyword      string  `json:"keyword"`
+	Type         string  `json:"type"`           // カテゴリー (INSECT, REPTILE...)
+	CategoryID   uint64  `json:"category_id"`    // 生き物ID (犬、昆虫)
+	SupplyTypeID *uint64 `json:"supply_type_id"` // ★追加: 用品ID (フード、ケージ)
+	MinPrice     *int    `json:"min_price"`      // 下限価格
+	MaxPrice     *int    `json:"max_price"`      // 上限価格
+	Status       int     `json:"status"`         // "selling", "sold", "all"
+	Sort         string  `json:"sort"`           // "newest", "price_asc", "price_desc", "likes"
+
+	// 詳細絞り込み用
+	DetailSex      string `json:"detail_sex"`      // 性別 (male, female, pair...)
+	DetailLocality string `json:"detail_locality"` // 産地・モルフ (部分一致)
+	DetailBrand    string `json:"detail_brand"`    // ブランド (用品用・部分一致)
 }
 
 type FleaMarketItem struct {
@@ -333,6 +341,8 @@ type FleaMarketItem struct {
 	IsMultiPurchasable bool       `db:"is_multi_purchasable" json:"isMultiPurchasable"`
 	BuyUserID          *string    `db:"buy_user_id" json:"buyUserId,omitempty"`
 	Type               string     `db:"type" json:"type"`
+	CategoryID         uint64     `db:"category_id" json:"category_id"`
+	SupplyTypeID       *uint64    `db:"supply_type_id" json:"supply_type_id"`
 	MainImageURL       string     `db:"main_image_url" json:"main_image_url"`
 	Status             int        `db:"status" json:"status"`
 	ShipFrom           *int       `db:"ship_from" json:"shipFrom,omitempty"`
@@ -405,6 +415,7 @@ type CreateFleaMarketItemInput struct {
 	IsMultiPurchasable bool     `json:"isMultiPurchasable"`
 	Type               string   `json:"type"`
 	CategoryID         *int64   `json:"category_id"`
+	SupplyTypeID       *int64   `json:"supply_type_id"`
 	CategoryName       *string  `json:"category_name"`
 	Description        *string  `json:"description,omitempty"`
 	MainImageURL       string   `json:"main_image_url"`
@@ -582,6 +593,7 @@ type LatestDraftResponse struct {
 	Quantity           *int                  `json:"quantity"`
 	Type               *string               `json:"type"`
 	CategoryID         *int64                `json:"category_id"`
+	SupplyTypeID       *int64                `json:"supply_type_id"`
 	CategoryName       *string               `json:"category_name"`
 	Details            interface{}           `json:"details,omitempty"`
 	IsMultiPurchasable *int                  `json:"is_multi_purchasable"`
@@ -600,10 +612,10 @@ type DraftPayload struct {
 	Quantity           *int    `json:"quantity"`
 	Type               *string `json:"type"`
 	CategoryID         *int64  `json:"category_id"`
+	SupplyTypeID       *int64  `json:"supply_type_id"`
 	IsMultiPurchasable *int    `json:"is_multi_purchasable"`
 	ShippingFeeType    *int    `json:"shipping_fee_type"`
-
-	ShipFrom *int `json:"ship_from"`
+	ShipFrom           *int    `json:"ship_from"`
 
 	ShipsWithinDays *int                  `json:"ships_within_days"`
 	MainImageURL    *string               `json:"main_image_url"`

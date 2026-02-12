@@ -2,147 +2,136 @@ import React, { useEffect, useState } from "react";
 import api from "../conf/api";
 import { CategorySearchResult } from "../types/FleaMarketForm";
 
-// カテゴリーの型（APIレスポンス用）
 type CategoryNode = {
     id: number;
     name: string;
-    rank: string;
-    has_children?: boolean;
     built_in_type: string;
+    // 用品の場合は supply_type_id などの情報が必要
 };
 
 type Props = {
     open: boolean;
     onClose: () => void;
     onSelect: (category: CategorySearchResult) => void;
+    searchType: 'ANIMAL' | 'SUPPLY'; // ★親の選択状態を受け取る
 };
 
-export default function CategorySelectModal({ open, onClose, onSelect }: Props) {
-    const [history, setHistory] = useState<CategoryNode[]>([]); // パンくず用
-    const [currentList, setCurrentList] = useState<CategoryNode[]>([]);
+export default function CategorySelectModal({ open, onClose, onSelect, searchType }: Props) {
+    const [history, setHistory] = useState<CategoryNode[]>([]);
+    const [currentList, setCurrentList] = useState<any[]>([]); // カテゴリまたは用品
     const [loading, setLoading] = useState(false);
 
-    // 現在の親ID（historyの最後）
     const currentParent = history.length > 0 ? history[history.length - 1] : null;
 
-    // カテゴリー読み込み
-    const fetchChildren = async (parentId: number | null) => {
+    const fetchData = async (parentId: number | null) => {
         setLoading(true);
         try {
-            // 親ID指定、なければルート
-            const url = parentId
-                ? `/api/categories/children?parent_id=${parentId}`
-                : `/api/categories/children`; // ルート取得
+            let url = "";
+            // ★用品モードかつトップ階層なら、直接用品種別を取得しに行く
+            if (searchType === 'SUPPLY' && !parentId) {
+                url = "/api/supply-types";
+            } else {
+                url = parentId 
+                    ? `/api/categories/children?parent_id=${parentId}` 
+                    : `/api/categories/children`;
+            }
 
             const res = await api.get(url);
-
-            // データが空なら「行き止まり（葉ノード）」の可能性が高い
-            if (!res.data || res.data.length === 0) {
-                // そのまま選択扱いにしてもいいし、アラート出してもいい
-                return false;
-            }
-            setCurrentList(res.data);
-            return true;
+            setCurrentList(res.data || []);
+            return res.data && res.data.length > 0;
         } catch (e) {
             console.error(e);
+            return false;
         } finally {
             setLoading(false);
         }
     };
 
-    // 初期表示
     useEffect(() => {
         if (open) {
-            setHistory([]); // リセット
-            fetchChildren(null); // ルート取得
+            setHistory([]);
+            fetchData(null);
         }
-    }, [open]);
+    }, [open, searchType]); // searchTypeが変わったらリロード
 
-    // リスト項目タップ時
-    const handleItemClick = async (item: CategoryNode) => {
-        // 次の階層があるか確認
-        const hasChildren = await fetchChildren(item.id);
+    const handleItemClick = async (item: any) => {
+        // 用品モードのトップ階層（用品種別を選んだ）の場合
+        if (searchType === 'SUPPLY' && !currentParent) {
+            // 次に対象となる動物（カテゴリー）を選ばせる
+            setHistory([...history, item]);
+            fetchData(null); // ルートカテゴリー（犬、猫など）を取得
+            return;
+        }
 
+        // 通常のカテゴリードリルダウン
+        const hasChildren = await fetchData(item.id);
         if (hasChildren) {
-            // 子供がいれば掘り下げる
             setHistory([...history, item]);
         } else {
-            // 子供がいなければ、それを選択して終了
             confirmSelection(item);
         }
     };
 
-    // 「この階層で決定する」ボタン（種名まで詳しくわからない時用）
-    const handleSelectCurrent = () => {
-        if (currentParent) {
-            confirmSelection(currentParent);
+    const confirmSelection = (item: any) => {
+        let result: CategorySearchResult;
+
+        if (searchType === 'SUPPLY') {
+            // 用品の場合：history[0]が用品種別、itemが動物カテゴリー
+            const supplyType = history[0];
+            result = {
+                id: item.id, // カテゴリーID（犬など）
+                name: `${item.name} > ${supplyType.name}`,
+                built_in_type: item.built_in_type,
+                supply_type_id: supplyType.id, // 用品ID（フードなど）
+            };
+        } else {
+            // 生体の場合
+            result = {
+                id: item.id,
+                name: item.name,
+                built_in_type: item.built_in_type,
+            };
         }
-    };
-
-    const confirmSelection = (item: CategoryNode) => {
-        // 呼び出し元に返すデータを作成
-        // historyを使ってパンくず名を作るなどしても良い
-        //const fullPathName = [...history, item].map(n => n.name).join(" > ");
-
-        const result: CategorySearchResult = {
-            id: item.id,
-            name: item.name,
-            built_in_type: item.built_in_type,
-        };
 
         onSelect(result);
         onClose();
     };
 
-    // パンくずタップで戻る
-    const handleBreadcrumbClick = (index: number) => {
-        // 指定したインデックスまでの履歴を残す
-        const nextHistory = history.slice(0, index + 1);
-        const targetItem = nextHistory[nextHistory.length - 1];
+    const handleBack = () => {
+        const nextHistory = history.slice(0, -1);
         setHistory(nextHistory);
-        fetchChildren(targetItem.id);
-    };
-
-    // 「トップ」に戻る
-    const handleReset = () => {
-        setHistory([]);
-        fetchChildren(null);
+        fetchData(nextHistory.length > 0 ? nextHistory[nextHistory.length - 1].id : null);
     };
 
     if (!open) return null;
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <div className="bg-white w-full max-w-md h-[80vh] rounded-xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-
+            <div className="bg-white w-full max-w-md h-[80vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+                
                 {/* ヘッダー */}
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white">
-                    <h3 className="font-bold text-gray-800">カテゴリーを選択</h3>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
+                <div className="p-4 border-b flex justify-between items-center">
+                    <div className="flex items-center gap-2">
+                        {history.length > 0 && (
+                            <button onClick={handleBack} className="text-blue-600 text-sm">← 戻る</button>
+                        )}
+                        <h3 className="font-bold text-gray-800">
+                            {searchType === 'ANIMAL' ? '生体カテゴリー' : '用品カテゴリー'}を選択
+                        </h3>
+                    </div>
+                    <button onClick={onClose} className="text-gray-400 text-2xl">&times;</button>
                 </div>
 
-                {/* パンくずリスト */}
-                <div className="bg-gray-50 px-4 py-2 border-b border-gray-100 flex items-center flex-wrap gap-1 text-sm">
-                    <button onClick={handleReset} className={`hover:underline ${history.length === 0 ? "font-bold text-gray-800" : "text-blue-600"}`}>
-                        トップ
-                    </button>
-                    {history.map((node, i) => (
-                        <React.Fragment key={node.id}>
-                            <span className="text-gray-400">/</span>
-                            <button
-                                onClick={() => i === history.length - 1 ? {} : handleBreadcrumbClick(i)}
-                                className={`hover:underline ${i === history.length - 1 ? "font-bold text-gray-800 cursor-default" : "text-blue-600"}`}
-                            >
-                                {node.name}
-                            </button>
-                        </React.Fragment>
-                    ))}
-                </div>
+                {/* 状態表示 */}
+                {history.length > 0 && (
+                    <div className="bg-gray-50 px-4 py-2 text-xs text-gray-500 border-b">
+                        選択中: {history.map(h => h.name).join(" > ")}
+                    </div>
+                )}
 
-                {/* リスト表示エリア */}
                 <div className="flex-1 overflow-y-auto p-2">
                     {loading ? (
-                        <div className="flex justify-center p-8"><span className="loading-spinner text-blue-500">読み込み中...</span></div>
+                        <div className="p-8 text-center text-gray-400">読み込み中...</div>
                     ) : (
                         <ul className="space-y-1">
                             {currentList.map((item) => (
@@ -151,30 +140,21 @@ export default function CategorySelectModal({ open, onClose, onSelect }: Props) 
                                         onClick={() => handleItemClick(item)}
                                         className="w-full text-left px-4 py-3 hover:bg-blue-50 rounded-lg flex justify-between items-center group transition-colors"
                                     >
-                                        <span className="font-medium text-gray-700 group-hover:text-blue-700">{item.name}</span>
-                                        <span className="text-gray-300 text-xs">＞</span>
+                                        <span className="font-medium text-gray-700">{item.name}</span>
+                                        <span className="text-gray-300">＞</span>
                                     </button>
                                 </li>
                             ))}
                         </ul>
                     )}
-
-                    {!loading && currentList.length === 0 && (
-                        <div className="text-center py-10 text-gray-400">
-                            項目がありません
-                        </div>
-                    )}
                 </div>
 
-                {/* フッター：現在の階層で決定する */}
-                {history.length > 0 && (
-                    <div className="p-4 border-t border-gray-100 bg-gray-50">
-                        <div className="text-xs text-gray-500 mb-2 text-center">
-                            探している品種がない場合は、現在の分類で登録できます
-                        </div>
+                {/* 決定ボタン（生体かつ途中階層で止めたい場合） */}
+                {searchType === 'ANIMAL' && history.length > 0 && (
+                    <div className="p-4 border-t bg-gray-50">
                         <button
-                            onClick={handleSelectCurrent}
-                            className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-md transition-all active:scale-95"
+                            onClick={() => currentParent && confirmSelection(currentParent)}
+                            className="w-full py-3 bg-green-600 text-white font-bold rounded-lg"
                         >
                             「{currentParent?.name}」として決定
                         </button>

@@ -1,9 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { useSearchParams, useLocation } from "react-router-dom";
 import Header from "../../component/Header.tsx";
 import api, { getAccessToken } from "../../conf/api.ts";
 import { CONFIG } from "../../conf/config.ts";
 import { LikeButton } from "../../component/LikeButton.tsx";
+import SearchBar from "../../component/SearchBar.tsx";
 
+// --- 型定義 ---
 type FleaListContent = {
     id: number;
     name: string;
@@ -29,7 +32,6 @@ function safeRate(v: number | null | undefined): number {
     return n;
 }
 
-// レートの分子・分母を正しく整えて返すヘルパー
 function normalizeRate(rawRate: number, den: number) {
     if (rawRate > 2.0) {
         return { num: Math.round(rawRate), den: den };
@@ -59,12 +61,16 @@ function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, 
 }
 
 const FleaMarketList: React.FC = () => {
-    // --- 無限スクロール用 State ---
+    // URLクエリパラメータのフック
+    const [searchParams, setSearchParams] = useSearchParams();
+    const location = useLocation();
+
+    // --- State ---
     const [contents, setContents] = useState<FleaListContent[]>([]);
     const [offset, setOffset] = useState(0);
     const [hasMore, setHasMore] = useState(true);
-    const [loading, setLoading] = useState(true);      // 初回ロード
-    const [loadingMore, setLoadingMore] = useState(false); // 追加ロード
+    const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const limit = 20;
 
     const [user, setUser] = useState<Customer | null>(null);
@@ -72,6 +78,128 @@ const FleaMarketList: React.FC = () => {
     const [isPinned, setIsPinned] = useState(false);
     const [rateDen, setRateDen] = useState<number>(10000);
 
+    // URL解析: "/category/insect/stag-beetle" のようなパスかどうか判定
+    const isCategoryPath = location.pathname.startsWith("/flea-market/category/");
+    const pathSegments = location.pathname.split('/').filter(Boolean);
+    // カテゴリーパスの場合、最後の要素をslugとする。そうでない場合はnull
+    const slug = isCategoryPath ? pathSegments[pathSegments.length - 1] : null;
+
+    // --- データ取得関数 ---
+    const fetchData = async (currentOffset: number, isLoadMore: boolean) => {
+        if (isLoadMore) setLoadingMore(true);
+        else setLoading(true);
+
+        try {
+            // -------------------------------------------------
+            // 1. 変数の初期化 (まずはURLクエリパラメータやデフォルト値をセット)
+            // -------------------------------------------------
+            let targetCategoryId = Number(searchParams.get("category_id")) || 0;
+            let targetSupplyTypeId = 0; // ★追加: 用品ID用
+            let targetType = searchParams.get("type") || ""; // "SUPPLY" など
+
+            // -------------------------------------------------
+            // 2. Slugがある場合、APIで正解を聞いてくる
+            // -------------------------------------------------
+            if (slug) {
+                try {
+                    const catRes = await api.get(`/api/category/lookup?slug=${slug}`);
+                    if (catRes.data && catRes.data.id) {
+                        const lookupData = catRes.data;
+
+                        // APIの結果を見て、変数を更新する
+                        if (lookupData.type === 'SUPPLY') {
+                            // ★用品の場合
+                            targetType = 'SUPPLY';
+                            targetSupplyTypeId = lookupData.id; // 用品IDとしてセット
+                            targetCategoryId = 0; // 生体IDはクリア
+                        } else {
+                            // ★生体の場合
+                            targetCategoryId = lookupData.id; // カテゴリーIDとしてセット
+                            targetSupplyTypeId = 0;
+                            // targetType は生体の場合は空のままでOK（または 'INSECT' 等があればセット）
+                        }
+                    }
+                } catch (e) {
+                    console.error("Category lookup failed:", e);
+                }
+            }
+
+            // -------------------------------------------------
+            // 3. 確定した変数を使って Payload を構築 (ここで作る！)
+            // -------------------------------------------------
+            const payload = {
+                page: Math.floor(currentOffset / limit) + 1,
+                limit: limit,
+
+                // ★解決済みの変数を使う
+                category_id: targetCategoryId,
+                supply_type_id: targetSupplyTypeId, // ★バックエンドに追加した新フィールド
+                type: targetType,
+
+                // その他の条件
+                keyword: searchParams.get("keyword") || "",
+                min_price: searchParams.get("min_price") ? Number(searchParams.get("min_price")) : undefined,
+                max_price: searchParams.get("max_price") ? Number(searchParams.get("max_price")) : undefined,
+                status: searchParams.get("status") ? Number(searchParams.get("status")) : 0,
+                sort: searchParams.get("sort") || "",
+
+                detail_sex: searchParams.get("detail_sex") || "",
+                detail_locality: searchParams.get("detail_locality") || "",
+                detail_brand: searchParams.get("detail_brand") || "",
+            };
+
+            // 4. 商品リスト取得
+            const res = await api.post(`/flea-market/list?limit=${limit}&offset=${currentOffset}`, payload);
+
+            // ... (以下、データセット処理はそのまま) ...
+            let newItems: FleaListContent[] = [];
+            if (res.data && res.data.items) {
+                newItems = res.data.items;
+                if (res.data.rate_den) {
+                    setRateDen(Number(res.data.rate_den));
+                }
+            } else if (Array.isArray(res.data)) {
+                newItems = res.data;
+            }
+
+            setContents(prev => {
+                if (!isLoadMore) return newItems;
+                const existingIds = new Set(prev.map(item => item.id));
+                const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
+                return [...prev, ...uniqueNewItems];
+            });
+
+            if (newItems.length < limit) {
+                setHasMore(false);
+            } else {
+                setHasMore(true);
+            }
+
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setLoading(false);
+            setLoadingMore(false);
+        }
+    };
+    
+    // --- Effect: 検索条件(URL/Slug)が変わった時 ---
+    useEffect(() => {
+        setOffset(0);
+        setHasMore(true);
+        fetchData(0, false);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [searchParams, slug]); // slugが変わった時も再取得
+
+    // --- Effect: 無限スクロール ---
+    useEffect(() => {
+        if (offset > 0) {
+            fetchData(offset, true);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [offset]);
+
+    // ... (以下、IntersectionObserver, ユーザー取得, レート計算, 描画ロジックは変更なし) ...
     // --- IntersectionObserver (スクロール検知) ---
     const observer = useRef<IntersectionObserver | null>(null);
     const lastElementRef = useCallback((node: HTMLAnchorElement | null) => {
@@ -85,16 +213,13 @@ const FleaMarketList: React.FC = () => {
         if (node) observer.current.observe(node);
     }, [loading, loadingMore, hasMore]);
 
-    // 1. ユーザー情報取得 (初回のみ)
     useEffect(() => {
         const fetchUser = async () => {
             try {
                 const token = getAccessToken();
                 if (token && token !== "undefined") {
                     const res = await api.post("/customer", {});
-                    if (res.data?.user) {
-                        setUser(res.data.user);
-                    }
+                    if (res.data?.user) setUser(res.data.user);
                 }
             } catch (err) {
                 console.error(err);
@@ -103,48 +228,6 @@ const FleaMarketList: React.FC = () => {
         fetchUser();
     }, []);
 
-    // 2. 商品リスト取得 (offset変更時に発火)
-    useEffect(() => {
-        const fetchData = async () => {
-            if (offset === 0) setLoading(true);
-            else setLoadingMore(true);
-
-            try {
-                // クエリパラメータで limit, offset を渡す
-                const res = await api.post(`/flea-market/list?limit=${limit}&offset=${offset}`);
-
-                let newItems: FleaListContent[] = [];
-                if (res.data && res.data.items) {
-                    newItems = res.data.items;
-                    if (res.data.rate_den) {
-                        setRateDen(Number(res.data.rate_den));
-                    }
-                } else if (Array.isArray(res.data)) {
-                    newItems = res.data;
-                }
-
-                setContents(prev => {
-                    // 重複排除して追加
-                    const existingIds = new Set(prev.map(item => item.id));
-                    const uniqueNewItems = newItems.filter(item => !existingIds.has(item.id));
-                    return [...prev, ...uniqueNewItems];
-                });
-
-                // 取得数がlimit未満なら終了
-                if (newItems.length < limit) {
-                    setHasMore(false);
-                }
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-                setLoadingMore(false);
-            }
-        };
-        fetchData();
-    }, [offset]);
-
-    // 3. スクロール追従バーの制御
     useEffect(() => {
         const el = pointBarRef.current;
         if (!el) return;
@@ -159,7 +242,6 @@ const FleaMarketList: React.FC = () => {
         return () => window.removeEventListener("scroll", handleScroll);
     }, [loading]);
 
-    // レート計算
     const bestRateContent = useMemo(() => {
         return contents.reduce((max, item) => {
             const r = safeRate(item.seller_rate);
@@ -175,11 +257,22 @@ const FleaMarketList: React.FC = () => {
         return Math.max(0, worthYen - pt);
     }, [user, bestRateContent, rateDen]);
 
+    const handleFilterChange = (key: string, value: string) => {
+        const newParams = new URLSearchParams(searchParams);
+        if (value) {
+            newParams.set(key, value);
+        } else {
+            newParams.delete(key);
+        }
+        setSearchParams(newParams);
+    };
+
+    const currentType = searchParams.get("type");
+
     return (
         <div className="bg-gray-50 min-h-screen pb-20">
             <Header />
-
-            {/* ① 所持ポイント追従バッジ */}
+            <SearchBar />
             <div
                 className={`fixed top-[70px] right-4 z-40 transition-all duration-300 transform ${user && isPinned ? "translate-y-0 opacity-100" : "-translate-y-4 opacity-0 pointer-events-none"
                     }`}
@@ -192,8 +285,6 @@ const FleaMarketList: React.FC = () => {
 
             <main className="w-full max-w-[1400px] mx-auto pt-6 px-4">
                 <div className="grid grid-cols-1 lg:grid-cols-[260px,minmax(0,1fr)] gap-8 items-start">
-
-                    {/* サイドバー */}
                     <aside className="hidden lg:block sticky top-24 space-y-4">
                         <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
                             <h2 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
@@ -201,15 +292,35 @@ const FleaMarketList: React.FC = () => {
                                 絞り込み
                             </h2>
                             <div className="space-y-3">
-                                <div className="text-sm text-gray-600 hover:bg-gray-50 p-2 rounded cursor-pointer">すべて</div>
-                                <div className="text-sm text-gray-600 hover:bg-gray-50 p-2 rounded cursor-pointer">生体</div>
-                                <div className="text-sm text-gray-600 hover:bg-gray-50 p-2 rounded cursor-pointer">用品</div>
+                                <div
+                                    onClick={() => handleFilterChange("type", "")}
+                                    className={`text-sm p-2 rounded cursor-pointer ${!currentType ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-600 hover:bg-gray-50"}`}
+                                >
+                                    すべて
+                                </div>
+                                <div
+                                    onClick={() => handleFilterChange("type", "INSECT")}
+                                    className={`text-sm p-2 rounded cursor-pointer ${currentType === "INSECT" ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-600 hover:bg-gray-50"}`}
+                                >
+                                    昆虫
+                                </div>
+                                <div
+                                    onClick={() => handleFilterChange("type", "REPTILE")}
+                                    className={`text-sm p-2 rounded cursor-pointer ${currentType === "REPTILE" ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-600 hover:bg-gray-50"}`}
+                                >
+                                    爬虫類
+                                </div>
+                                <div
+                                    onClick={() => handleFilterChange("type", "SUPPLY")}
+                                    className={`text-sm p-2 rounded cursor-pointer ${currentType === "SUPPLY" ? "bg-blue-50 text-blue-600 font-bold" : "text-gray-600 hover:bg-gray-50"}`}
+                                >
+                                    用品
+                                </div>
                             </div>
                         </div>
                     </aside>
 
                     <div className="min-w-0">
-                        {/* ③ 上部ポイントバー */}
                         {user && (
                             <div ref={pointBarRef} className="mb-6">
                                 <div className="bg-white border border-emerald-100 rounded-2xl p-4 md:px-6 md:py-4 flex flex-col md:flex-row md:items-center justify-between shadow-sm gap-3">
@@ -240,7 +351,6 @@ const FleaMarketList: React.FC = () => {
                             </div>
                         )}
 
-                        {/* 商品グリッド */}
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-5">
                             {contents.map((item, index) => {
                                 const price = Math.floor(item.price);
@@ -254,7 +364,6 @@ const FleaMarketList: React.FC = () => {
                                     ? calcRateDiscount(price, user.point, rawRate, rateDen)
                                     : { discountYen: 0 };
 
-                                // ★修正: refは aタグ に直接付け、余計なdivは削除しました
                                 return (
                                     <a
                                         key={`${item.id}-${index}`}
@@ -281,7 +390,6 @@ const FleaMarketList: React.FC = () => {
                                                     <span className="absolute top-4 left-1 -rotate-45 text-white font-bold text-sm tracking-widest">SOLD</span>
                                                 </div>
                                             )}
-                                            {/* 右下に配置 */}
                                             <div className="absolute bottom-2 right-2">
                                                 <LikeButton
                                                     itemId={item.id}
@@ -324,7 +432,6 @@ const FleaMarketList: React.FC = () => {
                             })}
                         </div>
 
-                        {/* ローディング表示 */}
                         {(loading || loadingMore) && (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
                                 {[...Array(4)].map((_, i) => (

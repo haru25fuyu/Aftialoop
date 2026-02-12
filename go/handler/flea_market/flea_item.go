@@ -165,6 +165,14 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		categoryID, _ = strconv.ParseInt(cidStr, 10, 64)
 	}
 
+	// ★追加: 用品ID (supply_type_id) を取得
+	var supplyTypeID *int64
+	if sidStr := r.FormValue("supply_type_id"); sidStr != "" && sidStr != "undefined" && sidStr != "null" {
+		if sid, err := strconv.ParseInt(sidStr, 10, 64); err == nil {
+			supplyTypeID = &sid
+		}
+	}
+
 	// カテゴリー名
 	categoryName := r.FormValue("category_name")
 
@@ -284,8 +292,8 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		IsMultiPurchasable: isMulti,
 		Type:               itemType,
 		CategoryID:         &categoryID,
-
-		CategoryName: &categoryName,
+		SupplyTypeID:       supplyTypeID,
+		CategoryName:       &categoryName,
 
 		Description: &description,
 

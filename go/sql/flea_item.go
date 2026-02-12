@@ -18,24 +18,27 @@ import (
 // SearchFleaItems は条件に基づいて商品一覧を取得します
 func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarketRequest, currentUserID int64) ([]utils.FleaMarketListLite, error) {
 	// 1. ベースのクエリ
-	// ★修正: フロントエンドに必要な quantity, status, shipping_fee_type, likes_count を追加
 	query := `
-        SELECT
+        SELECT DISTINCT
             f.id,
             f.name,
             f.price,
             f.seller_rate,
             f.type,
+            f.category_id,      -- ★追加: 生き物ID
+            f.supply_type_id,   -- ★追加: 用品種別ID
             f.main_image_url,
-            f.status,             -- 追加
-            f.quantity,           -- 追加
-            f.shipping_fee_type,  -- 追加
+            f.status,
+            f.quantity,
+            f.shipping_fee_type,
             u.name     AS seller_name,
             u.icon_url AS seller_icon_url,
             EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked,
-            (SELECT COUNT(*) FROM flea_likes WHERE item_id = f.id) AS likes_count -- 追加
+            (SELECT COUNT(*) FROM flea_likes WHERE item_id = f.id) AS likes_count,
+            f.created_at
         FROM flea_items AS f
         LEFT JOIN users AS u ON u.id = f.user_id
+        LEFT JOIN search_tags st ON f.category_id = st.category_id
         WHERE f.deleted_at IS NULL
     `
 
@@ -46,9 +49,22 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
 	// ---------------------------------------------------------
 
 	if req.Keyword != "" {
-		query += " AND (f.name LIKE ? OR f.description LIKE ?)"
-		search := "%" + req.Keyword + "%"
-		args = append(args, search, search)
+		keyword := strings.ReplaceAll(req.Keyword, "　", " ")
+		words := strings.Fields(keyword)
+
+		for _, w := range words {
+			condition := ` AND (
+                f.name LIKE ? 
+                OR f.description LIKE ? 
+                OR f.details LIKE ?
+                OR st.term LIKE ?
+                OR (? LIKE CONCAT('%', st.term, '%') AND CHAR_LENGTH(st.term) >= 2)
+            )`
+			query += condition
+			likeWord := "%" + w + "%"
+			exactWord := w
+			args = append(args, likeWord, likeWord, likeWord, likeWord, exactWord)
+		}
 	}
 
 	if req.Type != "" {
@@ -56,8 +72,24 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
 		args = append(args, req.Type)
 	}
 
-	if req.CategoryID > 0 {
-		query += " AND f.category_id = ?"
+	// カテゴリー・用品の分岐検索
+	if req.Type == "SUPPLY" && *req.SupplyTypeID > 0 {
+		// ★用品タブの場合: supply_type_id で検索
+		query += " AND f.supply_type_id = ?"
+		args = append(args, req.SupplyTypeID)
+
+		// ※フロント側で category_id に入れて送っている場合は req.CategoryID を使うなど調整してください
+		// 今回のフロント修正(payload.supply_type_id)に合わせて req.SupplyTypeID を見ています
+
+	} else if req.CategoryID > 0 {
+		// ★生体の場合: 階層検索
+		query += ` AND f.category_id IN (
+            SELECT id FROM categories 
+            WHERE path LIKE CONCAT(
+                (SELECT path FROM categories WHERE id = ?), 
+                '%'
+            )
+        )`
 		args = append(args, req.CategoryID)
 	}
 
@@ -76,18 +108,32 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
 		args = append(args, req.Status)
 	}
 
+	// 詳細条件 (JSON)
+	if req.DetailSex != "" {
+		query += " AND f.details->>'$.sex' = ?"
+		args = append(args, req.DetailSex)
+	}
+	if req.DetailLocality != "" {
+		query += " AND (f.details->>'$.locality' LIKE ? OR f.details->>'$.morph' LIKE ?)"
+		search := "%" + req.DetailLocality + "%"
+		args = append(args, search, search)
+	}
+	if req.DetailBrand != "" {
+		query += " AND f.details->>'$.brand' LIKE ?"
+		search := "%" + req.DetailBrand + "%"
+		args = append(args, search)
+	}
+
 	// ---------------------------------------------------------
 	// 3. 並び替え
 	// ---------------------------------------------------------
-	// likes順の場合はエイリアスではなくサブクエリかカラム指定が必要なケースがあるが
-	// MySQLはORDER BY句でSELECT句のエイリアス(likes_count)を使えることが多い
 	switch req.Sort {
 	case "price_asc":
 		query += " ORDER BY f.price ASC"
 	case "price_desc":
 		query += " ORDER BY f.price DESC"
 	case "likes":
-		query += " ORDER BY likes_count DESC" // エイリアスを使用
+		query += " ORDER BY likes_count DESC"
 	case "oldest":
 		query += " ORDER BY f.created_at ASC"
 	default:
@@ -126,28 +172,34 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
 			mainURL       sql.NullString
 			sellerName    sql.NullString
 			sellerIconURL sql.NullString
-			shippingFee   sql.NullInt64 // NULL許容のため
+			shippingFee   sql.NullInt64
+			createdAt     sql.NullTime
+			supplyTypeID  sql.NullInt64 // ★NULL許容のため一時変数で受ける
 		)
 
-		// SELECTしたカラム数・順番に合わせてScan
+		// SELECTの順番通りにスキャン
 		if err := rows.Scan(
 			&it.ID,
 			&it.Name,
 			&it.Price,
 			&it.SellerRate,
 			&it.Type,
+			&it.CategoryID, // ★追加
+			&supplyTypeID,  // ★追加 (NULL対応)
 			&mainURL,
-			&it.Status,   // 追加
-			&it.Quantity, // 追加
-			&shippingFee, // 追加 (NullInt64)
+			&it.Status,
+			&it.Quantity,
+			&shippingFee,
 			&sellerName,
 			&sellerIconURL,
 			&it.IsLiked,
-			&it.LikesCount, // 追加
+			&it.LikesCount,
+			&createdAt,
 		); err != nil {
 			return nil, err
 		}
 
+		// NULLチェック処理
 		if mainURL.Valid {
 			s := mainURL.String
 			it.MainImageURL = &s
@@ -162,7 +214,13 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
 		if shippingFee.Valid {
 			it.ShippingFeeType = int(shippingFee.Int64)
 		} else {
-			it.ShippingFeeType = 0 // デフォルト
+			it.ShippingFeeType = 0
+		}
+
+		// supply_type_id を構造体にセット
+		if supplyTypeID.Valid {
+			val := uint64(supplyTypeID.Int64)
+			it.SupplyTypeID = &val
 		}
 
 		items = append(items, it)
@@ -252,6 +310,7 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
             quantity,
             type,
             category_id,
+            supply_type_id,
             category_name,
             is_multi_purchasable,
             main_image_url,
@@ -260,12 +319,12 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
             shipping_fee_type,
             ships_within_days,
             seller_rate,
-			status,
+            status,
             commission_rate,
             created_at,
             updated_at
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
         )
     `
 
@@ -277,6 +336,7 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
 		p.Quantity,
 		p.Type,
 		p.CategoryID,
+		p.SupplyTypeID,
 		p.CategoryName,
 		p.IsMultiPurchasable,
 		p.MainImageURL,
@@ -284,9 +344,9 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
 		p.ShipFrom,
 		p.ShippingFeeType,
 		p.ShipsWithinDays,
-		p.SellerRateBP, // seller_rate (?)
-		// 1 (status) is hardcoded in VALUES
-		p.CommissionRateBP, // commission_rate (?)
+		p.SellerRateBP,
+		1, // status: 出品中
+		p.CommissionRateBP,
 	)
 	if err != nil {
 		return 0, fmt.Errorf("insert item: %w", err)

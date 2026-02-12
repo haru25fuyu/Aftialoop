@@ -19,12 +19,8 @@ import AddImagesModal from "../../modal/AddImagesModal";
 import TinySavedPopup from "../../component/TinySavedPopup";
 
 import { AnyDetails } from "../../types/FleaMarketForm";
+import { CategorySearchResult } from "../../types/FleaMarketForm";
 
-type CategorySearchResult = {
-    id: number;
-    name: string;
-    built_in_type?: string;
-};
 
 export default function FleaItemCreatePage() {
     const toast = useToast();
@@ -38,25 +34,31 @@ export default function FleaItemCreatePage() {
 
     // カテゴリー選択時のハンドラ
     // (Hookから切り離しておいて、View側の都合でtoastを出したりする)
+    // カテゴリー選択時のハンドラ
     const handleCategorySelect = (item: CategorySearchResult) => {
-        setters.setName(item.name);
+        // 1. 表示名をセット
+        setters.setCategoryName(item.full_path_name || item.name);
 
-        // item.built_in_type があれば型キャストしてセット
-        if (item.built_in_type) {
-            setters.setType(item.built_in_type as ItemType);
+        if (item.is_supply || item.type === 'supply') {
+            // ★用品の場合
+            // 'SUPPLY' が ItemType に含まれているはずですが、念のためキャストしておくと安全です
+            setters.setType('SUPPLY' as ItemType);
+
+            setters.setCategoryId(item.parent_id || item.category_id || 0);
+            setters.setSupplyTypeId(item.supply_type_id || item.id);
+
         } else {
-            setters.setType("INSECT");
+            // ★生体の場合
+            // item.built_in_type は string なので、 as ItemType で型を強制します
+            const targetType = (item.built_in_type as ItemType) || 'INSECT';
+            setters.setType(targetType);
+
+            setters.setCategoryId(item.id);
+            setters.setSupplyTypeId(0);
         }
 
-        setters.setCategoryId(item.id);
-        setters.setCategoryName(item.name);
-
-        // ▼ prev は自動推論されるので、(prev) でOK
-        setters.setLiveDetails((prev) => ({
-            ...prev,
-        }));
-
-        toast({ text: `「${item.name}」を設定しました`, kind: "success" });
+        // カテゴリー設定の通知
+        //toast.apply("カテゴリーが設定されました");
     };
 
     // 表示用にデータを変換する関数
@@ -139,7 +141,7 @@ export default function FleaItemCreatePage() {
 
         category_name: formState.categoryName, // カテゴリー名
 
-        // ★修正: ここで変換関数を呼ぶ！
+        // ここで変換関数を呼ぶ！
         details: getFormattedDetails() as AnyDetails, // 型合わせ (AnyDetails)
 
         images: formState.images,
@@ -198,7 +200,6 @@ export default function FleaItemCreatePage() {
                             setters={setters}
                             errors={systemState.errors}
                             onCategorySelect={handleCategorySelect}
-                            supplyTypes={systemState.supplyTypes || []}
                         />
                         <ShippingPriceSection
                             formState={formState}

@@ -22,50 +22,52 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 		return 0, time.Time{}, errors.New("db not ready")
 	}
 
-	// 1. トランザクション開始 (親と子を同時に保存するため)
+	// 1. トランザクション開始
 	tx, err := db.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return 0, time.Time{}, err
 	}
 	defer tx.Rollback()
 
-	// ★追加: detailsオブジェクトをJSON文字列に変換
+	// detailsオブジェクトをJSON文字列に変換
 	var detailsJSON interface{} = nil
 	if p.Details != nil {
 		b, err := json.Marshal(p.Details)
 		if err == nil {
-			detailsJSON = string(b) // 文字列として保存
+			detailsJSON = string(b)
 		}
 	}
 
 	// 2. 親テーブル (flea_item_drafts) への INSERT
 	res, err := tx.ExecContext(ctx, `
-        INSERT INTO flea_item_drafts
-        SET user_id = ?,
-            name = ?,
-            description = ?,
-            price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
-            quantity = ?,
-            type = ?,
+		INSERT INTO flea_item_drafts
+		SET user_id = ?,
+			name = ?,
+			description = ?,
+			price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
+			quantity = ?,
+			type = ?,
 			category_id = ?,
-            is_multi_purchasable = COALESCE(?, 0),
-            main_image_url = ?,
-            status = 0,
-            ship_from = ?,
-            shipping_fee_type = ?,
-            ships_within_days = ?,
-            
-            details = ?,
-            
-            created_at = UTC_TIMESTAMP(),
-            updated_at = UTC_TIMESTAMP()
-    `,
+			supply_type_id = ?,
+			is_multi_purchasable = COALESCE(?, 0),
+			main_image_url = ?,
+			status = 0,
+			ship_from = ?,
+			shipping_fee_type = ?,
+			ships_within_days = ?,
+			
+			details = ?,
+			
+			created_at = UTC_TIMESTAMP(),
+			updated_at = UTC_TIMESTAMP()
+	`,
 		userID,
 		p.Name, p.Description,
 		p.Price, p.Price, p.Price,
 		p.Quantity,
 		p.Type,
 		p.CategoryID,
+		p.SupplyTypeID, // ★追加: 値をセット
 		p.IsMultiPurchasable,
 		p.MainImageURL,
 		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
@@ -79,18 +81,16 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 	lastID, _ := res.LastInsertId()
 	id = uint64(lastID)
 
-	// 3. 子テーブル (flea_item_draft_images) への INSERT ★ここを追加
+	// 3. 子テーブル (flea_item_draft_images) への INSERT
 	if p.UploadedImages != nil && len(*p.UploadedImages) > 0 {
 		query := "INSERT INTO flea_item_draft_images (draft_id, asset_id, temp_path, sort_order) VALUES "
 		var args []interface{}
 
 		for i, img := range *p.UploadedImages {
 			query += "(?, ?, ?, ?),"
-			// ★重要: img.ServerID (image_assetsのID) を asset_id として保存
 			args = append(args, id, img.ServerID, img.URL, i)
 		}
 
-		// 末尾のカンマ削除
 		query = query[:len(query)-1]
 
 		if _, err := tx.ExecContext(ctx, query, args...); err != nil {
@@ -114,7 +114,6 @@ func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.Draf
 // UpdateDraftByID: ドラフト更新（asset_id対応版）
 // ==========================================
 func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID uint64, p utils.DraftPayload) (savedAt time.Time, err error) {
-	// ... (前半の接続チェック等は省略、変更なし) ...
 	if db.DB == nil {
 		return time.Time{}, errors.New("db not ready")
 	}
@@ -133,37 +132,41 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 		}
 	}
 
-	// ... (存在チェック等は省略、変更なし) ...
-	// ↓ チェック用簡易コード
+	// 存在チェック
 	var exists bool
 	tx.QueryRowContext(ctx, "SELECT EXISTS(SELECT 1 FROM flea_item_drafts WHERE id=? AND user_id=? AND status=0)", draftID, userID).Scan(&exists)
 	if !exists {
 		return time.Time{}, sql.ErrNoRows
 	}
 
-	// 親テーブル更新 (変更なし)
+	// 親テーブル更新
 	_, err = tx.ExecContext(ctx, `
-        UPDATE flea_item_drafts
-           SET name = COALESCE(?, name),
-               description = COALESCE(?, description),
-               price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
-               quantity = COALESCE(?, quantity),
-               type = COALESCE(?, type),
+		UPDATE flea_item_drafts
+		   SET name = COALESCE(?, name),
+			   description = COALESCE(?, description),
+			   price = CASE WHEN ? IS NULL OR ? = '' THEN NULL ELSE ? END,
+			   quantity = COALESCE(?, quantity),
+			   type = COALESCE(?, type),
 			   category_id = COALESCE(?, category_id),
-               is_multi_purchasable = COALESCE(?, is_multi_purchasable),
-               main_image_url = ?,
-               ship_from = COALESCE(?, ship_from),
-               shipping_fee_type = COALESCE(?, shipping_fee_type),
-               ships_within_days = COALESCE(?, ships_within_days),
-               
-               details = COALESCE(?, details), -- ★更新
-               
-               updated_at = UTC_TIMESTAMP()
-         WHERE id = ? AND user_id = ?
-    `,
+			   supply_type_id = COALESCE(?, supply_type_id), -- ★追加: 用品ID更新
+			   is_multi_purchasable = COALESCE(?, is_multi_purchasable),
+			   main_image_url = ?,
+			   ship_from = COALESCE(?, ship_from),
+			   shipping_fee_type = COALESCE(?, shipping_fee_type),
+			   ships_within_days = COALESCE(?, ships_within_days),
+			   
+			   details = COALESCE(?, details),
+			   
+			   updated_at = UTC_TIMESTAMP()
+		 WHERE id = ? AND user_id = ?
+	`,
 		p.Name, p.Description,
 		p.Price, p.Price, p.Price,
-		p.Quantity, p.Type, p.CategoryID, p.IsMultiPurchasable, p.MainImageURL,
+		p.Quantity, p.Type,
+		p.CategoryID,
+		p.SupplyTypeID, // ★追加: 値をセット
+		p.IsMultiPurchasable,
+		p.MainImageURL,
 		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
 		detailsJSON,
 		draftID, userID,
@@ -173,7 +176,7 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 		return time.Time{}, err
 	}
 
-	// ★画像更新処理（asset_id対応）
+	// 画像更新処理
 	if p.UploadedImages != nil {
 		if _, err := tx.ExecContext(ctx, "DELETE FROM flea_item_draft_images WHERE draft_id = ?", draftID); err != nil {
 			return time.Time{}, err
@@ -183,7 +186,6 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 			var args []interface{}
 			for i, img := range *p.UploadedImages {
 				query += "(?, ?, ?, ?),"
-				// ★ asset_id を保存
 				args = append(args, draftID, img.ServerID, img.URL, i)
 			}
 			query = query[:len(query)-1]
@@ -207,9 +209,8 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
 	}
 	var updated time.Time
 
-	var detailsString sql.NullString // ★DBのlongtextを受け取る変数
+	var detailsString sql.NullString
 
-	// SELECT実行
 	err := db.DB.QueryRowContext(ctx, `
         SELECT 
             d.id, 
@@ -218,8 +219,16 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
             CASE WHEN d.price IS NULL THEN NULL ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM d.price)) END,
             d.quantity, 
             d.type, 
-            d.category_id, 
-            c.name AS category_name,  -- ★ここに追加！ (テーブル名 c に注意)
+            d.category_id,
+            d.supply_type_id,
+            
+            -- 用品IDがあるなら "カテゴリー名 > 用品名" を返す
+            CASE 
+                WHEN d.supply_type_id IS NOT NULL AND st.name IS NOT NULL 
+                THEN CONCAT(c.name, ' > ', st.name)
+                ELSE c.name 
+            END AS category_name,
+
             d.is_multi_purchasable,
             d.main_image_url,
             d.ship_from, 
@@ -228,21 +237,24 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
             d.details,
             d.updated_at
         FROM flea_item_drafts AS d
-        LEFT JOIN categories AS c ON d.category_id = c.id  -- ★JOINを追加
+        LEFT JOIN categories AS c ON d.category_id = c.id
+        LEFT JOIN supply_types AS st ON d.supply_type_id = st.id -- ★追加: 用品テーブルをJOIN
         WHERE d.id = ? AND d.user_id = ? AND d.status = 0
     `, draftID, userID).Scan(
-		&out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type, &out.CategoryID, &out.CategoryName, &out.IsMultiPurchasable,
+		&out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type,
+		&out.CategoryID,
+		&out.SupplyTypeID,
+		&out.CategoryName, // これで "犬 > フード" が入るようになります！
+		&out.IsMultiPurchasable,
 		&out.MainImageURL, &out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays,
-
-		&detailsString, // ★受け取る
-
-		&out.UpdatedAt, // (型に合わせて調整してください)
+		&detailsString,
+		&updated,
 	)
 	if err != nil {
 		return out, err
 	}
 
-	// ★JSON文字列をオブジェクトに戻す
+	// JSON文字列をオブジェクトに戻す
 	if detailsString.Valid && detailsString.String != "" {
 		var det interface{}
 		if err := json.Unmarshal([]byte(detailsString.String), &det); err == nil {
@@ -252,13 +264,13 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
 
 	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
 
-	// ★画像取得（asset_id を serverId として復元）
+	// 画像取得
 	rows, err := db.DB.QueryContext(ctx, `
-        SELECT asset_id, temp_path
-          FROM flea_item_draft_images
-         WHERE draft_id = ?
-         ORDER BY sort_order ASC
-    `, draftID)
+		SELECT asset_id, temp_path
+		  FROM flea_item_draft_images
+		 WHERE draft_id = ?
+		 ORDER BY sort_order ASC
+	`, draftID)
 	if err != nil {
 		return out, err
 	}
@@ -273,8 +285,8 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
 		}
 
 		images = append(images, utils.DraftUploadedImage{
-			ID:       fmt.Sprintf("%d", assetID), // フロント識別用
-			ServerID: assetID,                    // ★重要: 本番の画像ID
+			ID:       fmt.Sprintf("%d", assetID),
+			ServerID: assetID,
 			URL:      path,
 		})
 	}

@@ -1,39 +1,48 @@
 import React, { useState, useEffect, useRef } from "react";
-import api from "../conf/api"; // あなたのプロジェクトのAPI設定に合わせてください
+import api from "../conf/api";
 
-type Suggestion = {
+export type Suggestion = {
     id: number;
     name: string;
-    full_path_name?: string; // APIが返すパンくずリスト
-    rank?: string;
-    // 必要に応じて他のフィールドも追加
+    type?: string;
+    is_supply?: boolean;
+    built_in_type?: string;
+    full_path_name?: string;
 };
 
 interface AutocompleteInputProps {
     value: string;
+    type?: "ANIMAL" | "SUPPLY";
     onChange: (val: string) => void;
     onSelect: (item: Suggestion) => void;
     placeholder?: string;
     className?: string;
     error?: string;
+    shouldReplaceValue?: boolean;
 }
 
 export default function AutocompleteInput({
     value,
+    type = "ANIMAL",
     onChange,
     onSelect,
     placeholder,
     className,
     error,
+    shouldReplaceValue = false,
 }: AutocompleteInputProps) {
     const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
     const [showSuggestions, setShowSuggestions] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
-
-    // デバウンス用タイマー
     const timerRef = useRef<number | null>(null);
 
-    // 外部クリックで閉じる
+    // ★デフォルトのスタイル定義 (BasicInfoSectionで使っていたものと同じスタイル)
+    const defaultInputClass = "w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-3 transition-colors";
+
+    // 親から className が来ていればそれを使い、なければデフォルトを使う
+    // (マージしたい場合は `${defaultInputClass} ${className || ""}` のように書きますが、今回は上書き優先にしています)
+    const inputClass = className || defaultInputClass;
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
@@ -41,10 +50,12 @@ export default function AutocompleteInput({
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
+        return () => {
+            if (timerRef.current) window.clearTimeout(timerRef.current);
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
     }, []);
 
-    // 入力が変わったらAPIを叩く
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const val = e.target.value;
         onChange(val);
@@ -55,12 +66,10 @@ export default function AutocompleteInput({
             return;
         }
 
-        // デバウンス処理（0.3秒待ってから検索）
         if (timerRef.current) window.clearTimeout(timerRef.current);
         timerRef.current = window.setTimeout(async () => {
             try {
-                // ★ここで検索APIを呼び出す
-                const res = await api.get(`/api/categories/search?keyword=${encodeURIComponent(val)}`);
+                const res = await api.get(`/api/categories/search?keyword=${encodeURIComponent(val)}&type=${type}`);
                 if (res.data && Array.isArray(res.data) && res.data.length > 0) {
                     setSuggestions(res.data);
                     setShowSuggestions(true);
@@ -69,46 +78,66 @@ export default function AutocompleteInput({
                     setShowSuggestions(false);
                 }
             } catch (err) {
-                console.error("Autocomplete search failed", err);
+                console.error(err);
             }
         }, 300);
     };
 
     const handleSelect = (item: Suggestion) => {
-        onChange(item.name); // 名前を入力欄にセット
-        onSelect(item);      // 親コンポーネントに通知
+        if (shouldReplaceValue) {
+            onChange(item.name);
+        }
+        onSelect(item);
         setShowSuggestions(false);
         setSuggestions([]);
     };
 
     return (
-        <div ref={wrapperRef} className="relative w-full">
-            <input
-                type="text"
-                className={className}
-                value={value}
-                onChange={handleInputChange}
-                placeholder={placeholder}
-                onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
-            />
+        <div ref={wrapperRef} className="w-full">
+            <div className="relative">
+                <input
+                    type="text"
+                    className={inputClass}
+                    value={value}
+                    onChange={handleInputChange}
+                    placeholder={placeholder}
+                    onFocus={() => { if (suggestions.length > 0) setShowSuggestions(true); }}
+                />
+            </div>
+
             {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
 
-            {/* 候補リスト */}
             {showSuggestions && suggestions.length > 0 && (
-                <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-60 overflow-y-auto">
-                    {suggestions.map((item) => (
-                        <li
-                            key={item.id}
-                            className="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-50 last:border-none"
-                            onClick={() => handleSelect(item)}
-                        >
-                            <div className="text-sm font-bold text-gray-800">{item.name}</div>
-                            {item.full_path_name && (
-                                <div className="text-xs text-gray-500">{item.full_path_name}</div>
-                            )}
-                        </li>
-                    ))}
-                </ul>
+                <div className="mt-2 bg-blue-50 border border-blue-100 rounded-lg overflow-hidden animate-in fade-in slide-in-from-top-1">
+                    {!shouldReplaceValue && (
+                        <div className="bg-blue-100 px-3 py-1 text-xs font-bold text-blue-700 flex items-center gap-1">
+                            <span>💡</span> カテゴリーの提案（タップして設定）
+                        </div>
+                    )}
+                    <ul className="max-h-60 overflow-y-auto">
+                        {suggestions.map((item, index) => (
+                            <li
+                                key={`${item.type || 'unknown'}-${item.id}-${index}`}
+                                className="px-4 py-3 hover:bg-blue-100 cursor-pointer border-b border-blue-100 last:border-none transition-colors"
+                                onClick={() => handleSelect(item)}
+                            >
+                                <div className="flex items-center justify-between">
+                                    <div>
+                                        <div className="text-sm font-bold text-gray-800">{item.name}</div>
+                                        {item.full_path_name && (
+                                            <div className="text-xs text-gray-500 mt-0.5">{item.full_path_name}</div>
+                                        )}
+                                    </div>
+                                    {!shouldReplaceValue && (
+                                        <span className="text-xs bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded-full whitespace-nowrap ml-2 shadow-sm">
+                                            設定
+                                        </span>
+                                    )}
+                                </div>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
             )}
         </div>
     );

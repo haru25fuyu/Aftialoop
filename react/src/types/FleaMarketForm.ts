@@ -40,6 +40,7 @@ export type FormState = {
   isMultiPurchasable: boolean;
   type: ItemType;
   categoryId: number | null; // キャメルケース
+  supplyTypeId: number | null; // 用品カテゴリー用ID
   categoryName: string | null; // キャメルケース
   description: string;
   shippingFeeType: 0 | 1 | 2;
@@ -72,6 +73,7 @@ export type FormSetters = {
   setLiveDetails: Dispatch<SetStateAction<LiveDetails>>;
   setSupplyDetails: Dispatch<SetStateAction<SupplyDetails>>;
   setCurrentStep: Dispatch<SetStateAction<"main" | "details">>;
+  setSupplyTypeId: Dispatch<SetStateAction<number | null>>;
 };
 
 // ==========================================
@@ -179,7 +181,13 @@ export type ApiErrorResponse = {
 };
 
 export type CategorySearchResult = {
-    id: number;
-    name: string;
-    built_in_type?: string;
+  id: number;
+  name: string;
+  built_in_type?: string;
+  full_path_name?: string;
+  is_supply?: boolean;
+  type?: string;
+  parent_id?: number;
+  category_id?: number;
+  supply_type_id?: number;
 };

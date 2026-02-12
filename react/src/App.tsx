@@ -98,6 +98,7 @@ const App: React.FC = () => {
           <Route path="/reset-password" element={<PasswordResetExecute />} />
 
           <Route path="/flea-market/list" element={<FleaMarketList />} />
+          <Route path="/flea-market/category/*" element={<FleaMarketList />} />
           <Route path="/flea-market/item/:id" element={<FleaMarketItem />} />
           <Route path="/flea-market/item/edit/:id" element={<RequireAuth><ToastProvider><FleaItemEdit /></ToastProvider></RequireAuth>} />
           <Route path="/flea-market/sell/create" element={<RequireAuth><ToastProvider><FleaItemCreatePage /></ToastProvider></RequireAuth>} />

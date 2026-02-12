@@ -4,7 +4,6 @@ import axios from "axios";
 import { CONFIG } from "../conf/config";
 import api, { getAccessToken } from "../conf/api";
 import { useToast } from "../conf/function";
-//import { upsertAnimalDetails, upsertSupplyDetails } from "../conf/fleaDetails";
 // Import types
 import { ImageAsset } from "../types/FleaMarket";
 import {
@@ -25,10 +24,11 @@ type DraftResponse = {
   description?: string;
   price?: string;
   quantity?: number;
-  type?: string; // APIからは文字列で来る
+  type?: string;
   category_id?: number;
+  supply_type_id?: number; // ★追加: 用品ID
   category_name?: string;
-  details?: AnyDetails; // ここで AnyDetails を使う
+  details?: AnyDetails;
   is_multi_purchasable?: number;
   shipping_fee_type?: number;
   ship_from?: number;
@@ -63,7 +63,7 @@ export function useFleaItemForm() {
   const queryParamId = searchParams.get("id");
   const targetDraftId = pathParamId || queryParamId;
 
-  // ===== States (Explicit Types) =====
+  // ===== States =====
   const [name, setName] = useState<string>("");
   const [price, setPrice] = useState<string>("");
   const [sellerPlusPct, setSellerPlusPct] = useState<number>(0);
@@ -78,6 +78,7 @@ export function useFleaItemForm() {
   const [mainIndex, setMainIndex] = useState<number>(0);
 
   const [categoryId, setCategoryId] = useState<number | null>(null);
+  const [supplyTypeId, setSupplyTypeId] = useState<number | null>(null); // ★追加: 用品ID State
   const [categoryName, setCategoryName] = useState<string | null>("");
 
   // Details States
@@ -134,7 +135,6 @@ export function useFleaItemForm() {
   const fetchDraftData = async (id: number) => {
     try {
       const res = await api.get(`/flea-market/draft/${id}`);
-      // ▼ 修正: ここで型アサーションを行う
       const d = res.data as DraftResponse;
       console.log("Draft Data:", d);
 
@@ -151,10 +151,11 @@ export function useFleaItemForm() {
         setShipFromId(Number(d.ship_from ?? d.ship_from_id));
       if (d.ships_within_days !== undefined)
         setShipsWithinDays(Number(d.ships_within_days) || "");
+
       if (d.category_id) setCategoryId(d.category_id);
+      if (d.supply_type_id) setSupplyTypeId(d.supply_type_id); // ★追加: 復元
       if (d.category_name) setCategoryName(d.category_name);
 
-      // ▼ 修正: 画像の型定義と復元
       if (d.uploaded_images && Array.isArray(d.uploaded_images)) {
         const restoredImages: ImageAsset[] = d.uploaded_images.map((img) => ({
           id:
@@ -162,14 +163,13 @@ export function useFleaItemForm() {
               ? img.id
               : Math.random().toString(36).substring(2, 15),
           url: img.url || "",
-          // serverId があることで「アップロード済み」と判定される
           serverId:
             img.serverId ?? (typeof img.id === "number" ? img.id : undefined),
         }));
         setImages(restoredImages.filter((i) => !!i.url));
       }
 
-      // ▼ 修正: 詳細情報の復元 (any を使わず型安全に)
+      // 詳細情報の復元
       if (d.details) {
         if (d.type !== "SUPPLY") {
           const restored: LiveDetails = {
@@ -180,18 +180,16 @@ export function useFleaItemForm() {
             sex: "unknown",
           };
 
-          // details は AnyDetails 型なので、type に応じて適切な型として扱う
           switch (d.type) {
             case "REPTILE":
             case "AMPHIBIAN": {
-              // Extract<T, U> で AnyDetails から特定の型を抜き出す
               const det = d.details as Extract<
                 AnyDetails,
                 { kind: "REPTILE" | "AMPHIBIAN" }
               >;
-              restored.locality = det.morph; // locality <- morph
-              restored.hatch_date = det.birth_date; // hatch_date <- birth_date
-              restored.generation = det.lineage; // generation <- lineage
+              restored.locality = det.morph;
+              restored.hatch_date = det.birth_date;
+              restored.generation = det.lineage;
               restored.size = det.size;
               restored.sex = det.sex;
               break;
@@ -221,12 +219,9 @@ export function useFleaItemForm() {
               restored.hatch_date = det.acquisition_date;
               restored.generation = det.propagation;
               restored.size = det.size;
-              // sex なし
               break;
             }
             default: {
-              // INSECT など
-              // 共通項目の fallback
               if ("locality" in d.details)
                 restored.locality = d.details.locality;
               if ("hatch_date" in d.details)
@@ -290,7 +285,6 @@ export function useFleaItemForm() {
 
   const buildPayload = useCallback(() => {
     const p = Number(price);
-
     let details: AnyDetails;
 
     if (type === "SUPPLY") {
@@ -303,20 +297,19 @@ export function useFleaItemForm() {
           !isNaN(Number(supplyDetails.net_weight_g))
             ? String(supplyDetails.net_weight_g)
             : "",
-        supply_type_id: supplyDetails.supply_type_id || null,
+        supply_type_id: supplyTypeId || null, // 詳細はトップレベルで送るが、一応残しておく
         target_category_id: supplyDetails.target_category_id || null,
-        target_category_name: "", // 必要なら入れる
+        target_category_name: "",
       };
     } else {
       const d = liveDetails;
-      // 性別の型合わせ (string -> SexType)
       const sexValue = (d.sex || "unknown") as SexType;
 
       switch (type) {
         case "REPTILE":
         case "AMPHIBIAN":
           details = {
-            kind: type, // "REPTILE" | "AMPHIBIAN"
+            kind: type,
             morph: d.locality || "",
             birth_date: d.hatch_date || "",
             lineage: d.generation || "",
@@ -324,7 +317,6 @@ export function useFleaItemForm() {
             sex: sexValue,
           };
           break;
-
         case "PLANT_ORNAMENTAL":
         case "PLANT_FOOD":
           details = {
@@ -333,10 +325,8 @@ export function useFleaItemForm() {
             acquisition_date: d.hatch_date || "",
             propagation: d.generation || "",
             size: d.size || "",
-            // sexプロパティは存在しないので指定しない
           };
           break;
-
         case "MAMMAL":
           details = {
             kind: "MAMMAL",
@@ -347,7 +337,6 @@ export function useFleaItemForm() {
             sex: sexValue,
           };
           break;
-
         case "FISH":
           details = {
             kind: "FISH",
@@ -358,7 +347,6 @@ export function useFleaItemForm() {
             sex: sexValue,
           };
           break;
-
         case "INSECT":
         default:
           details = {
@@ -374,7 +362,6 @@ export function useFleaItemForm() {
     }
 
     return {
-      // ... (以下変更なし)
       name: name.trim() || undefined,
       description: description.trim() || undefined,
       price: price !== "" && !isNaN(p) && p > 0 ? String(p) : undefined,
@@ -382,6 +369,7 @@ export function useFleaItemForm() {
       quantity: isMultiPurchasable ? Math.max(1, quantity) : 1,
       type,
       category_id: categoryId || undefined,
+      supply_type_id: supplyTypeId || undefined,
       category_name: categoryName || undefined,
       is_multi_purchasable: isMultiPurchasable ? 1 : 0,
       shipping_fee_type: shippingFeeType,
@@ -389,7 +377,7 @@ export function useFleaItemForm() {
       ships_within_days:
         shipsWithinDays === "" ? undefined : Number(shipsWithinDays),
 
-      details, // 型が一致しているのでエラー消えるはず
+      details,
 
       uploaded_images: images
         .filter((img) => img.serverId && img.url)
@@ -406,6 +394,7 @@ export function useFleaItemForm() {
     quantity,
     type,
     categoryId,
+    supplyTypeId,
     categoryName,
     shippingFeeType,
     shipFromId,
@@ -437,7 +426,6 @@ export function useFleaItemForm() {
           draftIdRef.current = newDraftId;
           setDraftId((prev) => (prev !== newDraftId ? newDraftId : prev));
 
-          // ▼ ローカルストレージにIDを保存
           localStorage.setItem(
             "flea_item_draft",
             JSON.stringify({ _draftId: newDraftId }),
@@ -452,7 +440,7 @@ export function useFleaItemForm() {
         isSavingRef.current = false;
       }
     },
-    [buildPayload], // 依存配列はそのままでOK
+    [buildPayload],
   );
 
   useEffect(() => {
@@ -478,7 +466,7 @@ export function useFleaItemForm() {
         const currentId = draftIdRef.current;
         const body = JSON.stringify({
           draft_id: currentId,
-          payload: buildPayload(), // Note: buildPayload might depend on state that is stale in closure if not careful, but usually okay for unload
+          payload: buildPayload(),
         });
 
         fetch(endpoint, {
@@ -488,7 +476,6 @@ export function useFleaItemForm() {
           headers: {
             "Content-Type": "application/json",
           },
-          // Add credentials if needed, often 'include' or tokens in headers
         }).catch(() => void 0);
       } catch {
         // ignore
@@ -510,7 +497,7 @@ export function useFleaItemForm() {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.removeEventListener("beforeunload", onBeforeUnload);
     };
-  }, [buildPayload]); // Re-bind when payload builder changes
+  }, [buildPayload]);
 
   // ===== Validation =====
   const validate = (): boolean => {
@@ -547,16 +534,14 @@ export function useFleaItemForm() {
     }
   };
 
-  // ===== Handle Adding Images (Public Action) =====
+  // ===== Handle Adding Images =====
   const handleAddImages = async (nextImages: ImageAsset[]) => {
-    // 1. Update UI immediately
     setImages(nextImages);
 
-    // 2. Upload new images in background
     const uploadedAssets = await Promise.all(
       nextImages.map(async (img) => {
-        if (img.serverId) return img; // Already uploaded
-        if (!img.file) return img; // No file to upload
+        if (img.serverId) return img;
+        if (!img.file) return img;
 
         const result = await uploadImageFile(img.file);
         if (result) {
@@ -566,14 +551,7 @@ export function useFleaItemForm() {
       }),
     );
 
-    // 3. Update state with uploaded details
     setImages(uploadedAssets);
-
-    // 4. Trigger autosave to persist new image IDs
-    // We don't call autosaveNow() directly here to avoid race conditions,
-    // relying on the useEffect timer or user action is safer,
-    // but if you want immediate save, you can trigger it.
-    // actions.autosaveNow();
   };
 
   // ===== Submit =====
@@ -585,14 +563,11 @@ export function useFleaItemForm() {
     try {
       setSubmitting(true);
       const fd = new FormData();
-      const p = buildPayload(); // ここで適切な details オブジェクトが作られている前提
+      const p = buildPayload();
 
-      // Payload to FormData
       Object.entries(p).forEach(([k, v]) => {
-        // ★修正1: "details" を除外しない！
         if (k === "uploaded_images") return;
 
-        // ★修正2: details は JSON文字列に変換して FormData に入れる
         if (k === "details") {
           fd.append(k, JSON.stringify(v));
           return;
@@ -603,13 +578,12 @@ export function useFleaItemForm() {
         }
       });
 
-      // カテゴリー名などが buildPayload に含まれていない場合の予備処理
       if (!p.category_id && categoryId)
         fd.append("category_id", String(categoryId));
+      // supply_type_id は p に含まれているのでループで入ります
       if (!p.category_name && categoryName)
         fd.append("category_name", categoryName);
 
-      // 画像処理 (既存のまま)
       images.forEach((img, i) => {
         if (img.serverId) {
           fd.append("image_ids", String(img.serverId));
@@ -620,7 +594,6 @@ export function useFleaItemForm() {
 
       if (draftId) fd.append("draft_id", String(draftId));
 
-      // API送信
       const res = await api.post("/flea-market/add/item", fd, {
         headers: { "Content-Type": undefined },
       });
@@ -628,10 +601,6 @@ export function useFleaItemForm() {
       const newId = res.data?.itemId ?? null;
       setLastItemId(newId);
 
-      // ★修正3: 以前あった upsertAnimalDetails / upsertSupplyDetails の呼び出しを削除！
-      // バックエンド側で一括保存されるようになったため不要です。
-
-      // ローカルストレージとドラフトの削除 (既存のまま)
       localStorage.removeItem("flea_item_draft");
       if (draftId) {
         await api
@@ -642,7 +611,6 @@ export function useFleaItemForm() {
       toast({ text: "出品が完了しました！", kind: "success" });
       return true;
     } catch (err: unknown) {
-      // エラーハンドリング (既存のまま)
       let msg = "エラーが発生しました";
       if (axios.isAxiosError(err)) {
         const data = err.response?.data as ApiErrorResponse | undefined;
@@ -674,6 +642,7 @@ export function useFleaItemForm() {
     setIsMultiPurchasable(false);
     setType("INSECT");
     setCategoryId(null);
+    setSupplyTypeId(null); // ★追加: リセット
     setCategoryName("");
     setDescription("");
     setShippingFeeType(0);
@@ -736,6 +705,7 @@ export function useFleaItemForm() {
     isMultiPurchasable,
     type,
     categoryId,
+    supplyTypeId,
     categoryName,
     description,
     shippingFeeType,
@@ -770,6 +740,7 @@ export function useFleaItemForm() {
     setIsMultiPurchasable,
     setType,
     setCategoryId,
+    setSupplyTypeId, // ★追加: Setterに含める
     setCategoryName,
     setDescription,
     setShippingFeeType,
@@ -792,7 +763,7 @@ export function useFleaItemForm() {
       doSubmit,
       resetForm,
       validate,
-      handleAddImages, // Added this action
+      handleAddImages,
     },
   };
 }
