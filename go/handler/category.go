@@ -23,12 +23,24 @@ func (h *CategoryHandler) RegisterRoutes(r *mux.Router) {
 	// slug からカテゴリー情報を取得するエンドポイント
 	r.HandleFunc("/api/category/lookup", h.LookupCategory).Methods("GET")
 
-	// 生物カテゴリー系
-	r.HandleFunc("/api/categories/children", h.GetChildren).Methods("GET") // 階層用
-	r.HandleFunc("/api/categories/search", h.Search).Methods("GET")        // 検索用
+	// === 生物カテゴリー系 ===
+	// 階層取得: /api/categories/children?parent_id=1
+	r.HandleFunc("/api/categories/children", h.GetChildren).Methods("GET")
+	// ルート取得: /api/categories/roots (GetChildrenのparent_id無し版として処理させても良いが明示的に分けるなら)
+	r.HandleFunc("/api/categories/roots", h.GetChildren).Methods("GET")
+	// 検索用
+	r.HandleFunc("/api/categories/search", h.Search).Methods("GET")
 
-	// 用品系
+	// === 用品系 ===
+	// 1. 用品の種類一覧 (例: フード、ケージ)
 	r.HandleFunc("/api/supply-types", h.GetSupplyTypes).Methods("GET")
+
+	// 2. 用品選択後のカテゴリーツリー取得用
+	// フロントエンドのモーダル実装に合わせてエンドポイントを追加
+	// 例: /api/supply-categories?supply_type_id=1 (ルート)
+	// 例: /api/supply-categories/123/children?supply_type_id=1 (子階層)
+	r.HandleFunc("/api/supply-categories", h.GetSupplyCategoryChildren).Methods("GET")
+	r.HandleFunc("/api/supply-categories/{id}/children", h.GetSupplyCategoryChildren).Methods("GET")
 }
 
 // 1. 子供カテゴリー取得 (GET /api/categories/children?parent_id=1)
@@ -233,4 +245,49 @@ func (h *CategoryHandler) GetSupplyTypes(w http.ResponseWriter, r *http.Request)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(types)
+}
+
+// ---------------------------------------------------
+//
+//	用品フロー用のカテゴリー取得ハンドラ
+//
+// ---------------------------------------------------
+func (h *CategoryHandler) GetSupplyCategoryChildren(w http.ResponseWriter, r *http.Request) {
+	// パスパラメータからIDを取得 ( /children の場合)
+	vars := mux.Vars(r)
+	parentIDStr := vars["id"]
+
+	// クエリパラメータからIDを取得 ( /supply-categories?supply_type_id=... のような場合への対応も兼ねるなら)
+	// 現在のフロント実装では、第2階層(ルート)呼び出し時はパラメータなしか query で判定しているので
+	// ここでは mux.Vars を優先しつつ、なければ nil (ルート) とする。
+
+	var parentID *uint64
+	if parentIDStr != "" {
+		pid, err := strconv.ParseUint(parentIDStr, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid category id", http.StatusBadRequest)
+			return
+		}
+		parentID = &pid
+	}
+
+	// supply_type_id も受け取れるようにしておく（将来的に「この用品はこの動物にはない」等のフィルタをする場合に備えて）
+	// 現状はフィルタせず、純粋なカテゴリーツリーを返す
+	_ = r.URL.Query().Get("supply_type_id")
+
+	// DBからカテゴリー取得 (既存のロジックを再利用)
+	categories, err := h.db.GetCategoriesByParentID(parentID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// フロントエンドのモーダルは `has_children` プロパティを期待しているため、
+	// Goの構造体(Category)がJSONになるときにそのフィールドが含まれるか確認が必要です。
+	// SQL側の定義を見ると `Path` や `Rank` はありますが `has_children` はDBカラムにはない計算プロパティかもしれません。
+	// もしDB側で計算していないなら、ここで付与するか、フロント側で「子がいればさらにAPIを叩く」形式にする必要があります。
+	// (一般的にはAPI側で `has_children` フラグを返すのが親切です)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(categories)
 }

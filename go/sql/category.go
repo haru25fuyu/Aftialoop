@@ -21,6 +21,7 @@ type Category struct {
 	BuiltInType  *string `db:"built_in_type" json:"built_in_type"` // ★ポインタ型です
 	MatchLen     *int    `db:"match_len" json:"-"`                 // 検索スコア用 (DB専用)
 	FullSlugPath string  `db:"-" json:"full_slug_path"`
+	HasChildren  bool    `db:"has_children" json:"has_children"`
 }
 
 // 用品種別マスター
@@ -62,19 +63,37 @@ type SearchSuggestion struct {
 // -------------------------------------------------------
 // 1. 階層API用: 親IDを指定して子供を取得
 // -------------------------------------------------------
+// GetCategoriesByParentID を修正して has_children を判定する
 func (db *Database) GetCategoriesByParentID(parentID *uint64) ([]Category, error) {
 	var categories []Category
 	var query string
-	var err error
+	var args []interface{}
+
+	// サブクエリを使って「自分のIDをparent_idとして持つレコードが存在するか」をチェック
+	existsQuery := "EXISTS(SELECT 1 FROM categories c2 WHERE c2.parent_id = c1.id)"
 
 	if parentID == nil {
-		query = "SELECT id, name, parent_id, path, `rank`, built_in_type FROM categories WHERE parent_id IS NULL ORDER BY id ASC"
-		err = db.DB.Select(&categories, query)
+		// ルートカテゴリー取得
+		query = fmt.Sprintf(`
+			SELECT 
+				c1.id, c1.name, c1.slug, c1.parent_id, c1.path, c1.rank, c1.built_in_type,
+				%s AS has_children
+			FROM categories c1
+			WHERE c1.parent_id IS NULL 
+			ORDER BY c1.id ASC`, existsQuery)
 	} else {
-		query = "SELECT id, name, parent_id, path, `rank`, built_in_type FROM categories WHERE parent_id = ? ORDER BY id ASC"
-		err = db.DB.Select(&categories, query, *parentID)
+		// 子カテゴリー取得
+		query = fmt.Sprintf(`
+			SELECT 
+				c1.id, c1.name, c1.slug, c1.parent_id, c1.path, c1.rank, c1.built_in_type,
+				%s AS has_children
+			FROM categories c1
+			WHERE c1.parent_id = ? 
+			ORDER BY c1.id ASC`, existsQuery)
+		args = append(args, *parentID)
 	}
 
+	err := db.DB.Select(&categories, query, args...)
 	if err != nil {
 		return nil, err
 	}

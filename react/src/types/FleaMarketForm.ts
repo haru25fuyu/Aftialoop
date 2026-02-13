@@ -186,8 +186,12 @@ export type CategorySearchResult = {
   built_in_type?: string;
   full_path_name?: string;
   is_supply?: boolean;
+
+  category_id?: number;
+  category_name?: string;
+  supply_type_id?: number;
+  supply_type_name?: string;
+
   type?: string;
   parent_id?: number;
-  category_id?: number;
-  supply_type_id?: number;
 };

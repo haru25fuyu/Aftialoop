@@ -8,7 +8,7 @@ import { PublishSummary } from "../../types/FleaMarketForm";
 import { HeaderArea } from "../../component/FleaMarket/CreateItemHeaderArea";
 import { FooterActions } from "../../component/FleaMarket/CreateItemFooterAvtion";
 import { ImageSection } from "../../steps/ImageSection";
-import { BasicInfoSection } from "../../steps/BasicInfoSection";
+import  BasicInfoSection  from "../../steps/BasicInfoSection";
 import { ShippingPriceSection } from "../../steps/ShippingPriceSection";
 import { DetailsSection } from "../../steps/DetailsSection";
 
@@ -60,6 +60,7 @@ export default function FleaItemCreatePage() {
         // カテゴリー設定の通知
         //toast.apply("カテゴリーが設定されました");
     };
+    
 
     // 表示用にデータを変換する関数
     const getFormattedDetails = () => {
