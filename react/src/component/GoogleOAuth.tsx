@@ -7,32 +7,35 @@ import axios from "axios";
 
 type Props = {
     onLoginSuccess?: () => void;
+    mode: 'login' | 'signup'; // モードを追加
 };
 
-export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess }) => {
+export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess, mode }) => {
 
     const handleLoginSuccess = async (response: { credential?: string }) => {
         if (!response.credential) {
             console.error("ログイン失敗: credential が undefined です");
             return;
         }
-        console.log("ログイン成功:", response);
+        console.log(`${mode}成功:`, response);
         const token = { token: response.credential };
 
         try {
-            const res = await api.post("/auth/google", token);
+            const endpoint = mode === 'signup' ? "/auth/google/signup" : "/auth/google";
+            const res = await api.post(endpoint, token);
 
-            console.log("ログイン成功:", res.data.access_token);
+            console.log(`${mode}成功:`, res.data.access_token);
 
             await afterLogin(res.data.access_token);
 
             onLoginSuccess?.();
             if (!onLoginSuccess) window.location.href = "/";
         } catch (err) {
+            console.error(`${mode}失敗:`, err);
             if (axios.isAxiosError(err)) {
                 console.error(
-                    "ログイン失敗:",
-                    err.response?.data?.err_message ?? "ログインに失敗しました"
+                    `${mode}失敗:`,
+                    err.response?.data?.err_message ?? `${mode}に失敗しました`
                 );
             } else {
                 console.error("予期しないエラー:", err);
@@ -41,7 +44,7 @@ export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess }) => {
     };
 
     const handleLoginFailure = () => {
-        console.error("ログイン失敗");
+        console.error(`${mode}失敗`);
     };
 
     return (

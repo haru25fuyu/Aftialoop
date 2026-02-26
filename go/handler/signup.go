@@ -327,10 +327,11 @@ func (h *SignupHandler) GoogleSignUp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	newUser := utils.SqlUser{
-		ID:       uuid.New().String(),
-		Email:    email,
-		Name:     name,
-		GoogleID: sql.NullString{String: googleID, Valid: true},
+		ID:             uuid.New().String(),
+		Email:          email,
+		Name:           name,
+		GoogleID:       sql.NullString{String: googleID, Valid: true},
+		IdentityStatus: config.IdentityStatusNone,
 	}
 
 	// Square顧客作成

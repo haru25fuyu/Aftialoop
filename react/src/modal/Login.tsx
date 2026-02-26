@@ -68,10 +68,12 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
             )}
             <div className="w-full max-w-md p-5 space-y-6 bg-white rounded shadow-md relative">
                 <h2 className="text-2xl font-bold text-center text-gray-900">ログイン</h2>
-                <GoogleOAuth onLoginSuccess={() => {
-                    onLoginSuccess();
-                    onClose();
-                }} />
+                <GoogleOAuth
+                    mode="login"
+                    onLoginSuccess={() => {
+                        onLoginSuccess();
+                        onClose();
+                    }} />
                 <div className="flex justify-center items-center">
                     <hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' />
                 </div>
@@ -96,7 +98,7 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
                         {errors.password && <p className="mt-2 text-sm text-red-600">{errors.password.message}</p>}
                     </div>
                     <div>
-                        <Link to="/password-reset">パスワード忘れた方</Link>
+                        <Link to="/password-reset" onClick={onClose}>パスワード忘れた方</Link>
                         <button
                             type="submit"
                             className="w-full px-4 py-2 mt-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700"
@@ -106,7 +108,13 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
                     </div>
                 </form>
                 <hr />
-                <div className="text-center text-l"><Link to="/SignUp">新規登録はこちら</Link></div>
+                <div className="text-center text-l">
+                    <Link
+                        to="/SignUp"
+                        onClick={() => { onClose(); }}
+                    >
+                        新規登録はこちら
+                    </Link></div>
             </div>
         </div>
     );

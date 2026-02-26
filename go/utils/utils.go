@@ -367,8 +367,13 @@ type FleaMarketItemResponse struct {
 	IsMultiPurchasable bool       `db:"is_multi_purchasable" json:"isMultiPurchasable"`
 	BuyUserID          *string    `db:"buy_user_id" json:"buyUserId,omitempty"`
 	Type               string     `db:"type" json:"type"`
+	CategoryID         uint64     `db:"category_id" json:"category_id"`
+	SupplyTypeID       *uint64    `db:"supply_type_id" json:"supply_type_id"`
+	CategoryName       *string    `db:"category_name" json:"category_name"`
+	SupplyName         *string    `db:"supply_name" json:"supply_name"`
 	MainImageURL       string     `db:"main_image_url" json:"main_image_url"`
 	Status             int        `db:"status" json:"status"`
+	Details            string     `db:"details" json:"details,omitempty"` // JSON文字列
 	ShipFrom           *int       `db:"ship_from" json:"shipFrom,omitempty"`
 	ShippingMethod     string     `db:"shipping_method" json:"shippingMethod"`
 	ShippingFeeType    int        `db:"shipping_fee_type" json:"shippingFeeType"`

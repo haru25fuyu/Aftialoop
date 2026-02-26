@@ -40,13 +40,6 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	detail, err := h.db.GetFleaMarketItemDetail(item.ID, item.Type)
-	if err != nil {
-		log.Println("failed to fetch flea item detail:", err)
-		http.Error(w, "failed to fetch item detail", http.StatusInternalServerError)
-		return
-	}
-
 	//　画像のURLリストも取得
 	images, err := h.db.GetFleaMarketItemImages(itemID)
 	if err != nil {
@@ -57,7 +50,7 @@ func (h *FleaMarketHandler) GetFleaMarketItem(w http.ResponseWriter, r *http.Req
 
 	fcg := config.GetFleaConfig()
 
-	resp := map[string]any{"item": item, "images": images, "details": detail, "rate_den": fcg.RateDen}
+	resp := map[string]any{"item": item, "images": images, "rate_den": fcg.RateDen}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(resp)
@@ -485,10 +478,21 @@ func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Reques
 	shipFrom, _ := strconv.Atoi(r.FormValue("ship_from"))
 	daysToShip, _ := strconv.Atoi(r.FormValue("days_to_ship"))
 	status, _ := strconv.Atoi(r.FormValue("status"))
-	var categoryID *int64 // デフォルトは nil (NULL)
+
+	// details (JSON文字列) を取得
+	detailsJSON := r.FormValue("details")
+
+	var categoryID *int64
 	if cidStr := r.FormValue("category_id"); cidStr != "" {
 		if cid, err := strconv.ParseInt(cidStr, 10, 64); err == nil {
-			categoryID = &cid // int64変数のアドレスを取る
+			categoryID = &cid
+		}
+	}
+
+	var supplyTypeID *int64
+	if sidStr := r.FormValue("supply_type_id"); sidStr != "" && sidStr != "undefined" && sidStr != "null" {
+		if sid, err := strconv.ParseInt(sidStr, 10, 64); err == nil {
+			supplyTypeID = &sid
 		}
 	}
 
@@ -547,12 +551,11 @@ func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 7. アイテム情報の更新
-	if err := h.db.UpdateFleaItem(itemID, name, desc, price, categoryID, shippingMethod, shippingFeeType, shipFrom, daysToShip, status); err != nil {
+	if err := h.db.UpdateFleaItem(itemID, name, desc, price, categoryID, supplyTypeID, shippingMethod, shippingFeeType, shipFrom, daysToShip, status, detailsJSON); err != nil {
 		log.Println("Failed to update flea item:", err)
 		http.Error(w, "failed to update item", http.StatusInternalServerError)
 		return
 	}
-
 	// type は item 変数（GetFleaItemByIDの結果）から判定します
 	switch item.Type {
 	case "ANIMAL":

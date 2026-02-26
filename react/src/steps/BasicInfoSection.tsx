@@ -15,7 +15,7 @@ type BasicInfoSectionProps = {
     onCategorySelect: (item: CategorySearchResult) => void;
 };
 
-export default function BasicInfoSection({ formState, setters, errors, onCategorySelect }: BasicInfoSectionProps) {
+export function BasicInfoSection({ formState, setters, errors, onCategorySelect }: BasicInfoSectionProps) {
     const { name, type, categoryId, categoryName, description, supplyTypeId } = formState;
     const { setName, setType, setDescription } = setters;
 

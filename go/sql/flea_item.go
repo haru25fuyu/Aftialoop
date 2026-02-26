@@ -388,21 +388,23 @@ func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p u
 }
 
 // UpdateFleaItem: 商品テキスト情報の更新
-func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, categoryID *int64, method, fee string, from, days, status int) error {
+func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, categoryID *int64, supplyTypeID *int64, method, fee string, from, days, status int, details string) error {
 	_, err := d.DB.Exec(`
         UPDATE flea_items
         SET name = ?, 
             description = ?, 
             price = ?, 
-			category_id = ?,
+            category_id = ?,
+            supply_type_id = ?,
             shipping_method = ?,
             shipping_fee_type = ?,
             ship_from = ?, 
             ships_within_days = ?,
             status = ?,
+            details = ?,
             updated_at = UTC_TIMESTAMP()
         WHERE id = ?
-    `, name, desc, price, categoryID, method, fee, from, days, status, itemID) // 引数追加
+    `, name, desc, price, categoryID, supplyTypeID, method, fee, from, days, status, details, itemID)
 	return err
 }
 

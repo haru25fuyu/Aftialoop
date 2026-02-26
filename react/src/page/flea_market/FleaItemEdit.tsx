@@ -4,20 +4,28 @@ import { Loader2, ArrowLeft } from "lucide-react";
 
 import api from "../../conf/api";
 import { useToast } from "../../conf/function";
-import { SHIPPING_FEE_TYPES_MAP, FleaItemStatus } from "../../conf/FleaMarket";
-import { CATEGORY_OPTIONS } from "../../conf/Market";
+import { FleaItemStatus } from "../../conf/FleaMarket";
 
-import { ItemType } from "../../types/Market";
+// 型定義
 import { ImageAsset } from "../../types/FleaMarket";
+import { ItemType } from "../../types/Market";
+import { LiveDetails, SupplyDetails, SexType, FormState, FormSetters, FormCalculations, CategorySearchResult } from "../../types/FleaMarketForm";
 
-import InlineSortableImages from "../../component/InlineSortableImages";
-import ShipFromSelect from "../../component/ShipFromSelect";
+// コンポーネント
+import { ImageSection } from "../../steps/ImageSection";
+import { BasicInfoSection } from "../../steps/BasicInfoSection";
+import { ShippingPriceSection } from "../../steps/ShippingPriceSection";
+import { DetailsSection } from "../../steps/DetailsSection";
 
 import AddImagesModal from "../../modal/AddImagesModal";
 
-
-type SexType = "male" | "female" | "unknown" | "pair";
-type StepKey = "main" | "details";
+// Constants
+const FEE_BASE = 0.1;
+const FEE_PER_PLUS_PCT = 0.01;
+const FEE_MAX = 0.25;
+const MIN_PLUS_PCT = 0;
+const MAX_PLUS_PCT = 8;
+const STEP_PLUS_PCT = 1;
 
 const FleaItemEdit: React.FC = () => {
     const { id } = useParams();
@@ -25,226 +33,283 @@ const FleaItemEdit: React.FC = () => {
     const toast = useToast();
 
     // ==========================================
-    // States
+    // Local States (フックを使わずここで管理)
     // ==========================================
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
-    const [current, setCurrent] = useState<StepKey>("main");
 
-    // Form States
+    // 基本情報
     const [name, setName] = useState("");
-    const [price, setPrice] = useState<number | "">("");
+    const [price, setPrice] = useState<string>("");
     const [quantity, setQuantity] = useState(1);
     const [isMultiPurchasable, setIsMultiPurchasable] = useState(false);
-    const [type, setType] = useState<ItemType>("ANIMAL");
     const [description, setDescription] = useState("");
-    const [status, setStatus] = useState<number>(0);
+    const [type, setType] = useState<ItemType>("ANIMAL");
+    const [mainIndex, setMainIndex] = useState<number>(0);
 
-    // Shipping & Settings
-    const [shippingFeeType, setShippingFeeType] = useState<number>(0);
+    // カテゴリ・種別
+    const [categoryId, setCategoryId] = useState<number | null>(null);
+    const [categoryName, setCategoryName] = useState<string | null>(null);
+    const [supplyTypeId, setSupplyTypeId] = useState<number | null>(null);
+
+    // 設定・配送
+    const [status, setStatus] = useState<number>(FleaItemStatus.Active);
+    const [shippingFeeType, setShippingFeeType] = useState<0 | 1 | 2>(0);
     const [shipFromId, setShipFromId] = useState<number | null>(null);
     const [shipsWithinDays, setShipsWithinDays] = useState<number | "">(2);
     const [sellerPlusPct, setSellerPlusPct] = useState<number>(0);
 
-    // Images
+    // 画像
     const [images, setImages] = useState<ImageAsset[]>([]);
+
+    // 詳細情報 (UI用ステート)
+    const [liveDetails, setLiveDetails] = useState<LiveDetails>({
+        locality: "", hatch_date: "", generation: "", size: "", sex: "unknown" as SexType
+    });
+    const [supplyDetails, setSupplyDetails] = useState<SupplyDetails>({
+
+        kind: "SUPPLY",
+        brand: "",
+        sku: "",
+        net_weight_g: "",
+        supply_type_id: null,
+        target_category_id: null,
+        target_category_name: "",
+    });
+
+    // モーダル管理
     const [addOpen, setAddOpen] = useState(false);
 
-    // Details
-    const [liveDetails, setLiveDetails] = useState({
-        locality: "", hatch_date: "", generation: "", size: "", sex: "unknown" as SexType,
-    });
-    const [supplyDetails, setSupplyDetails] = useState({
-        brand: "", sku: "", net_weight_g: "",
-    });
-
+    // ステップ管理 (UI表示切り替え用)
+    const [currentStep, setCurrentStep] = useState<"main" | "details">("main");
+    // エラー管理
     const [errors, setErrors] = useState<Record<string, string>>({});
 
-    // Settings
-    const MIN_PLUS_PCT = 0;
-    const MAX_PLUS_PCT = 8;
-    const STEP_PLUS_PCT = 1;
-
     // ==========================================
-    // 1. Data Fetching
+    // Helper Objects (サブコンポーネントに渡す用)
     // ==========================================
-    useEffect(() => {
-        if (!id) return;
-        const fetchItem = async () => {
-            try {
-                const res = await api.get(`/flea-market/item/${id}`);
-                const { item, details, images: apiImages } = res.data;
 
-                setName(item.name);
-                setPrice(item.price);
-                setQuantity(item.quantity);
-                setIsMultiPurchasable(item.is_multi_purchasable ?? (item.quantity > 1));
-                setType(item.type);
-                setDescription(item.description);
-                setSellerPlusPct(item.seller_plus_pct || 0);
+    // formStateオブジェクトを作成して、フックを使っているかのように見せかける
+    const formState: FormState = {
+        images, name, price, quantity, isMultiPurchasable, type,
+        categoryId, categoryName, supplyTypeId, description,
+        shippingFeeType, shipFromId, shipsWithinDays, sellerPlusPct,
+        liveDetails, supplyDetails, mainIndex
+    };
 
-                setShippingFeeType(Number(item.shippingFeeType ?? 0));
-                setShipFromId(item.shipFrom ?? null);
-                setShipsWithinDays(item.shipsWithinDays ?? 2);
-                setStatus(item.status);
+    // settersオブジェクト
+    const setters: FormSetters = {
+        setName, setPrice, setQuantity, setIsMultiPurchasable, setType,
+        setCategoryId, setCategoryName, setSupplyTypeId, setDescription,
+        setShippingFeeType, setShipFromId, setShipsWithinDays, setSellerPlusPct,
+        setImages, setLiveDetails, setSupplyDetails,
+        setCurrentStep, setMainIndex
+    };
 
-                if (apiImages && Array.isArray(apiImages)) {
-                    const loadedImages: ImageAsset[] = apiImages.map((img: ImageAsset) => ({
-                        id: String(img.id),
-                        serverId: Number(img.id), // serverIdがある＝既存画像
-                        url: img.url,
-                    }));
-                    setImages(loadedImages);
-                }
+    const feeRate = Math.min(
+        FEE_MAX,
+        FEE_BASE +
+        Math.max(
+            MIN_PLUS_PCT,
+            Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)),
+        ) *
+        FEE_PER_PLUS_PCT,
+    );
+    const feeYen = Math.floor((Number(price) || 0) * feeRate);
+    const payoutYen = Math.max(0, Math.floor((Number(price) || 0) - feeYen));
+    const sellerPlusPctOptions = useMemo(
+        () =>
+            Array.from(
+                {
+                    length: Math.round((MAX_PLUS_PCT - MIN_PLUS_PCT) / STEP_PLUS_PCT) + 1,
+                },
+                (_, i) => MIN_PLUS_PCT + STEP_PLUS_PCT * i,
+            ),
+        [],
+    );
 
-                if (item.type === "ANIMAL" && details.animal_details) {
-                    const d = details.animal_details;
-                    setLiveDetails({
-                        locality: d.locality || "",
-                        hatch_date: d.hatch_date ? d.hatch_date.split("T")[0] : "",
-                        generation: d.generation || "",
-                        size: d.size || "",
-                        sex: (d.sex as SexType) || "unknown",
-                    });
-                } else if (item.type === "SUPPLY" && details.supply_details) {
-                    const d = details.supply_details;
-                    setSupplyDetails({
-                        brand: d.brand || "",
-                        sku: d.sku || "",
-                        net_weight_g: d.net_weight_g ? String(d.net_weight_g) : "",
-                    });
-                }
-
-            } catch (error) {
-                console.error(error);
-                toast({ text: "商品情報の取得に失敗しました", kind: "error" });
-                navigate(-1);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchItem();
-    }, [id, navigate, toast]);
-
-    // ==========================================
-    // Logic
-    // ==========================================
     const validate = (): boolean => {
         const e: Record<string, string> = {};
         if (!name.trim()) e.name = "商品名を入力してください";
         const p = Number(price);
-        if (!price || isNaN(p) || p <= 0) e.price = "価格は 1 以上の数値で入力してください";
+        if (!price || isNaN(p) || p <= 0)
+            e.price = "価格は 1 以上の数値で入力してください";
+        if (!isMultiPurchasable && quantity !== 1)
+            e.quantity = "単品出品では数量は 1 固定です";
+        if (quantity < 1) e.quantity = "数量は 1 以上";
         if (images.length === 0) e.images = "商品画像を 1 枚以上追加してください";
         if (shipFromId === null) e.shipFrom = "発送元を選択してください";
-        if (shipsWithinDays === "") e.shipsWithinDays = "発送目安を選択してください";
+        if (shipsWithinDays === "")
+            e.shipsWithinDays = "発送目安を選択してください";
         setErrors(e);
         return Object.keys(e).length === 0;
     };
 
-    const validateStep = (key: StepKey): boolean => key === "main" ? validate() : true;
-
-    // モーダルから追加された画像を処理する関数
-    // 作成ページとは違い、ここでは「アップロード」せずに「Stateに追加するだけ」にします
-    const handleAddImages = (nextImages: ImageAsset[]) => {
-        const processedImages = nextImages.map((img) => {
-            // 1. 既にURLがある場合（サーバー画像 or 既にプレビュー生成済み）はそのまま
-            if (img.url) return img;
-
-            // 2. 新規ファイルだがURLがない場合、プレビューURLを作る
-            if (img.file) {
-                return {
-                    ...img,
-                    id: img.id || Math.random().toString(36), // IDがなければ仮発行
-                    url: URL.createObjectURL(img.file),       // ★これがないと表示されない！
-                };
-            }
-
-            return img;
-        });
-
-        setImages(processedImages);
-        setAddOpen(false);
+    // 計算ロジック (簡易実装)
+    const calc: FormCalculations = {
+        feeRate,
+        feeYen,
+        payoutYen,
+        sellerPlusPctOptions,
     };
 
-    // Submit (Update)
+    // ==========================================
+    // 1. データ取得
+    // ==========================================
+    useEffect(() => {
+        if (!id) return;
+
+        const fetchItem = async () => {
+            try {
+                const res = await api.get(`/flea-market/item/${id}`);
+                const data = res.data;
+
+                if (!data || !data.item) {
+                    throw new Error("商品データがありません");
+                }
+
+                const item = data.item;
+                const apiImages = data.images;
+
+                // ステートへの反映
+                setName(item.name || "");
+                setPrice(item.price || "");
+                setQuantity(item.quantity || 1);
+                setIsMultiPurchasable(item.is_multi_purchasable ?? (item.quantity > 1));
+                setDescription(item.description ?? "");
+                setType(item.type || "ANIMAL");
+                setStatus(item.status ?? FleaItemStatus.Active);
+
+                setCategoryId(item.category_id ?? null);
+                setCategoryName(item.category_name ?? null);
+                setSupplyTypeId(item.supply_type_id ?? null);
+
+                setShippingFeeType(item.shippingFeeType ?? 0);
+                setShipFromId(item.shipFrom ?? null);
+                setShipsWithinDays(item.ships_within_days ?? 2);
+                setSellerPlusPct(item.seller_plus_pct || 0);
+
+                // 画像
+                if (Array.isArray(apiImages)) {
+                    setImages(apiImages.map((img: ImageAsset) => ({
+                        id: String(img.id),
+                        serverId: Number(img.id),
+                        url: img.url
+                    })));
+                }
+
+                // ★ 詳細情報のパース (JSON文字列 -> UIステート)
+                let d = item.details;
+                if (typeof d === "string") {
+                    try { d = JSON.parse(d); } catch { d = {}; }
+                }
+
+                if (d) {
+                    if (item.type === "SUPPLY") {
+                        setSupplyDetails({
+                            kind: "SUPPLY",
+                            brand: d.brand || "",
+                            sku: d.sku || "",
+                            net_weight_g: d.net_weight_g || "",
+                            supply_type_id: d.supply_type_id || null,
+                            target_category_id: d.target_category_id || null,
+                            target_category_name: d.target_category_name || "",
+                        });
+                    } else {
+                        setLiveDetails({
+                            locality: d.locality || "",
+                            hatch_date: d.hatch_date ? d.hatch_date.split("T")[0] : "",
+                            generation: d.generation || "",
+                            size: d.size || "",
+                            sex: d.sex || "unknown"
+                        });
+                    }
+                }
+
+            } catch (error) {
+                console.error("Fetch failed:", error);
+                toast({ text: "データの取得に失敗しました", kind: "error" });
+                // navigate(-1); // 自動遷移はさせない
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchItem();
+    }, [id, toast]); // navigateは依存配列から外すか、使用しない
+
+    // ==========================================
+    // 2. 更新処理
+    // ==========================================
     const handleSubmit = async () => {
-        if (submitting) return;
-        if (!validate()) {
-            window.scrollTo({ top: 0, behavior: "smooth" });
+        if (submitting || !validate()) {
+            setCurrentStep("main");
             return;
         }
-        if (!confirm("変更内容を保存しますか？")) return;
+        // 簡易バリデーション
+        if (!name || !price || images.length === 0) {
+            toast({ text: "必須項目が不足しています", kind: "error" });
+            return;
+        }
+
+        if (!confirm("変更を保存しますか？")) return;
 
         setSubmitting(true);
         try {
             const fd = new FormData();
-            fd.append("name", name.trim());
-            fd.append("description", description.trim());
-            fd.append("price", String(Number(price)));
+
+            // 基本フィールド
+            fd.append("name", name);
+            fd.append("description", description);
+            fd.append("price", String(price));
             fd.append("quantity", String(isMultiPurchasable ? quantity : 1));
-            fd.append("shipping_fee_type", String(shippingFeeType));
-            console.log(status);
             fd.append("status", String(status));
-            if (shipFromId !== null) fd.append("ship_from", String(shipFromId));
-            if (shipsWithinDays !== "") fd.append("days_to_ship", String(shipsWithinDays));
+            fd.append("shipping_fee_type", String(shippingFeeType));
+            if (shipFromId) fd.append("ship_from", String(shipFromId));
+            if (shipsWithinDays) fd.append("days_to_ship", String(shipsWithinDays));
             fd.append("seller_plus_pct", String(sellerPlusPct));
 
-            // ===============================================
-            // ★ 画像の並び順とファイルを整理して送る
-            // ===============================================
+            if (categoryId) fd.append("category_id", String(categoryId));
+            if (supplyTypeId) fd.append("supply_type_id", String(supplyTypeId));
+            if (categoryName) fd.append("category_name", categoryName);
 
-            // 1. 新規画像ファイルの実体だけを抽出した配列を作る
-            const newImageFiles: File[] = [];
+            // 画像処理
             images.forEach(img => {
-                if (img.file) newImageFiles.push(img.file);
+                if (img.file) fd.append("new_images", img.file);
             });
 
-            // 2. new_images としてファイルを追加
-            newImageFiles.forEach(file => {
-                fd.append("new_images", file);
-            });
-
-            // 3. 「並び順情報」を作成 (JSON文字列として送る)
-            // 例: [ {type:"existing", id:10}, {type:"new", index:0}, {type:"existing", id:12} ... ]
-            let newFileIndex = 0;
+            // 並び順 (Sort Order)
+            let newIdx = 0;
             const sortOrder = images.map(img => {
                 if (img.serverId !== undefined) {
-                    // 既存画像
-                    return { type: "existing", id: Number(img.serverId) };
+                    return { type: "existing", id: img.serverId };
                 } else {
-                    // 新規画像 (newFileIndex番目のファイル)
-                    const item = { type: "new", index: newFileIndex };
-                    newFileIndex++;
-                    return item;
+                    return { type: "new", index: newIdx++ };
                 }
             });
             fd.append("sort_order", JSON.stringify(sortOrder));
 
-            // 4. 削除用 (DBにあり、かつ今回のリストに含まれないIDを計算)
+            // 残す画像のID
             const keptIds = images
                 .filter(img => img.serverId !== undefined)
-                .map(img => Number(img.serverId));
+                .map(img => img.serverId);
             fd.append("kept_image_ids", JSON.stringify(keptIds));
-            // ===============================================
 
-            // 詳細情報 (変更なし)
-            if (type === "ANIMAL") {
-                fd.append("locality", liveDetails.locality);
-                fd.append("hatch_date", liveDetails.hatch_date);
-                fd.append("size", liveDetails.size);
-                fd.append("generation", liveDetails.generation);
-                fd.append("sex", liveDetails.sex);
+            // ★ 詳細情報の構築 (JSON文字列化)
+            let detailsPayload = {};
+            if (type === "SUPPLY") {
+                detailsPayload = { ...supplyDetails };
             } else {
-                fd.append("brand", supplyDetails.brand);
-                fd.append("sku", supplyDetails.sku);
-                fd.append("net_weight", supplyDetails.net_weight_g);
+                detailsPayload = { ...liveDetails };
             }
+            fd.append("details", JSON.stringify(detailsPayload));
 
+            // API送信
             await api.post(`/flea-market/item/edit/${id}`, fd, {
-                headers: { "Content-Type": "multipart/form-data" },
+                headers: { "Content-Type": "multipart/form-data" }
             });
 
-            toast({ text: "商品情報を更新しました！", kind: "success" });
+            toast({ text: "更新しました", kind: "success" });
             navigate(`/flea-market/item/${id}`);
 
         } catch (error) {
@@ -255,44 +320,47 @@ const FleaItemEdit: React.FC = () => {
         }
     };
 
-    // ==========================================
-    // Render
-    // ==========================================
-    const goNext = () => {
-        if (current === "main") {
-            if (!validateStep("main")) {
-                window.scrollTo({ top: 0, behavior: "smooth" });
-                return;
-            }
-            setCurrent("details");
-        }
+    // 画像追加時の処理
+    const handleAddImages = (next: ImageAsset[]) => {
+        setImages(next);
+        setAddOpen(false);
     };
-    const goPrev = () => { if (current === "details") setCurrent("main"); };
 
-    const sellerPlusPctOptions = useMemo(() =>
-        Array.from({ length: Math.round((MAX_PLUS_PCT - MIN_PLUS_PCT) / STEP_PLUS_PCT) + 1 }, (_, i) => MIN_PLUS_PCT + STEP_PLUS_PCT * i),
-        []);
+    const handleCategorySelect = (item: CategorySearchResult) => {
+        // 1. 表示名をセット
+        setters.setCategoryName(item.full_path_name || item.name);
 
-    const inputClass = "w-full bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-3 transition-colors";
-    const labelClass = "block mb-2 text-sm font-bold text-gray-700";
-    const sectionClass = "bg-white p-5 md:p-6 rounded-xl border border-gray-200 shadow-sm";
+        if (item.is_supply || item.type === 'supply') {
+            // ★用品の場合
+            // 'SUPPLY' が ItemType に含まれているはずですが、念のためキャストしておくと安全です
+            setters.setType('SUPPLY' as ItemType);
 
-    // Fee Calculations
-    const FEE_BASE = 0.10;
-    const FEE_PER_PLUS_PCT = 0.01;
-    const FEE_MAX = 0.25;
-    const priceNum = Number(price) || 0;
-    const plusPct = Math.max(MIN_PLUS_PCT, Math.min(MAX_PLUS_PCT, Math.floor(sellerPlusPct)));
-    const feeRate = Math.min(FEE_MAX, FEE_BASE + plusPct * FEE_PER_PLUS_PCT);
-    const feeYen = Math.floor(priceNum * feeRate);
-    const payoutYen = Math.max(0, Math.floor(priceNum - feeYen));
-    const [feeOpen, setFeeOpen] = useState(false);
+            setters.setCategoryId(item.parent_id || item.category_id || 0);
+            setters.setSupplyTypeId(item.supply_type_id || item.id);
+
+        } else {
+            // ★生体の場合
+            // item.built_in_type は string なので、 as ItemType で型を強制します
+            const targetType = (item.built_in_type as ItemType) || 'INSECT';
+            setters.setType(targetType);
+
+            setters.setCategoryId(item.id);
+            setters.setSupplyTypeId(0);
+        }
+
+        // カテゴリー設定の通知
+        //toast.apply("カテゴリーが設定されました");
+    };
+
 
     if (loading) return <div className="p-20 text-center"><Loader2 className="animate-spin mx-auto" /></div>;
 
+    // ==========================================
+    // Render
+    // ==========================================
     return (
         <div className="min-h-screen bg-[#f8f9fa] text-gray-800 font-sans pb-32">
-            {/* Header */}
+            {/* ヘッダー */}
             <div className="sticky top-0 z-40 bg-white border-b border-gray-200">
                 <div className="max-w-lg mx-auto px-4 h-14 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -302,243 +370,87 @@ const FleaItemEdit: React.FC = () => {
                         <h1 className="font-bold text-base">商品の編集</h1>
                     </div>
                 </div>
-                {/* Stepper */}
+                {/* ステッパーバー */}
                 <div className="max-w-lg mx-auto px-4 h-1 flex w-full">
-                    <div className={`h-full transition-all duration-300 ${current === 'main' ? 'w-1/2 bg-blue-600' : 'w-full bg-green-500'}`} />
+                    <div className={`h-full transition-all duration-300 ${currentStep === 'main' ? 'w-1/2 bg-blue-600' : 'w-full bg-green-500'}`} />
                     <div className="h-full w-full bg-gray-200" />
                 </div>
             </div>
 
-            {/* Main Content */}
-            <main className="py-6 space-y-6 pb-0 max-w-xl mx-auto pt-6 px-4">
-
-                {current === "main" && (
+            <main className="max-w-xl mx-auto pt-6 px-4 space-y-6">
+                {currentStep === "main" && (
                     <>
-                        {/* 1. Image Upload (Using InlineSortableImages) */}
-                        <section className={sectionClass}>
-                            <div className="flex items-center justify-between mb-4">
-                                <label className={labelClass}>
-                                    商品画像 <span className="text-red-500 ml-1">*</span>
+                        {/* 画像セクション */}
+                        <ImageSection
+                            images={images}
+                            onChange={setImages}
+                            onOpenAdd={() => setAddOpen(true)}
+                            error={errors.images}
+                        />
+
+                        {/* 基本情報セクション */}
+                        <BasicInfoSection
+                            formState={formState}
+                            setters={setters}
+                            errors={errors}
+                            onCategorySelect={handleCategorySelect}
+                        />
+
+                        {/* 公開設定 (独自UI) */}
+                        <section className="bg-white p-5 md:p-6 rounded-xl border border-gray-200 shadow-sm">
+                            <h2 className="text-lg font-bold mb-4 pb-2 border-b border-gray-100">公開設定</h2>
+                            <div className="flex gap-2">
+                                <label className={`cursor-pointer border rounded-lg px-4 py-2 text-sm font-bold ${status === FleaItemStatus.Active ? "bg-blue-600 text-white" : "bg-white"}`}>
+                                    <input type="radio" className="hidden" checked={status === FleaItemStatus.Active} onChange={() => setStatus(FleaItemStatus.Active)} />
+                                    公開する
                                 </label>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-xs font-bold text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
-                                        {images.length} / 10
-                                    </span>
-                                    <button
-                                        type="button"
-                                        onClick={() => setAddOpen(true)}
-                                        disabled={images.length >= 10}
-                                        className="text-sm font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        ＋画像を追加
-                                    </button>
-                                </div>
-                            </div>
-
-                            {errors.images && (
-                                <p className="text-sm text-red-500 mb-3 bg-red-50 p-3 rounded-lg flex items-center gap-2">
-                                    ⚠️ {errors.images}
-                                </p>
-                            )}
-
-                            <div className="min-h-[120px]">
-                                {/* 作成ページと同じコンポーネントを使用 */}
-                                <InlineSortableImages
-                                    files={images}
-                                    onChange={(next) => { setImages(next); }}
-                                    onOpenAdd={() => setAddOpen(true)}
-                                    max={10}
-                                />
+                                <label className={`cursor-pointer border rounded-lg px-4 py-2 text-sm font-bold ${status === FleaItemStatus.Draft ? "bg-gray-600 text-white" : "bg-white"}`}>
+                                    <input type="radio" className="hidden" checked={status === FleaItemStatus.Draft} onChange={() => setStatus(FleaItemStatus.Draft)} />
+                                    下書き
+                                </label>
                             </div>
                         </section>
 
-                        {/* 2. Basic Info */}
-                        <section className={sectionClass}>
-                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">基本情報</h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className={labelClass}>商品名 <span className="text-red-500">*</span></label>
-                                    <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
-                                    {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
-                                </div>
-                                <div>
-                                    <label className={labelClass}>商品の説明 <span className="text-red-500">*</span></label>
-                                    <textarea className={`${inputClass} min-h-[150px] resize-none`} value={description} onChange={(e) => setDescription(e.target.value)} />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className={labelClass}>カテゴリー</label>
-                                        <div className="relative">
-                                            <select className={`${inputClass} appearance-none cursor-not-allowed bg-gray-100`} value={type} disabled>
-                                                {CATEGORY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <label className={labelClass}>数量</label>
-                                        <div className="flex items-center border border-gray-300 rounded-lg bg-white overflow-hidden h-[46px]">
-                                            <button className="w-10 h-full bg-gray-50 hover:bg-gray-100 text-gray-600 border-r" onClick={() => setQuantity(q => Math.max(1, q - 1))}>－</button>
-                                            <div className="flex-1 text-center font-bold">{quantity}</div>
-                                            <button className="w-10 h-full bg-gray-50 hover:bg-gray-100 text-gray-600 border-l" onClick={() => setQuantity(q => q + 1)}>＋</button>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* 3. Shipping */}
-                        <section className={sectionClass}>
-                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">配送について</h2>
-                            <div className="space-y-6">
-                                <div>
-                                    <label className={labelClass}>配送料の負担</label>
-                                    <div className="flex gap-2">
-                                        {[0, 1, 2].map((ft) => (
-                                            <label key={ft} className={`flex-1 cursor-pointer border rounded-lg p-3 text-sm text-center transition-all ${shippingFeeType === ft ? "bg-gray-800 text-white border-gray-800" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                                                <input type="radio" className="hidden" checked={shippingFeeType === ft} onChange={() => setShippingFeeType(ft)} />
-                                                {SHIPPING_FEE_TYPES_MAP.find(m => Number(m.id) === ft)?.label || "その他"}
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className={labelClass}>発送元の地域</label>
-                                    <ShipFromSelect value={shipFromId} onChange={setShipFromId} error={errors.shipFrom} />
-                                </div>
-                                <div>
-                                    <label className={labelClass}>発送までの日数</label>
-                                    <select className={inputClass} value={shipsWithinDays} onChange={(e) => setShipsWithinDays(e.target.value === "" ? "" : Number(e.target.value))}>
-                                        <option value="1">1〜2日で発送</option>
-                                        <option value="2">2〜3日で発送</option>
-                                        <option value="4">4〜7日で発送</option>
-                                    </select>
-                                    {errors.shipsWithinDays && <p className="text-xs text-red-500 mt-1">{errors.shipsWithinDays}</p>}
-                                </div>
-                            </div>
-                        </section>
-
-                        {/* 4. Price */}
-                        <section className={sectionClass}>
-                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">販売価格</h2>
-                            <div className="flex items-center gap-4">
-                                <label className="font-bold text-gray-700 whitespace-nowrap">価格</label>
-                                <div className="relative w-full">
-                                    <div className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-gray-500 font-bold">¥</div>
-                                    <input className={`${inputClass} pl-8 text-right text-lg font-bold`} type="number" value={price} onChange={(e) => setPrice(Number(e.target.value))} />
-                                </div>
-                            </div>
-                            {errors.price && <p className="text-xs text-red-500 text-right mt-1">{errors.price}</p>}
-
-                            {/* Fee Calculation */}
-                            <div className="space-y-3 pt-4 border-t border-dashed border-gray-200">
-                                <div className="flex justify-between text-sm">
-                                    <span className="text-gray-600">販売手数料 ({Math.round(feeRate * 100)}%)</span>
-                                    <span className="text-gray-800">¥{feeYen.toLocaleString()}</span>
-                                </div>
-                                <div className="flex justify-between items-center text-lg font-bold">
-                                    <span className="text-gray-800">販売利益</span>
-                                    <span className="text-blue-600">¥{payoutYen.toLocaleString()}</span>
-                                </div>
-                            </div>
-
-                            {/* Fee Option */}
-                            <div className="pt-2">
-                                <button className="text-xs text-gray-500 hover:text-gray-800 flex items-center gap-1 w-full justify-end" onClick={() => setFeeOpen(!feeOpen)}>
-                                    {feeOpen ? "▲ オプションを閉じる" : "▼ 購入者割引を設定する（任意）"}
-                                </button>
-                                {feeOpen && (
-                                    <div className="mt-3 bg-gray-50 p-3 rounded-lg text-sm animate-in fade-in slide-in-from-top-2">
-                                        <div className="flex justify-between items-center mb-2">
-                                            <span className="font-bold text-gray-700">割引率</span>
-                                            <select className="bg-white border border-gray-300 rounded px-2 py-1 text-sm" value={plusPct} onChange={(e) => setSellerPlusPct(Number(e.target.value))}>
-                                                {sellerPlusPctOptions.map((v) => <option key={v} value={v}>{v === 0 ? "設定なし" : `+${v}%`}</option>)}
-                                            </select>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        </section>
-
-                        {/* 4. 公開設定 (★追加) */}
-                        <section className={sectionClass}>
-                            <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">公開設定</h2>
-                            <div className="space-y-4">
-                                <div className="flex gap-4 items-center">
-                                    <label className="font-bold text-gray-700">出品ステータス</label>
-                                    <div className="flex gap-2">
-                                        {/* 公開中 (1) */}
-                                        <label className={`cursor-pointer border rounded-lg px-4 py-2 text-sm font-bold transition-all ${status === FleaItemStatus.Active ? "bg-blue-600 text-white border-blue-600" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                                            <input type="radio" className="hidden" checked={status === FleaItemStatus.Active} onChange={() => setStatus(FleaItemStatus.Active)} />
-                                            公開する
-                                        </label>
-
-                                        {/* 下書き/非公開 (0) */}
-                                        <label className={`cursor-pointer border rounded-lg px-4 py-2 text-sm font-bold transition-all ${status === FleaItemStatus.Draft ? "bg-gray-600 text-white border-gray-600" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                                            <input type="radio" className="hidden" checked={status === FleaItemStatus.Draft} onChange={() => setStatus(FleaItemStatus.Draft)} />
-                                            下書き（非公開）
-                                        </label>
-                                    </div>
-                                </div>
-                                <p className="text-xs text-gray-500">
-                                    「下書き」にすると、検索結果や一覧に表示されなくなり、購入されません。
-                                </p>
-                            </div>
-                        </section>
+                        {/* 配送・価格セクション */}
+                        <ShippingPriceSection
+                            formState={formState}
+                            setters={setters}
+                            calc={calc}
+                            errors={errors}
+                        />
                     </>
                 )}
 
-                {/* Details (Step 2) */}
-                {current === "details" && (
-                    <section className={sectionClass}>
-                        <h2 className="text-lg font-bold mb-6 pb-2 border-b border-gray-100">詳細情報</h2>
-                        {type === "ANIMAL" ? (
-                            <div className="space-y-6">
-                                <div><label className={labelClass}>産地</label><input className={inputClass} value={liveDetails.locality} onChange={(e) => setLiveDetails({ ...liveDetails, locality: e.target.value })} /></div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div><label className={labelClass}>羽化日</label><input type="date" className={inputClass} value={liveDetails.hatch_date} onChange={(e) => setLiveDetails({ ...liveDetails, hatch_date: e.target.value })} /></div>
-                                    <div><label className={labelClass}>サイズ</label><input className={inputClass} value={liveDetails.size} onChange={(e) => setLiveDetails({ ...liveDetails, size: e.target.value })} placeholder="例: 75mm" /></div>
-                                </div>
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div><label className={labelClass}>累代</label><input className={inputClass} value={liveDetails.generation} onChange={(e) => setLiveDetails({ ...liveDetails, generation: e.target.value })} placeholder="例: F1" /></div>
-                                    <div>
-                                        <label className={labelClass}>性別</label>
-                                        <select className={inputClass} value={liveDetails.sex} onChange={(e) => setLiveDetails({ ...liveDetails, sex: e.target.value as SexType })}>
-                                            <option value="unknown">不明</option>
-                                            <option value="male">オス</option>
-                                            <option value="female">メス</option>
-                                            <option value="pair">ペア</option>
-                                        </select>
-                                    </div>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="space-y-6">
-                                <div><label className={labelClass}>ブランド名</label><input className={inputClass} value={supplyDetails.brand} onChange={(e) => setSupplyDetails({ ...supplyDetails, brand: e.target.value })} /></div>
-                                <div><label className={labelClass}>SKU / 型番</label><input className={inputClass} value={supplyDetails.sku} onChange={(e) => setSupplyDetails({ ...supplyDetails, sku: e.target.value })} /></div>
-                                <div><label className={labelClass}>内容量(g)</label><input type="number" className={inputClass} value={supplyDetails.net_weight_g} onChange={(e) => setSupplyDetails({ ...supplyDetails, net_weight_g: e.target.value })} /></div>
-                            </div>
-                        )}
-                    </section>
+                {/* 詳細情報画面 */}
+                {currentStep === "details" && (
+                    <DetailsSection
+                        type={type}
+                        liveDetails={liveDetails}
+                        supplyDetails={supplyDetails}
+                        setLiveDetails={setLiveDetails}
+                        setSupplyDetails={setSupplyDetails}
+                    />
                 )}
             </main>
 
-            {/* スペーサー */}
             <div className="h-24" />
 
-            {/* Footer Actions */}
+            {/* フッターアクション */}
             <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-200 px-4 py-3 safe-area-bottom">
                 <div className="max-w-lg mx-auto flex gap-3">
                     <button
-                        onClick={goPrev}
+                        onClick={() => setCurrentStep("main")}
                         className="flex-1 bg-gray-100 text-gray-700 font-bold h-12 rounded-lg disabled:opacity-30"
-                        disabled={current === "main"}
+                        disabled={currentStep === "main"}
                     >
                         戻る
                     </button>
 
-                    {current === "main" ? (
-                        <button onClick={goNext} className="flex-[2] bg-gray-800 text-white font-bold h-12 rounded-lg hover:bg-gray-700">
+                    {currentStep === "main" ? (
+                        <button
+                            onClick={() => setCurrentStep("details")}
+                            className="flex-[2] bg-gray-800 text-white font-bold h-12 rounded-lg hover:bg-gray-700"
+                        >
                             次へ（詳細情報）
                         </button>
                     ) : (
@@ -554,12 +466,12 @@ const FleaItemEdit: React.FC = () => {
                 </div>
             </div>
 
-            {/* Add Images Modal (Used for selection only) */}
+            {/* モーダル */}
             <AddImagesModal
                 open={addOpen}
                 initialImages={images}
                 onClose={() => setAddOpen(false)}
-                onSave={handleAddImages} // Call modified handler
+                onSave={handleAddImages}
             />
         </div>
     );

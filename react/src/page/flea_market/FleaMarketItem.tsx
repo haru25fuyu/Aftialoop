@@ -3,7 +3,6 @@ import { useLocation, useParams, useNavigate, Link } from "react-router-dom";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
 
-
 import { Header } from "../../component/Header";
 import BottomBarPortal from "../../component/BottomBarPortal"
 import CommentList from "../../component/CommentList";
@@ -12,7 +11,7 @@ import QuestionModal from "../../modal/QuestionModal";
 import PurchaseRequestModal from "../../modal/PurchaseRequestModal";
 
 import { itemImage, Content } from "../../types/Content";
-import { FleaContent, FleaComment, FleaItemDetails } from "../../types/FleaMarket";
+import { FleaContent, FleaComment } from "../../types/FleaMarket";
 
 import api, { getAccessToken } from "../../conf/api";
 import { CONFIG } from "../../conf/config";
@@ -47,7 +46,6 @@ function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, 
     if (scaledRate <= den) return { discountYen: 0 };
 
     //  Math.ceil (切り上げ) → Math.floor (切り捨て)
-    // 2000円 ÷ 1.02 = 1960.7... → 1960pt でOKにする
     const needPt = Math.floor((price * den) / scaledRate);
 
     const usePt = Math.min(point, needPt);
@@ -55,12 +53,9 @@ function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, 
     //  全額払い判定
     let coveredYen;
     if (usePt >= needPt) {
-        // 必要ポイント（1960pt）払いきれるなら、計算上0.8円足りなくても「2000円全額OK」とみなす
         coveredYen = price;
     } else {
-        // ポイントが足りない場合は、払える分だけ計算
         coveredYen = Math.floor((usePt * scaledRate) / den);
-        // 上限キャップ
         coveredYen = Math.min(coveredYen, price);
     }
 
@@ -68,11 +63,24 @@ function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, 
     return { discountYen };
 }
 
+// ★ 詳細情報の型定義 (フラットな構造に対応)
+type FlatDetails = {
+    locality?: string;
+    hatch_date?: string;
+    size?: string;
+    generation?: string;
+    sex?: string;
+    brand?: string;
+    sku?: string;
+    net_weight_g?: string | number;
+};
+
 const Item: React.FC = () => {
     // ... (State定義などは変更なし) ...
     const [openPurchaseModal, setOpenPurchaseModal] = useState(false);
     const [item, setItem] = useState<FleaContent | null>(null);
-    const [itemDetails, setItemDetails] = useState<FleaItemDetails | null>(null);
+    // itemDetails の型を拡張
+    const [itemDetails, setItemDetails] = useState<FlatDetails | null>(null);
     const [images, setImages] = useState<itemImage[]>([]);
     const [user, setUser] = useState<Content | null>(null);
     const [comments, setComments] = useState<FleaComment[]>([]);
@@ -86,7 +94,6 @@ const Item: React.FC = () => {
     const navigate = useNavigate();
     const isSeller = user && item && String(user.id) === String(item.userId);
 
-    // ... (データ取得などのuseEffectや関数はそのまま) ...
     const handleSendQuestion = async (text: string) => {
         if (!item) return;
         await api.post("/items/question", { itemId: item.id, text });
@@ -94,21 +101,50 @@ const Item: React.FC = () => {
         setShowQModal(false);
     };
 
+    // ★ データ取得ロジック修正
     useEffect(() => {
         if (!id) return;
         api.get(`/flea-market/item/${id}`).then((res) => {
             if (res.data) {
-                setItem(res.data.item);
+                const fetchedItem = res.data.item;
+                setItem(fetchedItem);
                 setImages(res.data.images || []);
                 setRateDen(res.data.rate_den || DEFAULT_DEN);
 
-                if (!res.data.details.animal_details
-                    && !res.data.details.supply_details) return;
+                // 詳細情報のパース処理
+                // DBにはJSON文字列で入っている場合と、API側で既にオブジェクト化されている場合があります
+                let d = fetchedItem.details; // APIレスポンスの item.details を参照
 
-                setItemDetails({
-                    ...res.data.details,
-                });
+                // もし res.data.details (古い仕様) があればそちらを優先しても良いですが、
+                // 新仕様では item.details に入っているはずです。
+                if (!d && res.data.details) {
+                    d = res.data.details;
+                }
+
+                if (typeof d === "string") {
+                    try {
+                        d = JSON.parse(d);
+                    } catch (e) {
+                        console.error("Failed to parse details JSON", e);
+                        d = {};
+                    }
+                }
+
+                // null/undefined チェック
+                if (d) {
+                    // 古い形式 (animal_details / supply_details) の場合も考慮してフラットに変換
+                    if (d.animal_details) {
+                        setItemDetails(d.animal_details);
+                    } else if (d.supply_details) {
+                        setItemDetails(d.supply_details);
+                    } else {
+                        // 新仕様 (フラット)
+                        setItemDetails(d);
+                    }
+                }
             }
+        }).catch(err => {
+            console.error("Failed to fetch item", err);
         });
     }, [id, location.search]);
 
@@ -132,11 +168,12 @@ const Item: React.FC = () => {
         });
     }, [id]);
 
-    const formatDate = (dateStr: string) => {
+    const formatDate = (dateStr: string | undefined) => {
         if (!dateStr) return "";
         return dateStr.split("T")[0]; // "2026-01-01T00:00:00" -> "2026-01-01"
     };
 
+    // ★ スペック表示ロジック修正 (フラットな itemDetails を参照)
     const renderSpecs = () => {
         if (!item || !itemDetails) return null;
 
@@ -147,15 +184,15 @@ const Item: React.FC = () => {
                 <dl className={containerClass}>
                     <div className="col-span-1 md:col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 border-b pb-1">生体情報</div>
 
-                    <DetailRow label="産地" value={itemDetails.animal_details?.locality} />
-                    {/* formatDate関数を通して表示 */}
-                    <DetailRow label="羽化日" value={formatDate(itemDetails.animal_details?.hatch_date || "")} />
-                    <DetailRow label="サイズ" value={itemDetails.animal_details?.size} />
-                    <DetailRow label="累代" value={itemDetails.animal_details?.generation} />
+                    <DetailRow label="産地" value={itemDetails.locality} />
+                    <DetailRow label="羽化日" value={formatDate(itemDetails.hatch_date)} />
+                    <DetailRow label="サイズ" value={itemDetails.size} />
+                    <DetailRow label="累代" value={itemDetails.generation} />
                     <DetailRow label="性別" value={
-                        itemDetails.animal_details?.sex === "male" ? "オス" :
-                            itemDetails.animal_details?.sex === "female" ? "メス" :
-                                itemDetails.animal_details?.sex === "pair" ? "ペア" : "不明"
+                        itemDetails.sex === "male" ? "オス" :
+                            itemDetails.sex === "female" ? "メス" :
+                                itemDetails.sex === "pair" ? "ペア" :
+                                    itemDetails.sex === "unknown" ? "不明" : itemDetails.sex // "unknown" or そのまま表示
                     } />
                 </dl>
             );
@@ -164,9 +201,9 @@ const Item: React.FC = () => {
                 <dl className={containerClass}>
                     <div className="col-span-1 md:col-span-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 border-b pb-1">製品情報</div>
 
-                    <DetailRow label="ブランド" value={itemDetails.supply_details?.brand} />
-                    <DetailRow label="SKU/型番" value={itemDetails.supply_details?.sku} />
-                    <DetailRow label="内容量" value={itemDetails.supply_details?.net_weight_g ? `${itemDetails.supply_details?.net_weight_g}g` : ""} />
+                    <DetailRow label="ブランド" value={itemDetails.brand} />
+                    <DetailRow label="SKU/型番" value={itemDetails.sku} />
+                    <DetailRow label="内容量" value={itemDetails.net_weight_g ? `${itemDetails.net_weight_g}g` : ""} />
                 </dl>
             );
         }
@@ -192,7 +229,7 @@ const Item: React.FC = () => {
 
     if (!item) return <div className="p-20 text-center text-gray-500">読み込み中...</div>;
 
-    const rawRate = safeRate(item.seller_rate); // item.seller_rate が存在すると仮定
+    const rawRate = safeRate(item.seller_rate);
     const { num, den } = normalizeRate(rawRate, rateDen);
     const isRateUp = num > den;
     const { discountYen } = user
@@ -218,8 +255,8 @@ const Item: React.FC = () => {
                             className="w-full aspect-square md:rounded-2xl md:border border-gray-100 shadow-sm bg-white"
                         >
                             {images.length > 0 ? images.map((img) => (
-                                <SwiperSlide key={img.id} className="!w-full relative"> {/* Added relative here just in case */}
-                                    <div className="w-full h-full flex items-center justify-center bg-white relative"> {/* Ensure relative parent */}
+                                <SwiperSlide key={img.id} className="!w-full relative">
+                                    <div className="w-full h-full flex items-center justify-center bg-white relative">
                                         <img
                                             className="!w-full !h-full object-contain"
                                             style={{ width: "100%", height: "100%" }}
@@ -297,7 +334,7 @@ const Item: React.FC = () => {
                             </div>
                         </section>
 
-                        {/* 出品者情報エリア: section を Link に変更 */}
+                        {/* 出品者情報エリア */}
                         <Link
                             to={`/user/profile/${item.userId}`}
                             className="border rounded-xl p-4 bg-white shadow-sm flex items-center gap-4 hover:bg-gray-50 transition-colors cursor-pointer block"
@@ -311,7 +348,6 @@ const Item: React.FC = () => {
                                 <p className="text-base font-bold">{item.seller_name}</p>
                                 <div className="flex items-center gap-2 mt-1">
                                     <div className="flex text-orange-400 text-sm">★★★★★</div>
-                                    {/* 評価数などは後でAPIから取れたら入れる、今は仮でOK */}
                                     <span className="text-xs text-gray-500">25 出品</span>
                                 </div>
                             </div>

@@ -66,7 +66,7 @@ const SignUp: React.FC = () => {
             <div className="flex justify-center items-center mt-10 max-md:mt-0">
                 <div className="w-full max-w-md p-8 space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">サインアップ</h2>
-                    <GoogleOAuth />
+                    <GoogleOAuth mode="signup" onLoginSuccess={() => { navigate('/signup/complete'); }} />
                     <div className="flex justify-center items-center"><hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' /></div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
                         <div>

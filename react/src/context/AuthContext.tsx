@@ -2,6 +2,8 @@ import { createContext, useContext, useEffect, useState, ReactNode } from "react
 import api, { initAuthOnce, getAccessToken } from "../conf/api";
 import LoginModal from "../modal/Login";
 import { Customer } from "../types/Content"; // ユーザーの型定義があればインポート
+import { useLocation } from "react-router-dom";
+
 
 // Contextで使える機能の型定義
 interface AuthContextType {
@@ -19,6 +21,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     const [user, setUser] = useState<Customer | null>(null);
     const [loading, setLoading] = useState(true);
     const [showModal, setShowModal] = useState(false);
+
+    const location = useLocation(); // 2. locationを取得
+
+    // 3. パス(URL)が変わるたびにモーダルを閉じる
+    useEffect(() => {
+        setShowModal(false);
+    }, [location.pathname]);
 
     // 初回ロード時にトークンチェックとユーザー取得を行う
     useEffect(() => {
