@@ -2,6 +2,7 @@ import React, { useMemo, useEffect } from "react";
 import { CONFIG, PREFS } from "../conf/config";
 import { PublishSummary, LiveDetails, SupplyDetails } from "../types/FleaMarketForm";
 import { TYPE_LABELS } from "../conf/Market";
+import { LoadingButton } from "../component/LoadingButton";
 
 export function ConfirmDialog({
     open,
@@ -163,10 +164,13 @@ export function ConfirmDialog({
                 {/* Footer */}
                 <div className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 rounded-b-2xl flex flex-col-reverse sm:flex-row justify-end gap-3 shrink-0">
                     <button onClick={onClose} className="w-full sm:w-auto px-6 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition-colors">修正する</button>
-                    <button onClick={onConfirm} disabled={submitting} className="w-full sm:w-auto px-8 py-2.5 rounded-lg bg-red-600 text-white font-bold shadow-sm hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-                        {submitting && <svg className="animate-spin h-4 w-4 text-white" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>}
-                        {submitting ? "出品処理中..." : "規約に同意して出品する"}
-                    </button>
+                    <LoadingButton
+                        onClick={onConfirm}
+                        loading={submitting}
+                        className="w-full sm:w-auto px-8 py-2.5 rounded-lg bg-red-600 text-white font-bold shadow-sm hover:bg-red-700 transition-all disabled:bg-red-400"
+                    >
+                        規約に同意して出品する
+                    </LoadingButton>
                 </div>
             </div>
         </div>

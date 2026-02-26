@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 
 // Declare grecaptcha as a global variable
 declare const grecaptcha: any;
@@ -9,6 +9,7 @@ import { Header } from '../component/Header';
 import { GoogleOAuth } from '../component/GoogleOAuth';
 
 import api from '../conf/api';
+import { LoadingButton } from '../component/LoadingButton';
 
 type Inputs = {
     name: string,
@@ -20,6 +21,8 @@ type Inputs = {
 const SignUp: React.FC = () => {
     const { register, handleSubmit, formState: { errors }, watch } = useForm<Inputs>();
     const navigate = useNavigate();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
 
     const password = watch('password');
     const password2 = watch('password2');
@@ -36,27 +39,35 @@ const SignUp: React.FC = () => {
     }, []);
 
     const onSubmit = async (data: Inputs) => {
-        // パスワードが一致しない場合は処理をしない
         if (password !== password2) {
             alert('パスワードが一致しません');
             return;
         }
 
-        // reCAPTCHAの取得とか、API通信とかを書く
-        const token = await grecaptcha.enterprise.execute('6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4', { action: 'LOGIN' });
-        console.log(token);
+        setLoading(true); // 3. 通信開始時にくるくるON
 
+        try {
+            // reCAPTCHAの実行
+            const token = await grecaptcha.enterprise.execute('6LfsB0MrAAAAAEUuEF6fsTYOxYTx6dUYxU_cjRX4', { action: 'LOGIN' });
 
-        api.post('/signup', { email: data.email, password: data.password, GoogleID: token })
-            .then((res) => {
-                if (!res.data.err_message) {
-                    //仮登録完了ページに遷移
-                    navigate('/signup/complete');
-                }
-            })
-            .catch((err) => {
-                console.error(err);
+            // API通信
+            const res = await api.post('/signup', {
+                email: data.email,
+                password: data.password,
+                GoogleID: token
             });
+
+            if (!res.data.err_message) {
+                navigate('/signup/complete');
+            } else {
+                setError(res.data.err_message);
+            }
+        } catch (err) {
+            console.error(err);
+            setError("サインアップに失敗しました。");
+        } finally {
+            setLoading(false); // 4. 成功しても失敗してもくるくるOFF
+        }
     };
 
     return (
@@ -66,9 +77,13 @@ const SignUp: React.FC = () => {
             <div className="flex justify-center items-center mt-10 max-md:mt-0">
                 <div className="w-full max-w-md p-8 space-y-6 bg-white rounded shadow-md">
                     <h2 className="text-2xl font-bold text-center text-gray-900">サインアップ</h2>
-                    <GoogleOAuth mode="signup" onLoginSuccess={() => { navigate('/signup/complete'); }} />
+                    <GoogleOAuth
+                        mode="signup"
+                        onLoginSuccess={() => { navigate('/signup/complete'); }}
+                        onError={(msg) => setError(msg)} />
                     <div className="flex justify-center items-center"><hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' /></div>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+                        {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
                         <div>
                             <label className="block text-sm font-medium text-gray-700">メールアドレス</label>
                             <p className="text-sm text-gray-500">※メールアドレスはログインIDとして使用します</p>
@@ -100,12 +115,13 @@ const SignUp: React.FC = () => {
                             )}
                         </div>
                         <div>
-                            <button
+                            <LoadingButton
                                 type="submit"
+                                loading={loading}
                                 className="w-full px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
                             >
                                 サインアップ
-                            </button>
+                            </LoadingButton>
                         </div>
                     </form>
                 </div>

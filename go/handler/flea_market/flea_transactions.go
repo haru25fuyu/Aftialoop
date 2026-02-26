@@ -310,10 +310,12 @@ func (h *FleaMarketHandler) AcceptPurchaseRequest(w http.ResponseWriter, r *http
 }
 
 type PayTransactionInput struct {
-	CardID    *string `json:"card_id"`    // 保存済みカードのID (SquareのCard ID)
-	UsePoints int64   `json:"use_points"` // 使いたいポイント数
+	CardID         *string `json:"card_id"`         // 保存済みカードのID (SquareのCard ID)
+	UsePoints      int64   `json:"use_points"`      // 使いたいポイント数
+	IdempotencyKey string  `json:"idempotency_key"` // 同一取引で複数回リクエストが来たときに、2回目以降は同じキーで再試行できるようにするためのフィールド (APIには送らない)
 }
 
+// POST /flea/transactions/{id}/pay
 // POST /flea/transactions/{id}/pay
 func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Request) {
 	// 1. ユーザー認証
@@ -335,23 +337,60 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// フロントからキーが送られてきていない場合はエラー
+	if input.IdempotencyKey == "" {
+		http.Error(w, "idempotency_key is required", http.StatusBadRequest)
+		return
+	}
+
 	ctx := r.Context()
 
 	// -----------------------------------------------------
-	// A. データ取得と計算
+	// A. データ取得と【早期リターン（二重送信防止）】
 	// -----------------------------------------------------
-
-	// 取引・商品・ユーザー情報の取得 (省略せず実装してください)
 	tx, err := h.db.GetFleaTransactionByID(ctx, buyerID, txID)
-	/* エラーハンドリング */
+	if err != nil {
+		log.Println("Error getting transaction:", err)
+		http.Error(w, "transaction not found", http.StatusNotFound)
+		return
+	}
 
+	// ① すでに「支払い済み」なら成功を返す
+	if tx.Status == "PAID" || tx.Status == "SHIPPING" {
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "paid", "message": "already processed"})
+		return
+	}
+
+	// ② 以前に同じキーで処理した記録があるかチェック
+	existingKey, err := h.db.GetIdempotencyKey(ctx, txID)
+	if err != nil {
+		log.Println("Error getting idempotency key:", err)
+		http.Error(w, "db error", http.StatusInternalServerError)
+		return
+	}
+	if existingKey == input.IdempotencyKey {
+		log.Printf("Idempotency key matched: %s. Returning success.", existingKey)
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]string{"status": "paid", "message": "already processed"})
+		return
+	}
+
+	// -----------------------------------------------------
+	// B. 金額計算
+	// -----------------------------------------------------
 	item, err := h.db.GetFleaMarketItemByID(buyerID, tx.ItemID)
-	/* エラーハンドリング */
+	if err != nil {
+		http.Error(w, "item not found", http.StatusNotFound)
+		return
+	}
 
 	user, err := h.db.GetUserDataWithCustomerIDByID(buyerID)
-	/* エラーハンドリング */
+	if err != nil {
+		http.Error(w, "user not found", http.StatusNotFound)
+		return
+	}
 
-	// レート取得
 	cfg := config.GetFleaConfig()
 	rateDen := float64(cfg.RateDen)
 	if rateDen == 0 {
@@ -363,52 +402,43 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		sellerRate = float64(item.RawSellerRate) / rateDen
 	}
 
-	// 金額計算
 	totalPriceYen := float64(tx.PriceItem + tx.PriceShipping)
-
-	// ポイント換算額
-	// ★修正: Floor(切り捨て)だと、フロントで切り捨てたポイント数では1円足りなくなるため、
-	//        バックエンドでは Ceil(切り上げ) を使って「端数分はおまけ」してあげる必要があります。
-	// 例: 1960pt * 1.02 = 1999.2円 -> Ceilして 2000円分の価値とみなす
 	discountYen := math.Ceil(float64(input.UsePoints) * sellerRate)
 
-	// キャップ処理: 割引額が合計金額を超えないようにする
 	if discountYen > totalPriceYen {
 		discountYen = totalPriceYen
 	}
 
-	// 請求額 (float64のまま計算)
 	chargeAmount := totalPriceYen - discountYen
 	if chargeAmount < 0 {
 		chargeAmount = 0
 	}
 
-	// カードチェック
 	if chargeAmount > 0 && (input.CardID == nil || *input.CardID == "") {
 		http.Error(w, "card required", http.StatusBadRequest)
-		log.Println("Card ID is required for non-zero charge amount")
 		return
 	}
 
 	// -----------------------------------------------------
-	// B. Square決済実行 (共通関数 ChargeCard を使用)
+	// C. Square決済実行
 	// -----------------------------------------------------
 	paymentID := ""
 	provider := "NONE"
 
 	if chargeAmount > 0 {
-		// 自作関数を呼び出す (float64をそのまま渡せば中で四捨五入してくれる)
-		receiptURL, err := function.ChargeCard(user.CustomerID, *input.CardID, chargeAmount)
+		receiptURL, err := function.ChargeCard(user.CustomerID, *input.CardID, input.IdempotencyKey, chargeAmount)
 		if err != nil {
 			log.Printf("Payment Failed: %v", err)
+			if strings.Contains(err.Error(), "idempotency key already used") {
+				http.Error(w, "this transaction is already processed", http.StatusConflict)
+				return
+			}
 			http.Error(w, "payment failed", http.StatusBadRequest)
 			return
 		}
 
 		provider = "SQUARE"
-		paymentID = "sq_" + uuid.New().String() // ※本当はAPIレスポンスからIDを取りたいが、ReceiptURLしか返していないため仮IDまたは関数戻り値を拡張してIDも返すようにするのがベター
-
-		// ログ用
+		paymentID = "sq_" + uuid.New().String()
 		log.Printf("決済完了: URL=%s", receiptURL)
 	} else {
 		provider = "POINT"
@@ -416,7 +446,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	}
 
 	// -----------------------------------------------------
-	// C. DB更新 (トランザクション処理)
+	// D. DB更新 (トランザクション処理)
 	// -----------------------------------------------------
 	txDB, err := h.db.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -435,9 +465,8 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	log.Printf("ポイント使用: user_id=%s, use_points=%d", buyerID, input.UsePoints)
-	// 2. 取引ステータス更新
-	if err := h.db.UpdateFleaTransactionPaidTx(ctx, txDB, txID, provider, paymentID, input.UsePoints, item.RawSellerRate); err != nil {
+	// 2. 取引ステータス更新 ＋ 冪等性キーの保存を一気に行う
+	if err := h.db.UpdateFleaTransactionPaidTx(ctx, txDB, txID, provider, paymentID, input.UsePoints, item.RawSellerRate, input.IdempotencyKey); err != nil {
 		log.Println("Error updating transaction status to PAID:", err)
 		http.Error(w, "failed to update status", http.StatusInternalServerError)
 		return
@@ -449,6 +478,9 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// -----------------------------------------------------
+	// E. メール送信等の非同期処理
+	// -----------------------------------------------------
 	go func() {
 		txURL := fmt.Sprintf("%s/flea-market/transactions/%d", function.GetFrontendURL(), txID)
 

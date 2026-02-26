@@ -5,6 +5,7 @@ import axios from 'axios';
 
 import { GoogleOAuth } from '../component/GoogleOAuth';
 import api, { afterLogin } from '../conf/api';
+import { LoadingButton } from '../component/LoadingButton';
 
 type Inputs = {
     name: string,
@@ -22,6 +23,7 @@ type Props = {
 const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showCloseButton = false }) => {
     const { register, handleSubmit, formState: { errors } } = useForm<Inputs>();
     const [error, setError] = useState('');
+    const [isProcessing, setIsProcessing] = useState(false); // 通信中フラグ
 
     useEffect(() => {
         if (isOpen) {
@@ -37,6 +39,7 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
     }, [isOpen]);
 
     const onSubmit = async (data: Inputs) => {
+        setIsProcessing(true); // くるくる開始
         try {
             const res = await api.post("/login", data);
 
@@ -49,6 +52,8 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
             } else {
                 setError("予期しないエラーが発生しました");
             }
+        } finally {
+            setIsProcessing(false); // 成功しても失敗してもくるくるOFF
         }
     };
 
@@ -73,7 +78,9 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
                     onLoginSuccess={() => {
                         onLoginSuccess();
                         onClose();
-                    }} />
+                    }}
+                    onError={(msg) => setError(msg)}
+                />
                 <div className="flex justify-center items-center">
                     <hr className='w-full' /><span className='mx-5'>or</span><hr className='w-full' />
                 </div>
@@ -99,12 +106,13 @@ const LoginModal: React.FC<Props> = ({ isOpen, onClose, onLoginSuccess, showClos
                     </div>
                     <div>
                         <Link to="/password-reset" onClick={onClose}>パスワード忘れた方</Link>
-                        <button
+                        <LoadingButton
                             type="submit"
+                            loading={isProcessing}
                             className="w-full px-4 py-2 mt-3 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md shadow-sm hover:bg-indigo-700"
                         >
                             ログイン
-                        </button>
+                        </LoadingButton>
                     </div>
                 </form>
                 <hr />

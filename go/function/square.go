@@ -115,7 +115,7 @@ func CreateCard(card utils.RequestCard) (string, error) {
 	return *response.Card.ID, nil
 }
 
-func ChargeCard(customerID, cardID string, amount float64) (string, error) {
+func ChargeCard(customerID, cardID, idempotencyKey string, amount float64) (string, error) {
 	// 1. 四捨五入 (例: 100.5 -> 101, 100.4 -> 100)
 	roundedAmount := int64(math.Round(amount))
 
@@ -129,7 +129,7 @@ func ChargeCard(customerID, cardID string, amount float64) (string, error) {
 				Amount:   square.Int64(roundedAmount), // 四捨五入した値を使う
 				Currency: square.CurrencyJpy.Ptr(),
 			},
-			IdempotencyKey: uuid.New().String(),
+			IdempotencyKey: idempotencyKey,
 			SourceID:       cardID,
 			Autocomplete:   square.Bool(true),
 			CustomerID:     square.String(customerID),

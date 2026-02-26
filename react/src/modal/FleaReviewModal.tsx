@@ -1,6 +1,7 @@
 import React from "react";
 import { Star, X, Check } from "lucide-react";
 import { REVIEW_TEMPLATES } from "../conf/FleaMarket";
+import { LoadingButton } from "../component/LoadingButton";
 
 type FleaReviewModalProps = {
     isOpen: boolean;
@@ -144,23 +145,15 @@ export default function FleaReviewModal({
                     </label>
 
                     {/* 送信ボタン */}
-                    <button
+                    <LoadingButton
                         onClick={handleSubmit}
-                        disabled={!isChecked || isSubmitting}
-                        className={`
-                            w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all
-                            ${isChecked
-                                ? "bg-black text-white hover:bg-gray-800 shadow-lg"
-                                : "bg-gray-200 text-gray-400 cursor-not-allowed"}
-                        `}
+                        disabled={!isChecked}
+                        loading={isSubmitting} // ★これでくるくる回る
+                        className="w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all bg-black text-white hover:bg-gray-800 shadow-lg disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
                     >
-                        {isSubmitting ? "送信中..." : (
-                            <>
-                                <Check size={20} strokeWidth={3} />
-                                評価を確定して完了する
-                            </>
-                        )}
-                    </button>
+                        <Check size={20} strokeWidth={3} className="mr-1" />
+                        評価を確定して完了する
+                    </LoadingButton>
                 </div>
             </div>
         </div>

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm, SubmitHandler } from "react-hook-form";
 import Header from "../component/Header";
 import api from "../conf/api";
+import { LoadingButton } from "../component/LoadingButton";
 
 type ContactInput = {
     name: string;
@@ -112,13 +113,13 @@ const ContactForm: React.FC = () => {
                             </div>
                         )}
 
-                        <button
+                        <LoadingButton
                             type="submit"
-                            disabled={isSubmitting}
-                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                            loading={isSubmitting}
+                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:bg-blue-400"
                         >
-                            {isSubmitting ? "送信中..." : "送信する"}
-                        </button>
+                            送信する
+                        </LoadingButton>
                     </form>
                 </div>
             </main>

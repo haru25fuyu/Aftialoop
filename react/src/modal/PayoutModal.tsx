@@ -5,6 +5,7 @@ import { AxiosError } from "axios";
 
 import api from "../conf/api";
 import { useToast } from "../conf/function";
+import { LoadingButton } from "../component/LoadingButton";
 
 // 親から受け取るデータ
 interface PayoutModalProps {
@@ -244,13 +245,14 @@ export default function PayoutModal({ isOpen, onClose, onSuccess, currentBalance
                                     </div>
 
                                     {/* 送信ボタン */}
-                                    <button
+                                    <LoadingButton
                                         onClick={handleSubmit}
                                         disabled={!canSubmit}
-                                        className="w-full bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+                                        loading={submitting} // ★これで連打防止＆くるくる
+                                        className="w-full bg-red-500 text-white font-bold py-3.5 rounded-xl shadow-md hover:bg-red-600 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed disabled:shadow-none transition-all flex items-center justify-center gap-2"
                                     >
-                                        {submitting ? <Loader2 className="animate-spin" /> : <>申請を確定する <ArrowRight size={18} /></>}
-                                    </button>
+                                        申請を確定する <ArrowRight size={18} />
+                                    </LoadingButton>
                                 </>
                             )}
                         </div>

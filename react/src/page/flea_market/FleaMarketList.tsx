@@ -94,7 +94,7 @@ const FleaMarketList: React.FC = () => {
             // 1. 変数の初期化 (まずはURLクエリパラメータやデフォルト値をセット)
             // -------------------------------------------------
             let targetCategoryId = Number(searchParams.get("category_id")) || 0;
-            let targetSupplyTypeId = 0; // ★追加: 用品ID用
+            let targetSupplyTypeId = 0; // 用品ID用
             let targetType = searchParams.get("type") || ""; // "SUPPLY" など
 
             // -------------------------------------------------
@@ -182,7 +182,7 @@ const FleaMarketList: React.FC = () => {
             setLoadingMore(false);
         }
     };
-    
+
     // --- Effect: 検索条件(URL/Slug)が変わった時 ---
     useEffect(() => {
         setOffset(0);
@@ -199,7 +199,6 @@ const FleaMarketList: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [offset]);
 
-    // ... (以下、IntersectionObserver, ユーザー取得, レート計算, 描画ロジックは変更なし) ...
     // --- IntersectionObserver (スクロール検知) ---
     const observer = useRef<IntersectionObserver | null>(null);
     const lastElementRef = useCallback((node: HTMLAnchorElement | null) => {
@@ -435,10 +434,24 @@ const FleaMarketList: React.FC = () => {
                         {(loading || loadingMore) && (
                             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
                                 {[...Array(4)].map((_, i) => (
-                                    <div key={i} className="bg-white rounded-2xl p-2 shadow-sm animate-pulse">
-                                        <div className="w-full aspect-square bg-gray-200 rounded-xl mb-2"></div>
-                                        <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
-                                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                                    <div key={i} className="flex flex-col bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-pulse">
+                                        {/* 商品画像エリア */}
+                                        <div className="relative aspect-square bg-gray-200">
+                                            {/* 出品者アイコンのプレースホルダー */}
+                                            <div className="absolute top-2 left-2 w-8 h-8 rounded-full bg-gray-300 border-2 border-white"></div>
+                                            {/* いいねボタンのプレースホルダー */}
+                                            <div className="absolute bottom-2 right-2 w-7 h-7 rounded-full bg-gray-300"></div>
+                                        </div>
+
+                                        {/* テキストエリア */}
+                                        <div className="p-3 flex flex-col flex-1 gap-2">
+                                            {/* タイトル (2行分) */}
+                                            <div className="h-3.5 bg-gray-200 rounded w-full mt-1"></div>
+                                            <div className="h-3.5 bg-gray-200 rounded w-2/3"></div>
+
+                                            {/* 価格 */}
+                                            <div className="h-5 bg-gray-300 rounded w-1/2 mt-auto"></div>
+                                        </div>
                                     </div>
                                 ))}
                             </div>

@@ -14,6 +14,7 @@ import { Address } from "../../../types/Address";
 
 import FleaReviewModal from "../../../modal/FleaReviewModal";
 import { TransactionChat } from "../../TransactionChat";
+import { LoadingButton } from "../../LoadingButton";
 
 
 
@@ -262,14 +263,15 @@ export default function ShippingPanel({
                                     />
                                 </div>
 
-                                <button
+                                <LoadingButton
                                     onClick={handleShip}
-                                    disabled={isSubmitting || !carrier}
+                                    disabled={!carrier} // 配送業者が未選択の時は押せない
+                                    loading={isSubmitting} // ★これでくるくる回る＆連打防止
                                     className="w-full bg-black hover:bg-gray-800 text-white font-bold py-3 rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                                 >
                                     <Truck size={20} />
                                     商品を発送したので通知する
-                                </button>
+                                </LoadingButton>
                             </div>
                         )}
                     </div>

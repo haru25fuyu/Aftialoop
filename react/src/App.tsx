@@ -33,7 +33,6 @@ import ContactForm from "./page/ContactForm";
 
 import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
 import FleaMarketList from './page/flea_market/FleaMarketList';
-import FleaMarketCheckout from './page/flea_market/FleaMarketCheckout';
 import FleaMarketTransactions from './page/flea_market/FleaMarketTransactions';
 import FleaItemEdit from './page/flea_market/FleaItemEdit';
 
@@ -103,10 +102,6 @@ const App: React.FC = () => {
           <Route path="/flea-market/item/edit/:id" element={<RequireAuth><ToastProvider><FleaItemEdit /></ToastProvider></RequireAuth>} />
           <Route path="/flea-market/sell/create" element={<RequireAuth><ToastProvider><FleaItemCreatePage /></ToastProvider></RequireAuth>} />
           <Route path="/flea-market/sell/create/:id" element={<RequireAuth><ToastProvider><FleaItemCreatePage /></ToastProvider></RequireAuth>} />
-          <Route path="/flea-market/checkout/:id" element={<RequireAuth><FleaMarketCheckout /></RequireAuth>} />
-          <Route path="/flea-market/checkout/address" element={<RequireAuth><SelectAddress /></RequireAuth>} />
-          <Route path="/flea-market/checkout/payment" element={<RequireAuth><SelectPayment /></RequireAuth>} />
-          <Route path="/flea-market/checkout/complete" element={<RequireAuth><CheckoutComplete /></RequireAuth>} />
           <Route path="/flea-market/transactions/:id" element={<RequireAuth><FleaMarketTransactions /></RequireAuth>} />
 
           <Route path="/mypage" element={<RequireAuth><MyPage /></RequireAuth>} />

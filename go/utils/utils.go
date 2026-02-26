@@ -209,11 +209,12 @@ type RequestCard struct {
 }
 
 type RequestCharge struct {
-	CustomerID string  `db:"customer_id" json:"customerID"`
-	CardID     string  `db:"card_id" json:"cardID"`
-	Amount     float64 `db:"amount" json:"amount"`
-	Items      []Item  `json:"items"`
-	AddressID  string  `db:"address_id" json:"addressID"`
+	CustomerID     string  `db:"customer_id" json:"customerID"`
+	CardID         string  `db:"card_id" json:"cardID"`
+	Amount         float64 `db:"amount" json:"amount"`
+	Items          []Item  `json:"items"`
+	AddressID      string  `db:"address_id" json:"addressID"`
+	IdempotencyKey string  `json:"idempotencyKey"`
 }
 
 type RequestCardWithAddress struct {

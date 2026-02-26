@@ -4,8 +4,9 @@ import { Address } from "../types/Address";
 import SelectAddressModal from "./SelectAddressModal";
 import { fetchAddress } from "../conf/function";
 import api from "../conf/api";
-import { ShippingMethod,ShippingFeePref } from "../conf/FleaMarket";
+import { ShippingMethod, ShippingFeePref } from "../conf/FleaMarket";
 import LoginModal from "./Login";
+import { LoadingButton } from "../component/LoadingButton";
 
 
 export type PurchaseRequestPayload = {
@@ -147,12 +148,6 @@ export default function PurchaseRequestModal({
         window.addEventListener("keydown", onKeyDown);
         return () => window.removeEventListener("keydown", onKeyDown);
     }, [open, busy, onClose]);
-
-    const closeModal = () => {
-        setLoginModalOpen(false);
-        onClose();
-        setIsAddressOpen(false);
-    };
 
     if (!open) return null;
 
@@ -369,16 +364,14 @@ export default function PurchaseRequestModal({
                                     キャンセル
                                 </button>
 
-                                <button
-                                    className={cn(
-                                        "rounded-xl px-4 py-2 text-sm font-medium text-white whitespace-nowrap",
-                                        canSubmit ? "bg-black hover:bg-gray-900" : "bg-gray-300 cursor-not-allowed"
-                                    )}
+                                <LoadingButton
+                                    className="rounded-xl px-4 py-2 text-sm font-medium text-white whitespace-nowrap bg-black hover:bg-gray-900 shadow-md disabled:bg-gray-300 disabled:cursor-not-allowed disabled:shadow-none transition-all"
                                     onClick={handleSubmit}
                                     disabled={!canSubmit}
+                                    loading={busy}
                                 >
-                                    {busy ? "送信中…" : "購入申請を送信"}
-                                </button>
+                                    購入申請を送信
+                                </LoadingButton>
                             </div>
                         </div>
                     </div>

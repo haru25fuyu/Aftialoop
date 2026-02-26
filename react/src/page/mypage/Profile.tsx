@@ -7,6 +7,8 @@ import { Avatar } from '../../component/Avatar';
 import { Mail, Phone, Calendar, User, ShieldCheck, ChevronRight, KeyRound, Globe } from 'lucide-react';
 
 import api, { getAccessToken } from '../../conf/api';
+import { Spinner } from '../../component/Spinner';
+import { LoadingButton } from '../../component/LoadingButton';
 
 type UserData = {
     id: string;
@@ -31,6 +33,8 @@ const MyProfilePage: React.FC = () => {
     const [isLoginModalOpen, setLoginModalOpen] = useState(false);
     const [reloadTrigger, setReloadTrigger] = useState(0);
     const [user, setUser] = useState<UserData | null>(null);
+
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
 
     const handleLoginSuccess = () => {
         setReloadTrigger(prev => prev + 1);
@@ -69,7 +73,32 @@ const MyProfilePage: React.FC = () => {
         alert(`${provider}連携の処理をここに書きます (OAuthリダイレクトなど)`);
     };
 
-    if (!user) return <div className="p-20 text-center">読み込み中...</div>;
+    // ★ログアウト処理を追加
+    const handleLogout = async () => {
+        setIsLoggingOut(true);
+        try {
+            // サーバー側のログアウトAPIがある場合（適宜変更してください）
+            await api.post('/auth/logout', {});
+        } catch (err) {
+            console.error('ログアウト通信エラー:', err);
+        } finally {
+            // 通信が成功しても失敗しても、ローカルのトークンは消してトップへ戻す
+            localStorage.removeItem('access_token'); // お使いのキーに合わせてください
+            window.location.href = '/';
+        }
+    };
+
+    if (!user) {
+        return (
+            <div className="bg-gray-50 min-h-screen pb-20">
+                <Header />
+                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-gray-400">
+                    <Spinner size="lg" />
+                    <p className="text-sm font-medium">プロフィールを読み込んでいます...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="bg-gray-50 min-h-screen pb-20">
@@ -246,9 +275,14 @@ const MyProfilePage: React.FC = () => {
                         </section>
 
                         <div className="pt-4 text-center">
-                            <button className="text-xs font-bold text-red-400 hover:text-red-600 hover:underline">
+                            <LoadingButton
+                                onClick={handleLogout}
+                                loading={isLoggingOut}
+                                // 背景を透明にして、テキストリンクのような見た目を維持する
+                                className="text-xs font-bold text-red-400 hover:text-red-600 hover:underline bg-transparent shadow-none disabled:bg-transparent disabled:opacity-50"
+                            >
                                 ログアウトはこちら
-                            </button>
+                            </LoadingButton>
                         </div>
 
                     </div>

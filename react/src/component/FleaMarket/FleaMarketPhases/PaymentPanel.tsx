@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import api from "../../../conf/api";
 
 import { FleaThreadResponse } from "../../../types/FleaMarket";
@@ -8,9 +8,12 @@ import { Payment } from "../../../types/Payment";
 
 import SquarePayment from "../../../modal/EditPayment";
 
+import { LoadingButton } from "../../LoadingButton";
+
 import { TransactionChat } from "../../TransactionChat";
 // キャンセルボタンをインポート
 import { CancelTransactionButton } from "../../CancelTransactionButton";
+import { AxiosError } from "axios";
 
 // ---------------------------------------------------------
 // 型定義の拡張 (any回避)
@@ -23,6 +26,10 @@ interface ExtendedItem extends Omit<FleaContent, 'seller_rate'> {
     seller_discount_rate?: number | string;
     additional_discount_rate?: number | string;
     discount_rate?: number | string;
+}
+
+interface ApiErrorResponse {
+    err_message?: string;
 }
 
 // ---------------------------------------------------------
@@ -67,6 +74,20 @@ export default function PaymentPanel({
 
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
+
+    const [idempotencyKey, setIdempotencyKey] = useState("");
+    const [keyGeneratedAt, setKeyGeneratedAt] = useState(0);
+
+    // キーを新しく発行する関数
+    const refreshKey = useCallback(() => {
+        setIdempotencyKey(crypto.randomUUID()); // モダンブラウザならこれでOK
+        setKeyGeneratedAt(Date.now());
+    }, []);
+
+    // 初回ロード時にキーを発行
+    useEffect(() => {
+        refreshKey();
+    }, [refreshKey]);
 
     // ---------------------------------------------------------
     // Effects: ユーザー情報（ポイント・カード）の取得
@@ -171,11 +192,18 @@ export default function PaymentPanel({
     // Handlers
     // ---------------------------------------------------------
     const handlePay = async () => {
-        if (!computed || !tx) return;
+        if (!computed || !tx || busy) return;
         setError("");
 
-        const cardChargeAmount = computed.cardChargeAmountYen;
+        // 【ロジック】もし前回の発行から5分以上経ってたら念のため更新する、などのガード
+        const now = Date.now();
+        if (now - keyGeneratedAt > 5 * 60 * 1000) {
+            refreshKey();
+            setError("セッションの有効期限が切れました。もう一度ボタンを押してください。");
+            return;
+        }
 
+        const cardChargeAmount = computed.cardChargeAmountYen;
         if ((pointMode === "partial" || pointMode === "none") && cardChargeAmount > 0 && !selectCard) {
             setError("クレジットカードを選択してください。");
             return;
@@ -183,21 +211,40 @@ export default function PaymentPanel({
 
         setBusy(true);
         try {
+            // APIに idempotency_key として送信
             await api.post(`/flea-market/transactions/${tx.id}/pay`, {
                 card_id: cardChargeAmount > 0 ? selectCard : null,
                 use_points: computed.safeUsePoints,
                 payment_amount: cardChargeAmount,
+                idempotency_key: idempotencyKey,
             });
 
             onChanged();
         } catch (e) {
-            console.error(e);
-            setError("決済処理に失敗しました。");
+            // AxiosError型としてキャストし、レスポンスデータの型も指定する
+            const error = e as AxiosError<ApiErrorResponse>;
+            console.error("決済エラー:", error);
+
+            // ステータスコードに応じたメッセージの切り分け
+            if (error.response?.status === 409) {
+                // サーバー側で「既に処理済み」と判断された場合
+                setError("この決済は既に処理されています。取引状況を確認してください。");
+                // 必要に応じて自動で画面を更新（onChanged）させても良いかもしれません
+            } else {
+                // サーバーからのエラーメッセージがある場合はそれを使い、なければデフォルトを表示
+                const serverMsg = error.response?.data?.err_message;
+                setError(serverMsg ?? "決済処理に失敗しました。");
+            }
+
+            // ★ 冪等性（Idempotency）のポイント
+            // 通信エラーや500系エラーの場合、サーバー側で「処理が未完了」の可能性があるため
+            // idempotencyKey は更新せず、ユーザーがそのまま「再試行」できるようにします。
+            // 同じキーで再送すれば、サーバー側で二重決済を防ぎつつ、未完了分を完了させることができます。
+
         } finally {
             setBusy(false);
         }
     };
-
 
     if (!tx || !item || !computed) return <div className="p-4 text-gray-500">読み込み中...</div>;
 
@@ -403,21 +450,16 @@ export default function PaymentPanel({
                     <div className="pt-2">
                         {error && <p className="text-red-500 text-sm mb-2 text-center">{error}</p>}
 
-                        <button
-                            className={cn(
-                                "w-full rounded-xl py-3 text-sm font-bold text-white transition",
-                                busy
-                                    ? "bg-gray-400 cursor-wait"
-                                    : "bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg"
-                            )}
+                        <LoadingButton
                             onClick={handlePay}
-                            disabled={busy}
+                            loading={busy}
+                            className="w-full rounded-xl py-3 text-sm font-bold text-white transition bg-blue-600 hover:bg-blue-700 shadow-md hover:shadow-lg disabled:bg-gray-400 disabled:shadow-none disabled:cursor-wait"
                         >
-                            {busy ? "処理中..." : "支払いを確定する"}
-                        </button>
+                            支払いを確定する
+                        </LoadingButton>
                     </div>
 
-                    {/* ★追加: キャンセルボタンエリア */}
+                    {/* キャンセルボタンエリア */}
                     <div className="mt-8 pt-6 border-t border-dashed border-gray-200">
                         <p className="text-xs text-center text-gray-400 mb-3">
                             この取引を中止する場合はこちら<br />

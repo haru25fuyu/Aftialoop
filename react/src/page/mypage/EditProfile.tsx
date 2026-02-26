@@ -7,6 +7,9 @@ import { Header } from '../../component/Header';
 
 import api from '../../conf/api';
 import { CONFIG } from '../../conf/config';
+import { Spinner } from '../../component/Spinner';
+import { LoadingButton } from '../../component/LoadingButton';
+import { AxiosError } from 'axios';
 
 type Inputs = {
     id: string;
@@ -23,13 +26,15 @@ type Inputs = {
 
 const EditProfile: React.FC = () => {
     // mode: 'onBlur' を追加して、フォーカスが外れたタイミングでバリデーション(重複チェック)を実行するようにする
-    const { register, handleSubmit, formState: { errors }, reset, setValue, watch } = useForm<Inputs>({ mode: 'onBlur' });
+    const { register, handleSubmit, formState: { errors, isSubmitting }, reset, setValue, watch } = useForm<Inputs>({ mode: 'onBlur' });
     const navigate = useNavigate();
     const [preview, setPreview] = useState<string | null>(null);
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
     // 初期値のユーザーネームを保持（変更がない場合は重複チェックをスキップするため）
     const [initialUsername, setInitialUsername] = useState<string>("");
+
+    const [isLoading, setIsLoading] = useState(true);
 
     // 現在の入力値を監視
     const currentEmail = watch("email");
@@ -54,7 +59,8 @@ const EditProfile: React.FC = () => {
                 setValue("username", uName);
                 setInitialUsername(uName);
             })
-            .catch((err) => console.error(err));
+            .catch((err) => console.error(err))
+            .finally(() => setIsLoading(false));
     }, [reset, setValue]);
 
     const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -72,7 +78,7 @@ const EditProfile: React.FC = () => {
 
         const jsonData = {
             name: data.name,
-            username: data.username, 
+            username: data.username,
             bio: data.bio,
             gender: data.gender,
             birth: data.birth,
@@ -81,20 +87,36 @@ const EditProfile: React.FC = () => {
         formData.append('data', JSON.stringify(jsonData));
         if (selectedFile) formData.append('icon_url', selectedFile);
 
-        api.post('/profile/edit', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
-        })
-            .then(() => {
-                navigate('/mypage/profile', { replace: true, state: { changed: true } });
-            })
-            .catch((err) => {
-                console.error(err);
-                // バックエンドでUnique制約エラーが出た場合のフォールバック
-                if (err.response?.data?.err_message?.includes("Duplicate")) {
-                    alert("そのユーザーIDは既に使用されています。");
-                }
+        try {
+            await api.post('/profile/edit', formData, {
+                headers: { 'Content-Type': 'multipart/form-data' }
             });
+            navigate('/mypage/profile', { replace: true, state: { changed: true } });
+        } catch (err) {
+            // ★ err を AxiosError として扱い、期待するレスポンスの型も指定する
+            const error = err as AxiosError<{ err_message?: string }>;
+            console.error(error);
+
+            // 型安全にエラーメッセージへアクセスできる！
+            if (error.response?.data?.err_message?.includes("Duplicate")) {
+                alert("そのユーザーIDは既に使用されています。");
+            } else {
+                alert("プロフィールの更新に失敗しました。");
+            }
+        }
     };
+
+    if (isLoading) {
+        return (
+            <div className="bg-gray-50 min-h-screen pb-20">
+                <Header />
+                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-gray-400">
+                    <Spinner size="lg" />
+                    <p className="text-sm font-medium">プロフィール情報を読み込んでいます...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="bg-gray-50 min-h-screen pb-20">
@@ -272,12 +294,13 @@ const EditProfile: React.FC = () => {
                             </div>
 
                             <div className="pt-4">
-                                <button
+                                <LoadingButton
                                     type="submit"
-                                    className="w-full py-3.5 rounded-xl font-bold text-white bg-emerald-600 shadow-md hover:bg-emerald-700 hover:shadow-lg transform active:scale-[0.98] transition-all"
+                                    loading={isSubmitting} // ★これで自動的にくるくる回る！
+                                    className="w-full py-3.5 rounded-xl font-bold text-white bg-emerald-600 shadow-md hover:bg-emerald-700 hover:shadow-lg transition-all disabled:bg-emerald-400 disabled:shadow-none"
                                 >
                                     変更を保存する
-                                </button>
+                                </LoadingButton>
                             </div>
                         </form>
                     </div>

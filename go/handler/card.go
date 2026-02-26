@@ -113,7 +113,7 @@ func (h *cardHandler) ChargeCard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 支払い処理
-	url, err := function.ChargeCard(user_id, charge.CardID, charge.Amount)
+	url, err := function.ChargeCard(user_id, charge.CardID, charge.IdempotencyKey, charge.Amount)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "支払いに失敗しました" + err.Error()})

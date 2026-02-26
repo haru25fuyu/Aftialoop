@@ -3,6 +3,8 @@ import { useForm } from "react-hook-form";
 import api from "../conf/api";
 import { Address } from "../types/Address";
 import { PREFS } from "../conf/config";
+import { X, Save } from "lucide-react"; // ★アイコンを追加
+import { LoadingButton } from "../component/LoadingButton"; // ★LoadingButtonを追加
 
 // AjaxZip3 型定義
 declare global {
@@ -60,13 +62,10 @@ const EditAddress: React.FC<Props> = ({ address, isOpen, onClose, setAddress }) 
             status: address.status,
         });
 
-
         return () => {
             document.body.style.overflow = "";
         };
     }, [isOpen, address, reset]);
-
-    // 
 
     // AjaxZip3 で補完（post_code が7桁になったら）
     const complementAddress = useCallback(() => {
@@ -129,72 +128,86 @@ const EditAddress: React.FC<Props> = ({ address, isOpen, onClose, setAddress }) 
 
     if (!isOpen) return null;
 
+    // 共通のinputクラスを定義してスッキリさせる
+    const inputClass = "w-full px-4 py-3 mt-1.5 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all text-sm";
+
+    // 必須ラベルのコンポーネント
+    const RequiredBadge = () => <span className="ml-2 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold align-middle">必須</span>;
+
     return (
-        <div className="space-y-6">
-            <button onClick={onClose} className="absolute top-4 left-4" type="button" aria-label="閉じる">
-                ✕
+        <div className="relative p-6 sm:p-8 bg-white">
+            {/* 閉じるボタン (右上に配置してモダンに) */}
+            <button
+                onClick={onClose}
+                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
+                type="button"
+                aria-label="閉じる"
+            >
+                <X size={20} />
             </button>
 
-            <h2 className="text-2xl font-bold text-center text-gray-900">お届け先の設定</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-6 pr-8">お届け先の設定</h2>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
                 {/* 送信用 */}
                 <input type="hidden" {...register("PrefCode", { valueAsNumber: true })} />
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                        氏名<span className="text-red-500">※必須</span>
+                    <label className="block text-sm font-bold text-gray-700">
+                        氏名 <RequiredBadge />
                     </label>
-                    {errors.name && <p className="mt-2 text-sm text-red-600">必須項目です</p>}
                     <input
                         type="text"
                         {...register("name", { required: true })}
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={`${inputClass} ${errors.name ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
                         name="name"
                         autoComplete="name"
+                        placeholder="山田 太郎"
                     />
+                    {errors.name && <p className="mt-1.5 text-xs font-bold text-red-500">必須項目です</p>}
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                        電話番号<span className="text-red-500">※必須</span>
+                    <label className="block text-sm font-bold text-gray-700">
+                        電話番号 <RequiredBadge />
                     </label>
-                    {errors.phone && <p className="mt-2 text-sm text-red-600">必須項目です</p>}
                     <input
                         type="tel"
                         {...register("phone", { required: true })}
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={`${inputClass} ${errors.phone ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
                         name="phone"
                         autoComplete="tel"
+                        placeholder="09012345678"
                     />
+                    {errors.phone && <p className="mt-1.5 text-xs font-bold text-red-500">必須項目です</p>}
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                        郵便番号<span className="text-red-500">※必須</span>
+                    <label className="block text-sm font-bold text-gray-700">
+                        郵便番号 <RequiredBadge />
                     </label>
-                    {errors.post_code && <p className="mt-2 text-sm text-red-600">必須項目です</p>}
                     <input
                         type="text"
                         {...register("post_code", { required: true })}
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={`${inputClass} ${errors.post_code ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
                         name="post_code"
                         inputMode="numeric"
                         autoComplete="postal-code"
-                        placeholder="例）6500000"
+                        placeholder="1234567 (ハイフンなし)"
                     />
+                    {errors.post_code && <p className="mt-1.5 text-xs font-bold text-red-500">必須項目です</p>}
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                        都道府県<span className="text-red-500">※必須</span>
+                    <label className="block text-sm font-bold text-gray-700">
+                        都道府県 <RequiredBadge />
                     </label>
 
                     {/* 表示用pref（AjaxZip3がここに入れる） */}
                     <input type="hidden" {...register("pref", { required: true })} name="pref" />
                     <input type="text" name="pref_name" id="pref_name" className="hidden" />
                     <select
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={inputClass}
                         value={Number(pref_code || 0) || ""}
                         onChange={(e) => setValue("PrefCode", Number(e.target.value), { shouldDirty: true })}
                     >
@@ -206,59 +219,74 @@ const EditAddress: React.FC<Props> = ({ address, isOpen, onClose, setAddress }) 
                         ))}
                     </select>
 
-                    {/* ユーザーに見せたいなら小さく表示 */}
-                    <div className="mt-1 text-xs text-gray-500">
-                        現在: {prefCodeToName(Number(pref_code || 0)) || "未選択"}
+                    <div className="mt-1 text-xs text-gray-400 font-medium">
+                        現在選択中: {prefCodeToName(Number(pref_code || 0)) || "未選択"}
                     </div>
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">
-                        市区町村<span className="text-red-500">※必須</span>
+                    <label className="block text-sm font-bold text-gray-700">
+                        市区町村 <RequiredBadge />
                     </label>
-                    {errors.address1 && <p className="mt-2 text-sm text-red-600">必須項目です</p>}
                     <input
                         id="address1"
                         type="text"
                         {...register("address1", { required: true })}
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={`${inputClass} ${errors.address1 ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
                         name="address1"
+                        placeholder="渋谷区神南"
                     />
+                    {errors.address1 && <p className="mt-1.5 text-xs font-bold text-red-500">必須項目です</p>}
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">丁目・番地・号</label>
+                    <label className="block text-sm font-bold text-gray-700 flex items-center gap-2">
+                        丁目・番地・号 <span className="text-[10px] text-gray-400 font-normal">任意</span>
+                    </label>
                     <input
                         id="address2"
                         type="text"
                         {...register("address2")}
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={inputClass}
                         name="address2"
+                        placeholder="1-2-3"
                     />
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700">建物名／会社名・部屋番号</label>
+                    <label className="block text-sm font-bold text-gray-700 flex items-center gap-2">
+                        建物名／会社名・部屋番号 <span className="text-[10px] text-gray-400 font-normal">任意</span>
+                    </label>
                     <input
                         type="text"
                         {...register("address3")}
-                        className="w-full px-3 py-2 mt-1 border rounded-md shadow-sm"
+                        className={inputClass}
                         name="address3"
+                        placeholder="〇〇ビル 101"
                     />
                 </div>
 
-                <div className="flex items-center gap-2">
-                    <input type="checkbox" {...register("status")} defaultChecked={Number(address.status) === 1} className="h-4 w-4" />
-                    <label className="text-sm font-medium text-gray-700">デフォルトにする</label>
-                </div>
+                {/* デフォルトチェックボックスをリッチに */}
+                <label className="flex items-center gap-3 p-4 mt-2 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
+                    <input
+                        type="checkbox"
+                        {...register("status")}
+                        defaultChecked={Number(address.status) === 1}
+                        className="h-5 w-5 accent-black rounded border-gray-300 cursor-pointer"
+                    />
+                    <span className="text-sm font-bold text-gray-800">この住所をデフォルトに設定する</span>
+                </label>
 
-                <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className={`w-full px-4 py-2 rounded-md text-white ${isSubmitting ? "bg-gray-300" : "bg-indigo-600 hover:bg-indigo-700"}`}
-                >
-                    {isSubmitting ? "保存中…" : "保存"}
-                </button>
+                <div className="pt-2">
+                    <LoadingButton
+                        type="submit"
+                        loading={isSubmitting}
+                        className="w-full py-3.5 bg-black hover:bg-gray-800 text-white font-bold rounded-xl shadow-md disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none transition-all flex items-center justify-center gap-2"
+                    >
+                        <Save size={18} />
+                        保存する
+                    </LoadingButton>
+                </div>
             </form>
         </div>
     );

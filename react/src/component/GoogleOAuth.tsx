@@ -2,54 +2,61 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { GoogleLogin } from "@react-oauth/google";
 import api from "../conf/api.ts";
 import { afterLogin } from "../conf/api.ts";
-import React from "react";
+import React, { useState } from "react";
 import axios from "axios";
+import { Spinner } from "./Spinner";
 
 type Props = {
     onLoginSuccess?: () => void;
-    mode: 'login' | 'signup'; // モードを追加
+    onError?: (message: string) => void; // エラー通知用の関数を追加
+    mode: 'login' | 'signup';
 };
 
-export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess, mode }) => {
+export const GoogleOAuth: React.FC<Props> = ({ onLoginSuccess, onError, mode }) => {
+    const [isProcessing, setIsProcessing] = useState(false);
 
     const handleLoginSuccess = async (response: { credential?: string }) => {
-        if (!response.credential) {
-            console.error("ログイン失敗: credential が undefined です");
-            return;
-        }
-        console.log(`${mode}成功:`, response);
-        const token = { token: response.credential };
+        if (!response.credential) return;
+
+        setIsProcessing(true);
+        // 親のエラー表示を一旦クリアする（任意）
+        onError?.("");
 
         try {
+            const token = { token: response.credential };
             const endpoint = mode === 'signup' ? "/auth/google/signup" : "/auth/google";
             const res = await api.post(endpoint, token);
 
-            console.log(`${mode}成功:`, res.data.access_token);
+            if (res.data.err_message) {
+                onError?.(res.data.err_message); // 親にエラーを渡す
+                setIsProcessing(false);
+                return;
+            }
 
             await afterLogin(res.data.access_token);
-
             onLoginSuccess?.();
-            if (!onLoginSuccess) window.location.href = "/";
         } catch (err) {
-            console.error(`${mode}失敗:`, err);
+            let msg = "認証に失敗しました。";
             if (axios.isAxiosError(err)) {
-                console.error(
-                    `${mode}失敗:`,
-                    err.response?.data?.err_message ?? `${mode}に失敗しました`
-                );
-            } else {
-                console.error("予期しないエラー:", err);
+                msg = err.response?.data?.err_message ?? msg;
             }
+            onError?.(msg); // 親にエラーを渡す
+            setIsProcessing(false);
         }
-    };
-
-    const handleLoginFailure = () => {
-        console.error(`${mode}失敗`);
     };
 
     return (
         <GoogleOAuthProvider clientId="301597739219-5s828gi856ag0vng8e50hds2re77rj00.apps.googleusercontent.com">
-            <GoogleLogin onSuccess={handleLoginSuccess} onError={handleLoginFailure} useOneTap />
+            <div className="flex justify-center items-center min-h-[40px]">
+                {isProcessing ? (
+                    <Spinner size="sm" />
+                ) : (
+                    <GoogleLogin
+                        onSuccess={handleLoginSuccess}
+                        onError={() => onError?.("Googleログインに失敗しました")}
+                    />
+                )}
+            </div>
         </GoogleOAuthProvider>
     );
 };

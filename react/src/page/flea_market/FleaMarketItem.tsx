@@ -18,6 +18,7 @@ import { CONFIG } from "../../conf/config";
 import { SHIPPING_FEE_TYPES_MAP } from "../../conf/FleaMarket";
 import { getPrefName } from "../../conf/function";
 import { LikeButton } from "../../component/LikeButton";
+import { Spinner } from "../../component/Spinner";
 
 // 計算用ヘルパー (一覧画面と同じもの)
 const DEFAULT_RATE = 1.00;
@@ -227,7 +228,17 @@ const Item: React.FC = () => {
         </div>
     );
 
-    if (!item) return <div className="p-20 text-center text-gray-500">読み込み中...</div>;
+    if (!item) {
+        return (
+            <div className="bg-white min-h-screen pb-32 md:pb-10">
+                <Header />
+                <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4 text-gray-400">
+                    <Spinner size="lg" />
+                    <p className="text-sm font-medium">商品情報を読み込んでいます...</p>
+                </div>
+            </div>
+        );
+    }
 
     const rawRate = safeRate(item.seller_rate);
     const { num, den } = normalizeRate(rawRate, rateDen);

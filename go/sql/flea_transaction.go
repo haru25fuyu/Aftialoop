@@ -173,7 +173,7 @@ func (db *Database) GetFleaTransactionByPurchaseRequestID(
 	return out, nil
 }
 
-// UpdateFleaTransactionPaidTx: 決済完了に伴いステータスをPAIDに更新する
+// UpdateFleaTransactionPaidTx: 決済完了に伴いステータスと冪等性キーを更新する
 func (d *Database) UpdateFleaTransactionPaidTx(
 	ctx context.Context,
 	tx *sql.Tx,
@@ -182,6 +182,7 @@ func (d *Database) UpdateFleaTransactionPaidTx(
 	paymentID string,
 	usePoint int64,
 	pointRate int,
+	idempotencyKey string, // キーを受け取る
 ) error {
 	const q = `
         UPDATE flea_transactions 
@@ -190,26 +191,42 @@ func (d *Database) UpdateFleaTransactionPaidTx(
             status = 'PAID', 
             payment_provider = ?,
             payment_id = ?,
-			use_point = ?,
-			point_rate = ?,
-			paid_at = UTC_TIMESTAMP(),
+            use_point = ?,
+            point_rate = ?,
+            idempotency_key = ?,
+            paid_at = UTC_TIMESTAMP(),
             updated_at = UTC_TIMESTAMP()
-        WHERE id = ?
+        WHERE id = ? AND status != 'PAID' -- 既に支払い済みの場合は更新しないガード
     `
 
-	// sql.Tx経由で実行することでトランザクションに含める
-	res, err := tx.ExecContext(ctx, q, provider, paymentID, usePoint, pointRate, txID)
+	res, err := tx.ExecContext(ctx, q, provider, paymentID, usePoint, pointRate, idempotencyKey, txID)
 	if err != nil {
 		return fmt.Errorf("transaction update failed: %w", err)
 	}
 
-	// 念のため、本当に対象行があったか確認（ID間違いなどで0行更新になっていないか）
 	rows, _ := res.RowsAffected()
 	if rows == 0 {
-		return fmt.Errorf("target transaction not found or already updated (id=%d)", txID)
+		return fmt.Errorf("target transaction not found or already paid (id=%d)", txID)
 	}
 
 	return nil
+}
+
+// GetIdempotencyKey はAの事前チェックで使うので残しておきます
+func (d *Database) GetIdempotencyKey(ctx context.Context, txID uint64) (string, error) {
+	var key sql.NullString
+	err := d.DB.QueryRowContext(ctx, `
+        SELECT idempotency_key 
+        FROM flea_transactions 
+        WHERE id = ?
+    `, txID).Scan(&key)
+	if err != nil {
+		return "", err
+	}
+	if !key.Valid {
+		return "", nil // キーがまだセットされていない場合は空文字
+	}
+	return key.String, nil
 }
 
 // 発送完了
