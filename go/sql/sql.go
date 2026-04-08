@@ -1,11 +1,12 @@
 package sql
 
 import (
-	"animaloop/config"
 	"fmt"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	_ "github.com/lib/pq"
+	"os"
+	"database/sql"
 )
 
 type Database struct {
@@ -17,22 +18,20 @@ type Database struct {
 // ============================================================
 
 func NewDatabase() (*Database, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=true",
-		config.DB_user,
-		config.DB_password,
-		config.DB_host,
-		config.DB_port,
-		config.DB_name,
-		config.DB_charset,
-	)
+	dsn := os.Getenv("DB_SOURCE")
+	if dsn == "" {
+		// 万が一空だった時の予備
+		dsn = "postgresql://test_user:fP4!7zzYWfTW@db:5432/test_db?sslmode=disable"
+	}
 
-	db, err := sqlx.Open("mysql", dsn)
+	// 第1引数を "postgres" に変更！
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("MySQL connection error: %w", err)
+		return nil, fmt.Errorf("PostgreSQL connection error: %w", err)
 	}
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("MySQL ping failed: %w", err)
+		return nil, fmt.Errorf("PostgreSQL ping failed: %w", err)
 	}
 
-	return &Database{DB: db}, nil
+	return &Database{DB: sqlx.NewDb(db, "postgres")}, nil
 }

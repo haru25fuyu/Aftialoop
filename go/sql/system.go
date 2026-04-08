@@ -16,17 +16,18 @@ import (
 
 func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 	rows, err := d.DB.Query(`
-        SELECT ` + "`key`, `value`, `updated_at`" + `
+        SELECT "key", "value", "updated_at"
         FROM system_settings
-        WHERE ` + "`key`" + ` IN (
+        WHERE "key" IN (
             'flea.base_rate', 
             'flea.max_rate', 
             'flea.rate_den', 
             'flea.commission_rate',
-            'payout.transfer_fee' ,
-			'payout.min_amount'
+            'payout.transfer_fee',
+            'payout.min_amount'
         )
     `)
+
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +87,7 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 			minPayout, err = strconv.ParseInt(v, 10, 64)
 
 			if err != nil {
-				return nil, fmt.Errorf("invalid min_amout: %w", err)
+				return nil, fmt.Errorf("invalid min_amount: %w", err)
 			}
 
 			cfg.MinPayoutAmount = minPayout

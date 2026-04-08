@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -13,11 +14,19 @@ import (
 var Rdb *redis.Client
 
 func InitRedis() {
-	Rdb = redis.NewClient(&redis.Options{
-		Addr:     "localhost:6379",
-		Password: "pZ6@e!sFpcqDuUdJfGk", // Redisパスワード
-		DB:       0,
-	})
+	addr := os.Getenv("REDIS_URL")
+    if addr == "" {
+        addr = "redis:6379"
+    }
+
+    // パスワードは環境変数から取る。コードには絶対に書かない。
+    pass := os.Getenv("REDIS_PASSWORD")
+
+    Rdb = redis.NewClient(&redis.Options{
+        Addr:     addr,
+        Password: pass, 
+        DB:       0,
+    })
 
 	ctx := context.Background()
 	if err := Rdb.Ping(ctx).Err(); err != nil {
