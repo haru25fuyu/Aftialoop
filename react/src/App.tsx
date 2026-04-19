@@ -1,4 +1,4 @@
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import { useEffect } from "react";
 
 import './css/App.css'
@@ -16,19 +16,19 @@ import Login from './page/Login';
 //import PaymentComplete from './page/PaymentComplete';
 import MyPage from './page/mypage/MyPage';
 //import PaymentList from './page/PaymentList';
-import List from './page/List';
+import List from './page/ec/List';
 import EditProfile from './page/mypage/EditProfile';
 import Profile from './page/mypage/Profile';
 import AddressList from './page/mypage/AddressList';
-import Item from './page/Item';
+import Item from './page/ec/Item';
 import FleaMarketItem from './page/flea_market/FleaMarketItem';
-import Cart from './page/Cart';
+import Cart from './page/ec/Cart';
 import NotFound from './page/NotFound';
 import Contact from './page/Contact';
-import Checkout from './page/Checkout';
+import Checkout from './page/ec/Checkout';
 import SelectAddress from "./page/SelectAddres";
 import SelectPayment from "./page/SelectPayment";
-import CheckoutComplete from "./page/CheckoutComplete";
+import CheckoutComplete from "./page/ec/CheckoutComplete";
 import ContactForm from "./page/ContactForm";
 
 import FleaItemCreatePage from './page/flea_market/FleaItemCreatePage';
@@ -59,7 +59,10 @@ import PasswordResetExecute from './page/PasswordResetExecute';
 import BlockedList from './page/mypage/BlockedList';
 import ContactComplete from './page/ContactComplete';
 import NotificationsPage from './page/Notifications';
-
+import TermsOfService from './page/TermsOfService'
+import PrivacyPolicy from './page/PrivacyPolicy';
+import UserGuide from './page/user_guid/UserGuide'
+import { SpecifiedCommercialTransaction } from './page/SpecifiedCommercialTransaction';
 
 
 const App: React.FC = () => {
@@ -81,7 +84,14 @@ const App: React.FC = () => {
           <Route path="/contact" element={<Contact />} />
           <Route path="/contact/form" element={<ContactForm />} />
           <Route path="/contact/complete" element={<ContactComplete />} />
+          <Route path="/tos" element={<TermsOfService />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/guid" element={<UserGuide />} />
+          {/* /guide へのアクセスを /guide/beginner に飛ばす設定 */}
+          <Route path="/guide" element={<Navigate to="/guide/beginner" replace />} />
           <Route path="*" element={<NotFound />} />
+          <Route path="/tokutei" element={<SpecifiedCommercialTransaction />} />
+          <Route path="/guide/:guideId" element={<UserGuide />} />
           <Route path="/user/profile/:id" element={<RequireAuth><UserProfile /></RequireAuth>} />
           <Route path="/user/:username" element={<RequireAuth><UserProfile /></RequireAuth>} />
 

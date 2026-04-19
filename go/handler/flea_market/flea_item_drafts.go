@@ -188,6 +188,7 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 	// 2. 保存ディレクトリ（相対パスに変更）
 	uploadDir := "static/flea_drafts"
 	if err := os.MkdirAll(uploadDir, 0755); err != nil {
+		log.Printf("[draft.upload] create directory error: %v", err)
 		http.Error(w, "Error creating directory", http.StatusInternalServerError)
 		return
 	}
@@ -201,12 +202,14 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 	// 4. ファイルの保存
 	dst, err := os.Create(savePath)
 	if err != nil {
+		log.Printf("[draft.upload] file create error: %v", err)
 		http.Error(w, "Error saving the file", http.StatusInternalServerError)
 		return
 	}
 	defer dst.Close()
 
 	if _, err := io.Copy(dst, file); err != nil {
+		log.Printf("[draft.upload] file copy error: %v", err)
 		http.Error(w, "Error copying the file", http.StatusInternalServerError)
 		return
 	}
@@ -216,6 +219,7 @@ func (h *FleaMarketHandler) UploadTempImage(w http.ResponseWriter, r *http.Reque
 
 	id, err := h.db.UploadImageAsset(publicURL)
 	if err != nil {
+		log.Printf("[draft.upload] db error: %v", err)
 		http.Error(w, "Error saving file info to DB", http.StatusInternalServerError)
 		return
 	}

@@ -49,11 +49,12 @@ func (d *Database) LinkImagesToItem(itemID int64, imageIDs []int64) error {
 }
 
 func (db *Database) GetImageURLByID(id int64) (string, error) {
-	var url string
-	// image_assets テーブルから url を取得
-	err := db.DB.QueryRow("SELECT url FROM image_assets WHERE id = ?", id).Scan(&url)
-	if err != nil {
-		return "", err
-	}
-	return url, nil
+    var url string
+    // PostgreSQL版: "?" を "$1" に変更
+    err := db.DB.QueryRow("SELECT url FROM image_assets WHERE id = $1", id).Scan(&url)
+    
+    if err != nil {
+        return "", err
+    }
+    return url, nil
 }

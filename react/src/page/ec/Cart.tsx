@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 //import {  useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 
-import { Header } from '../component/Header';
-import { Content } from '../types/Content';
-import { ContentsList } from '../component/ContentsList';
-import { CartContent } from '../component/Content';
+import { Header } from '../../component/Header';
+import { Content } from '../../types/Content';
+import { ContentsList } from '../../component/ContentsList';
+import { CartContent } from '../../component/Content';
 
-import api,{getAccessToken} from '../conf/api';
+import api,{getAccessToken} from '../../conf/api';
 //import { Input } from '../types/Input';
 
 

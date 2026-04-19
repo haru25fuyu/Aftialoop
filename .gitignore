@@ -10,3 +10,5 @@ go/server
 
 # 圧縮ファイルなどを除外
 *.tar.gz
+
+react/node_modules

@@ -315,7 +315,7 @@ func (h *userDataHandler) GetCustomer(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 最新の GetUserData (icon, follow count入り) を取得
-	customerData, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{user_id})
+	customerData, err := h.db.GetUserData([]string{"id = $1"}, []interface{}{user_id})
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return

@@ -15,7 +15,9 @@ export type LiveDetails = {
   locality: string; // 産地 / モルフ / 入手元
   hatch_date: string; // 羽化日 / 生年月日 / 入荷日
   generation: string; // 累代 / 血統 / 品種
-  size: string; // サイズ / 全長 / 体重
+  size_value: number; // サイズ / 全長 / 体重
+  size_unit: string; // サイズの単位 (mm, cm, gなど)
+  size_mm: number | null; // サイズをmm換算した数値 (計算用)
   sex: SexType; // 性別
 };
 
@@ -97,7 +99,9 @@ export type InsectDetails = {
   locality: string;
   hatch_date: string;
   generation: string;
-  size: string;
+  size_value: number;
+  size_unit: string;
+  size_mm: number | null;
   sex: SexType;
 };
 
@@ -107,7 +111,9 @@ export type ReptileDetails = {
   morph: string; // locality -> morph
   birth_date: string; // hatch_date -> birth_date
   lineage: string; // generation -> lineage
-  size: string;
+  size_value: number;
+  size_unit: string;
+  size_mm: number | null;
   sex: SexType;
 };
 
@@ -117,7 +123,9 @@ export type PlantDetails = {
   origin: string; // locality -> origin
   acquisition_date: string; // hatch_date -> acquisition_date
   propagation: string; // generation -> propagation
-  size: string;
+  size_value: number;
+  size_unit: string;
+  size_mm: number | null;
   // sexなし
 };
 
@@ -127,7 +135,9 @@ export type MammalDetails = {
   origin: string;
   birth_date: string;
   lineage: string;
-  size: string;
+  size_value: number;
+  size_unit: string;
+  size_mm: number | null;
   sex: SexType;
 };
 
@@ -137,7 +147,9 @@ export type FishDetails = {
   origin: string;
   arrival_date: string;
   generation: string;
-  size: string;
+  size_value: number;
+  size_unit: string;
+  size_mm: number | null;
   sex: SexType;
 };
 

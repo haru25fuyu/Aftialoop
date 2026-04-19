@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from "react";
 import { useLocation, useParams } from "react-router-dom";
 
-import { Header } from "../component/Header";
+import { Header } from "../../component/Header";
 //import { Footer } from '../component/Footer';        // ← .tsx は不要
-import DirectCheckoutModal from "../component/DirectCheckoutModal";
-import BottomBarPortal from "../component/BottomBarPortal"
-import { CartAddBar } from "../SnackBar/AddCart"; // ← カート追加バー
+import DirectCheckoutModal from "../../component/DirectCheckoutModal";
+import BottomBarPortal from "../../component/BottomBarPortal"
+import { CartAddBar } from "../../SnackBar/AddCart"; // ← カート追加バー
 
-import { Content } from "../types/Content";
-import { itemImage } from "../types/Content"; // ← itemImage をインポート
+import { Content } from "../../types/Content";
+import { itemImage } from "../../types/Content"; // ← itemImage をインポート
 
-import api, { getAccessToken } from "../conf/api";
-import { hasAllFlags } from "../conf/function"; // getItemStatusLabels をインポート
-import { ITEM__STATUS } from "../conf/config"; // ITEM__STATUS をインポート
+import api, { getAccessToken } from "../../conf/api";
+import { hasAllFlags } from "../../conf/function"; // getItemStatusLabels をインポート
+import { ITEM__STATUS } from "../../conf/config"; // ITEM__STATUS をインポート
 
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";

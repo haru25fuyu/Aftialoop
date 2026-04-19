@@ -4,6 +4,7 @@ import (
 	SQL "animaloop/sql"
 	"database/sql"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -51,6 +52,7 @@ func (h *CategoryHandler) GetChildren(w http.ResponseWriter, r *http.Request) {
 	if parentIDStr != "" {
 		pid, err := strconv.ParseUint(parentIDStr, 10, 64)
 		if err != nil {
+			log.Printf("[get children] invalid parent_id: %v", err)
 			http.Error(w, "invalid parent_id", http.StatusBadRequest)
 			return
 		}
@@ -59,6 +61,7 @@ func (h *CategoryHandler) GetChildren(w http.ResponseWriter, r *http.Request) {
 
 	categories, err := h.db.GetCategoriesByParentID(parentID)
 	if err != nil {
+		log.Printf("[get children] db error: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -105,6 +108,7 @@ func (h *CategoryHandler) Search(w http.ResponseWriter, r *http.Request) {
 	if searchType == "SUPPLY" {
 		results, err := h.db.SearchSupplies(keyword)
 		if err != nil {
+			log.Printf("[search supplies] error: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -124,9 +128,7 @@ func (h *CategoryHandler) Search(w http.ResponseWriter, r *http.Request) {
 			fullSlugPath := categorySlug + "/" + supplySlug
 
 			dto := SuggestionDTO{
-				// ★修正1: 100000+i ではなく、本当の用品IDを使う
 				ID: res.SupplyTypeID,
-				// ★修正2: フロントのバッジ表示のために明示的にセット
 				Type: "supply",
 
 				Name:         res.CategoryName + " > " + res.SupplyTypeName,
@@ -155,6 +157,7 @@ func (h *CategoryHandler) Search(w http.ResponseWriter, r *http.Request) {
 		// -----------------------------------------------------------
 		results, err := h.db.SearchSuggestions(keyword)
 		if err != nil {
+			log.Printf("[search suggestions] error: %v", err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}

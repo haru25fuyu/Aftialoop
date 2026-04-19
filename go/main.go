@@ -15,12 +15,18 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/joho/godotenv"
 	"github.com/rs/cors"
 )
 
 func main() {
 	// ===== 初期設定 =====
 	config.Init()
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
+
 
 	// DB初期化
 	db, err := SQL.NewDatabase()
@@ -38,7 +44,7 @@ func main() {
 	r := mux.NewRouter()
 
 	// 静的ファイル（/static/...）を登録
-	fs := http.FileServer(http.Dir("/var/www/web/Aftialoop/go/static"))
+	fs := http.FileServer(http.Dir("./static"))
 	r.PathPrefix("/static/").Handler(http.StripPrefix("/static/", fs))
 
 	// ===== 各ハンドラ登録 =====
@@ -138,7 +144,7 @@ func main() {
 		}
 
 		// DBから最新プロフィール（表示用だけ）
-		profile, err := db.GetUserDataAndProfile([]string{"u.id=?"}, []interface{}{u.ID}) // displayName/iconUrlを返す関数を作る
+		profile, err := db.GetUserDataAndProfile([]string{"u.id=$1"}, []interface{}{u.ID}) // displayName/iconUrlを返す関数を作る
 		if err != nil {
 			log.Println("DB error:", err)
 			http.Error(w, "server error"+err.Error(), http.StatusInternalServerError)
@@ -167,6 +173,6 @@ func main() {
 	handler := corsOptions.Handler(r)
 
 	// ===== サーバー起動 =====
-	log.Println("Server started on: https://go.aftialoop.com (port 4000)")
-	log.Fatal(http.ListenAndServe(":4000", handler))
+	log.Println("Server started on: https://go.aftialoop.com (port 8080)")
+	log.Fatal(http.ListenAndServe(":8080", handler))
 }

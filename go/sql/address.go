@@ -120,7 +120,7 @@ func (d *Database) GetDefaultAddress(userID string) (*utils.Address, error) {
 	query := `
 		SELECT id, name, phone, user_id, post_code, pref, pref_code, address1, address2, address3, status
 		FROM addresses
-		WHERE user_id = ? AND status = 1
+		WHERE user_id = $1 AND status = 1
 		LIMIT 1
 	`
 	var address utils.Address

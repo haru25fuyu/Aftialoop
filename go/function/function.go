@@ -194,7 +194,7 @@ func SendMail(to string, subject string, htmlContent string) (*ses.SendEmailOutp
 	client := ses.NewFromConfig(awsCfg)
 
 	input := &ses.SendEmailInput{
-		Source: aws.String(config.FromEmail), // SESで検証済みアドレス
+		Source: aws.String(config.FromEmail),
 		Destination: &types.Destination{
 			ToAddresses: []string{to},
 		},

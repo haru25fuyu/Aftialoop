@@ -65,39 +65,40 @@ type SearchSuggestion struct {
 // -------------------------------------------------------
 // GetCategoriesByParentID を修正して has_children を判定する
 func (db *Database) GetCategoriesByParentID(parentID *uint64) ([]Category, error) {
-	var categories []Category
-	var query string
-	var args []interface{}
+    var categories []Category
+    var query string
+    var args []interface{}
 
-	// サブクエリを使って「自分のIDをparent_idとして持つレコードが存在するか」をチェック
-	existsQuery := "EXISTS(SELECT 1 FROM categories c2 WHERE c2.parent_id = c1.id)"
+    // PostgreSQLでは型を明確にするため ::boolean をつけるとより確実です
+    existsQuery := "EXISTS(SELECT 1 FROM categories c2 WHERE c2.parent_id = c1.id)::boolean"
 
-	if parentID == nil {
-		// ルートカテゴリー取得
-		query = fmt.Sprintf(`
-			SELECT 
-				c1.id, c1.name, c1.slug, c1.parent_id, c1.path, c1.rank, c1.built_in_type,
-				%s AS has_children
-			FROM categories c1
-			WHERE c1.parent_id IS NULL 
-			ORDER BY c1.id ASC`, existsQuery)
-	} else {
-		// 子カテゴリー取得
-		query = fmt.Sprintf(`
-			SELECT 
-				c1.id, c1.name, c1.slug, c1.parent_id, c1.path, c1.rank, c1.built_in_type,
-				%s AS has_children
-			FROM categories c1
-			WHERE c1.parent_id = ? 
-			ORDER BY c1.id ASC`, existsQuery)
-		args = append(args, *parentID)
-	}
+    if parentID == nil {
+        query = fmt.Sprintf(`
+            SELECT 
+                c1.id, c1.name, c1.slug, c1.parent_id, c1.path, c1.rank, c1.built_in_type,
+                %s AS has_children
+            FROM categories c1
+            WHERE c1.parent_id IS NULL 
+            ORDER BY c1.id ASC`, existsQuery)
+    } else {
+        query = fmt.Sprintf(`
+            SELECT 
+                c1.id, c1.name, c1.slug, c1.parent_id, c1.path, c1.rank, c1.built_in_type,
+                %s AS has_children
+            FROM categories c1
+            WHERE c1.parent_id = ? 
+            ORDER BY c1.id ASC`, existsQuery)
+        args = append(args, *parentID)
+    }
 
-	err := db.DB.Select(&categories, query, args...)
-	if err != nil {
-		return nil, err
-	}
-	return categories, nil
+    // ★ ここで PostgreSQL 用の $1 に変換
+    query = db.DB.Rebind(query)
+
+    err := db.DB.Select(&categories, query, args...)
+    if err != nil {
+        return nil, err
+    }
+    return categories, nil
 }
 
 // -------------------------------------------------------
@@ -246,9 +247,6 @@ func (db *Database) SearchCategories(keyword string) ([]Category, error) {
 // -------------------------------------------------------
 // 3. 用品検索ロジック (SearchSupplies)
 // -------------------------------------------------------
-// -------------------------------------------------------
-// 3. 用品検索ロジック (SearchSupplies)
-// -------------------------------------------------------
 func (db *Database) SearchSupplies(keyword string) ([]SupplySearchResult, error) {
 	var results []SupplySearchResult
 
@@ -267,7 +265,7 @@ func (db *Database) SearchSupplies(keyword string) ([]SupplySearchResult, error)
 		raw := words[0]
 		var matchedSupplyName string
 		// DBから用品名を探す (長い順)
-		checkQuery := `SELECT name FROM supply_types WHERE ? LIKE CONCAT('%', name, '%') ORDER BY CHAR_LENGTH(name) DESC LIMIT 1`
+		checkQuery := `SELECT name FROM supply_types WHERE $1 LIKE '%' || name || '%' ORDER BY LENGTH(name) DESC LIMIT 1`
 		err := db.DB.Get(&matchedSupplyName, checkQuery, raw)
 
 		if err == nil && matchedSupplyName != "" && matchedSupplyName != raw {
@@ -299,8 +297,10 @@ func (db *Database) SearchSupplies(keyword string) ([]SupplySearchResult, error)
     `
 
 	makeCondition := func(tableAlias, colName string) string {
-		fullCol := fmt.Sprintf("%s.%s", tableAlias, colName)
-		return fmt.Sprintf("(%s LIKE ? OR (? LIKE CONCAT('%%', %s, '%%') AND CHAR_LENGTH(%s) >= 2))", fullCol, fullCol, fullCol)
+    fullCol := fmt.Sprintf("%s.%s", tableAlias, colName)
+    // $1, $2 は後で Rebind で解決するので、一旦 ? のままでもOKですが、
+    // PostgreSQL の LIKE 演算子に合わせます
+    return fmt.Sprintf("(%s LIKE ? OR (? LIKE '%%' || %s || '%%' AND LENGTH(%s) >= 2))", fullCol, fullCol, fullCol)
 	}
 
 	catMatchCond := fmt.Sprintf("(%s OR %s)", makeCondition("c", "name"), makeCondition("tc", "term"))
@@ -399,6 +399,7 @@ func (db *Database) SearchSupplies(keyword string) ([]SupplySearchResult, error)
 		args = append(args, likeW1, likeW1)
 	}
 
+	query = db.DB.Rebind(query)
 	err := db.DB.Select(&results, query, args...)
 	if err != nil {
 		return nil, err
@@ -527,40 +528,43 @@ func (db *Database) SearchSuggestions(keyword string) ([]SearchSuggestion, error
         -- 1. 生体カテゴリー
         SELECT 
             c.id, c.name, c.slug, c.path, c.built_in_type,
-            'category' as type,
-            NULL as supply_id, NULL as supply_name, NULL as supply_slug,
-            CHAR_LENGTH(c.name) as match_len
+            'category'::text as type,
+            NULL::bigint as supply_id, NULL::text as supply_name, NULL::text as supply_slug,
+            LENGTH(c.name) as match_len
         FROM categories c
         WHERE %s
 
-        UNION
+        UNION ALL
 
         -- 2. 用品タイプ
         SELECT 
-            s.id, s.name, '' as slug, NULL as path, NULL as built_in_type,
-            'supply' as type,
+            s.id, s.name, ''::text as slug, NULL::text as path, NULL::text as built_in_type,
+            'supply'::text as type,
             s.id as supply_id, s.name as supply_name, s.slug as supply_slug,
-            CHAR_LENGTH(s.name) as match_len
+            LENGTH(s.name) as match_len
         FROM supply_types s
         WHERE %s
         
-        UNION
+        UNION ALL
 
         -- 3. 生体 × 用品の組み合わせ
         SELECT
             c.id, 
-            CONCAT(c.name, ' > ', s.name) as name,
+            (c.name || ' > ' || s.name) as name,
             c.slug, c.path, c.built_in_type,
-            'combination' as type,
+            'combination'::text as type,
             s.id as supply_id, s.name as supply_name, s.slug as supply_slug,
-            (CHAR_LENGTH(c.name) + CHAR_LENGTH(s.name) + 10) as match_len
+            (LENGTH(c.name) + LENGTH(s.name) + 10) as match_len
         FROM categories c
-        JOIN supply_types s ON 1=1
+        CROSS JOIN supply_types s -- JOIN 1=1 は CROSS JOIN と書くのが一般的
         WHERE %s
     ) AS combined
     ORDER BY match_len DESC, id ASC
     LIMIT 20
     `, whereCat, whereSup, whereMix)
+
+    // ★ 実行前に必ず Rebind
+    query = db.DB.Rebind(query)
 
 	// -------------------------------------------------------
 	// 5. 実行 & パス解決 (ロジック変更なし)

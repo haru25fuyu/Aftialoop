@@ -12,13 +12,13 @@ import (
 // ============================================================
 
 func (d *Database) SaveRefreshToken(token string, userID string, expiresAt time.Time) error {
-	_, err := d.DB.Exec("DELETE FROM refresh_tokens WHERE user_id = ?", userID)
+	_, err := d.DB.Exec("DELETE FROM refresh_tokens WHERE user_id = $1", userID)
 	if err != nil {
 		return err
 	}
 	_, err = d.DB.Exec(`
 		INSERT INTO refresh_tokens (refresh_token, user_id, expires_at)
-		VALUES (?, ?, ?)
+		VALUES ($1, $2, $3)
 	`, token, userID, expiresAt)
 	return err
 }
@@ -30,7 +30,7 @@ func (d *Database) GetUserByRefreshToken(token string) (*utils.User, int64, erro
 	err := d.DB.QueryRow(`
 		SELECT user_id, expires_at
 		FROM refresh_tokens
-		WHERE refresh_token = ?
+		WHERE refresh_token = $1
 		LIMIT 1
 	`, token).Scan(&userID, &expiresAt)
 
@@ -56,8 +56,8 @@ func (d *Database) RotateRefreshToken(
 ) error {
 	_, err := d.DB.Exec(`
 		UPDATE refresh_tokens
-		SET refresh_token = ?, expires_at = ?, created_at = UTC_TIMESTAMP()
-		WHERE user_id = ? AND refresh_token = ?
+		SET refresh_token = $1, expires_at = $2, created_at = UTC_TIMESTAMP()
+		WHERE user_id = $3 AND refresh_token = $4
 	`, newToken, newExpiresAt, userID, oldToken)
 
 	return err
@@ -66,10 +66,10 @@ func (d *Database) RotateRefreshToken(
 func (d *Database) CreateRefreshToken(userID string, token string, expiresAt time.Time) error {
 	_, err := d.DB.Exec(`
 		INSERT INTO refresh_tokens (user_id, refresh_token, expires_at)
-		VALUES (?, ?, ?)
-		ON DUPLICATE KEY UPDATE
-			refresh_token = VALUES(refresh_token),
-			expires_at = VALUES(expires_at),
+		VALUES ($1, $2, $3)
+		ON CONFLICT (user_id) DO UPDATE SET
+			refresh_token = EXCLUDED.refresh_token,
+			expires_at = EXCLUDED.expires_at,
 			created_at = UTC_TIMESTAMP()
 	`, userID, token, expiresAt)
 

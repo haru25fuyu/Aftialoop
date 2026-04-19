@@ -86,7 +86,9 @@ export function useFleaItemForm() {
     locality: "",
     hatch_date: "",
     generation: "",
-    size: "",
+    size_value: 0,
+    size_unit: "mm",
+    size_mm: null,
     sex: "unknown",
   });
   const [supplyDetails, setSupplyDetails] = useState<SupplyDetails>({
@@ -176,7 +178,9 @@ export function useFleaItemForm() {
             locality: "",
             hatch_date: "",
             generation: "",
-            size: "",
+            size_value: 0,
+            size_unit: "mm",
+            size_mm: null,
             sex: "unknown",
           };
 
@@ -190,7 +194,9 @@ export function useFleaItemForm() {
               restored.locality = det.morph;
               restored.hatch_date = det.birth_date;
               restored.generation = det.lineage;
-              restored.size = det.size;
+              restored.size_value = det.size_value;
+              restored.size_unit = det.size_unit;
+              restored.size_mm = det.size_mm;
               restored.sex = det.sex;
               break;
             }
@@ -199,7 +205,9 @@ export function useFleaItemForm() {
               restored.locality = det.origin;
               restored.hatch_date = det.birth_date;
               restored.generation = det.lineage;
-              restored.size = det.size;
+              restored.size_value = det.size_value;
+              restored.size_unit = det.size_unit;
+              restored.size_mm = det.size_mm;
               restored.sex = det.sex;
               break;
             }
@@ -208,7 +216,9 @@ export function useFleaItemForm() {
               restored.locality = det.origin;
               restored.hatch_date = det.arrival_date;
               restored.generation = det.generation;
-              restored.size = det.size;
+              restored.size_value = det.size_value;
+              restored.size_unit = det.size_unit;
+              restored.size_mm = det.size_mm;
               restored.sex = det.sex;
               break;
             }
@@ -218,7 +228,9 @@ export function useFleaItemForm() {
               restored.locality = det.origin;
               restored.hatch_date = det.acquisition_date;
               restored.generation = det.propagation;
-              restored.size = det.size;
+              restored.size_value = det.size_value;
+              restored.size_unit = det.size_unit;
+              restored.size_mm = det.size_mm;
               break;
             }
             default: {
@@ -228,7 +240,11 @@ export function useFleaItemForm() {
                 restored.hatch_date = d.details.hatch_date;
               if ("generation" in d.details)
                 restored.generation = d.details.generation;
-              if ("size" in d.details) restored.size = d.details.size;
+              if ("size_value" in d.details)
+                restored.size_value = d.details.size_value;
+              if ("size_unit" in d.details)
+                restored.size_unit = d.details.size_unit;
+              if ("size_mm" in d.details) restored.size_mm = d.details.size_mm;
               if ("sex" in d.details) restored.sex = d.details.sex as SexType;
               break;
             }
@@ -313,7 +329,9 @@ export function useFleaItemForm() {
             morph: d.locality || "",
             birth_date: d.hatch_date || "",
             lineage: d.generation || "",
-            size: d.size || "",
+            size_value: d.size_value,
+            size_unit: d.size_unit,
+            size_mm: d.size_mm,
             sex: sexValue,
           };
           break;
@@ -324,7 +342,9 @@ export function useFleaItemForm() {
             origin: d.locality || "",
             acquisition_date: d.hatch_date || "",
             propagation: d.generation || "",
-            size: d.size || "",
+            size_value: d.size_value,
+            size_unit: d.size_unit,
+            size_mm: d.size_mm,
           };
           break;
         case "MAMMAL":
@@ -333,7 +353,9 @@ export function useFleaItemForm() {
             origin: d.locality || "",
             birth_date: d.hatch_date || "",
             lineage: d.generation || "",
-            size: d.size || "",
+            size_value: d.size_value,
+            size_unit: d.size_unit,
+            size_mm: d.size_mm,
             sex: sexValue,
           };
           break;
@@ -343,7 +365,9 @@ export function useFleaItemForm() {
             origin: d.locality || "",
             arrival_date: d.hatch_date || "",
             generation: d.generation || "",
-            size: d.size || "",
+            size_value: d.size_value,
+            size_unit: d.size_unit,
+            size_mm: d.size_mm,
             sex: sexValue,
           };
           break;
@@ -354,7 +378,9 @@ export function useFleaItemForm() {
             locality: d.locality || "",
             hatch_date: d.hatch_date || "",
             generation: d.generation || "",
-            size: d.size || "",
+            size_value: d.size_value,
+            size_unit: d.size_unit,
+            size_mm: d.size_mm,
             sex: sexValue,
           };
           break;
@@ -654,7 +680,9 @@ export function useFleaItemForm() {
       locality: "",
       hatch_date: "",
       generation: "",
-      size: "",
+      size_value: 0,
+      size_unit: "mm",
+      size_mm: null,
       sex: "unknown",
     });
     setSupplyDetails({

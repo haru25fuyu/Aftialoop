@@ -152,18 +152,21 @@ func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
 	}
 
 	// 2. 更新する項目がなければ終了
-	if len(setClauses) == 0 {
-		return nil
-	}
+    if len(setClauses) == 0 {
+        return nil
+    }
 
-	// 3. クエリ組み立て
-	query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(setClauses, ", "))
+    // 3. クエリ組み立て (ここでは "?" のままで大丈夫)
+    query := fmt.Sprintf("UPDATE users SET %s WHERE id = ?", strings.Join(setClauses, ", "))
 
-	// 4. IDを追加して実行
-	args = append(args, id)
+    // 4. IDを追加
+    args = append(args, id)
 
-	_, err := d.DB.Exec(query, args...)
-	return err
+    // sqlxのRebindを使って、"?" を PostgreSQL用の "$1", "$2", "$3"... に一括置換します
+    query = d.DB.Rebind(query)
+
+    _, err := d.DB.Exec(query, args...)
+    return err
 }
 
 func (d *Database) SetDefaultCard(userID, cardID string) error {

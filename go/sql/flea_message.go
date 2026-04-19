@@ -15,17 +15,11 @@ import (
 func (d *Database) GetFleaItemMessages(itemID uint64) ([]*utils.FleaItemMessage, error) {
 	rows, err := d.DB.Query(`
         SELECT
-			fim.id,
-			fim.item_id,
-			fim.parent_message_id,
-			fim.user_id,
-			fim.body,
-			fim.created_at,
-			u.name AS user_name,
-			u.icon_url AS user_icon
+            fim.id, fim.item_id, fim.parent_message_id, fim.user_id, fim.body, fim.created_at,
+            u.name AS user_name, u.icon_url AS user_icon
         FROM flea_item_messages fim
-		JOIN users u ON u.id = fim.user_id
-        WHERE fim.item_id = ? AND fim.deleted_at IS NULL
+        JOIN users u ON u.id = fim.user_id
+        WHERE fim.item_id = $1 AND fim.deleted_at IS NULL
         ORDER BY fim.created_at ASC, fim.id ASC
     `, itemID)
 	if err != nil {
@@ -71,35 +65,34 @@ func (d *Database) GetFleaItemMessages(itemID uint64) ([]*utils.FleaItemMessage,
 }
 
 func (d *Database) AddFleaItemMessage(itemID uint64, userID string, parentID *uint64, body string) (int64, error) {
-	body = strings.TrimSpace(body)
-	if body == "" {
-		return 0, fmt.Errorf("body empty")
-	}
+    body = strings.TrimSpace(body)
+    if body == "" {
+        return 0, fmt.Errorf("body empty")
+    }
 
-	res, err := d.DB.Exec(`
+    var newID int64
+    // 修正: $n 形式、UTC_TIMESTAMP() -> CURRENT_TIMESTAMP、RETURNING id を追加
+    query := `
         INSERT INTO flea_item_messages (item_id, parent_message_id, user_id, body, created_at)
-        VALUES (?, ?, ?, ?, UTC_TIMESTAMP())
-    `, itemID, parentID, userID, body)
-	if err != nil {
-		return 0, err
-	}
+        VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
+        RETURNING id
+    `
+    err := d.DB.QueryRow(query, itemID, parentID, userID, body).Scan(&newID)
+    if err != nil {
+        return 0, err
+    }
 
-	newID, err := res.LastInsertId()
-	if err != nil {
-		return 0, err
-	}
-
-	return newID, nil
+    return newID, nil
 }
 
 func (d *Database) GetFleaItemMessageUserIDs(itemID uint64, userID string) ([]string, error) {
 	rows, err := d.DB.Query(`
-		SELECT DISTINCT user_id
-		FROM flea_item_messages
-		WHERE item_id = ?
-		  AND deleted_at IS NULL
-		  AND user_id != ?
-	`, itemID, userID)
+        SELECT DISTINCT user_id
+        FROM flea_item_messages
+        WHERE item_id = $1
+          AND deleted_at IS NULL
+          AND user_id != $2
+    `, itemID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -129,18 +122,22 @@ func (d *Database) GetTransactionMessages(prID uint64) ([]utils.FleaTXMessage, e
             u.name AS user_name, u.icon_url AS user_icon_url
         FROM flea_transaction_messages m
         JOIN users u ON m.user_id = u.id
-        WHERE m.purchase_request_id = ?
+        WHERE m.purchase_request_id = $1
         ORDER BY m.created_at ASC
     `
 
-	var messages []utils.FleaTXMessage
-	err := d.DB.Select(&messages, query, prID)
-	return messages, err
+    var messages []utils.FleaTXMessage
+    // Select を使うので Rebind は不要（直接 $1 と書いたため）
+    err := d.DB.Select(&messages, query, prID)
+    return messages, err
 }
 
 // 取引メッセージ追加
 func (d *Database) CreateTransactionMessage(prID uint64, userID string, message string) error {
-	query := `INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message) VALUES (?, ?, ?)`
-	_, err := d.DB.Exec(query, prID, userID, message)
-	return err
+    // 修正: ? -> $1, $2, $3
+    // ここも created_at が自動でないなら CURRENT_TIMESTAMP を足す必要がありますが、
+    // DB側で DEFAULT CURRENT_TIMESTAMP になっているならこのままでOK
+    query := `INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message) VALUES ($1, $2, $3)`
+    _, err := d.DB.Exec(query, prID, userID, message)
+    return err
 }

@@ -1,15 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 
-import { Customer, Content } from '../types/Content';
-import { Address } from '../types/Address';
-import { Payment } from '../types/Payment';
+import { Customer, Content } from '../../types/Content';
+import { Address } from '../../types/Address';
+import { Payment } from '../../types/Payment';
 
 
-import api from '../conf/api';
-import { chargeCard, chargePoint } from '../conf/function';
+import api from '../../conf/api';
+import { chargeCard, chargePoint } from '../../conf/function';
 
-import SquarePayment from '../modal/EditPayment';
+import SquarePayment from '../../modal/EditPayment';
 
 
 const Checkout: React.FC = () => {

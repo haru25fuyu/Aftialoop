@@ -153,7 +153,7 @@ func (h *LoginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 
 	// 4. ユーザー検索 (ログイン専用なので google_id で探す)
 	var user utils.SqlUser
-	user, err = h.db.GetUserData([]string{"google_id = ?"}, []interface{}{googleID})
+	user, err = h.db.GetUserData([]string{"google_id = $1"}, []interface{}{googleID})
 	if err != nil {
 		// 見つからない = アカウントがない = 404エラー
 		// フロントエンドはこの 404 を検知して「新規登録」へ誘導します

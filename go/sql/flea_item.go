@@ -229,18 +229,18 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
 	return items, rows.Err()
 }
 
-// 引数に userID を追加しました
 func (d *Database) GetFleaMarketItemByID(userID string, id uint64) (*utils.FleaMarketItemDetailResponse, error) {
-	var item utils.FleaMarketItemDetailResponse
+    var item utils.FleaMarketItemDetailResponse
 
-	// SQL修正: EXISTSを使っていいね済みか判定
-	// user_id = ? (1つ目のハテナ) には閲覧者のuserIDが入ります
-	const q = `
+    // 修正点:
+    // 1. ? を $1, $2 に対応させる準備 (Rebindを使用)
+    // 2. EXISTS の結果を明示的に boolean として扱う
+    query := `
         SELECT 
             f.*, 
             u.name AS user_name, 
             u.icon_url AS user_icon,
-            EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?) AS is_liked
+            EXISTS(SELECT 1 FROM flea_likes fl WHERE fl.item_id = f.id AND fl.user_id = ?)::boolean AS is_liked
         FROM flea_items AS f
         JOIN users AS u ON u.id = f.user_id
         WHERE f.id = ? 
@@ -248,143 +248,136 @@ func (d *Database) GetFleaMarketItemByID(userID string, id uint64) (*utils.FleaM
         LIMIT 1;
     `
 
-	// 引数の順番注意: userID, id の順
-	if err := d.DB.Get(&item, q, userID, id); err != nil {
-		log.Printf("GetFleaMarketItemByID error: %v", err)
-		return nil, err
-	}
+    // ★ PostgreSQL 用にプレースホルダを $1, $2 に変換
+    query = d.DB.Rebind(query)
 
-	// -----------------------------------------------------
-	// レート計算ロジック (そのまま)
-	// -----------------------------------------------------
-	cfg := config.GetFleaConfig()
-	denominator := cfg.RateDen
-	if denominator == 0 {
-		denominator = 10000
-	}
+    // 引数の順番はそのまま (userID -> $1, id -> $2)
+    if err := d.DB.Get(&item, query, userID, id); err != nil {
+        log.Printf("GetFleaMarketItemByID error: %v", err)
+        return nil, err
+    }
 
-	if item.RawSellerRate > 0 {
-		item.SellerRate = float64(item.RawSellerRate) / float64(denominator)
-	} else {
-		item.SellerRate = 1.0
-	}
+    // --- レート計算ロジックは変更なし ---
+    cfg := config.GetFleaConfig()
+    denominator := cfg.RateDen
+    if denominator == 0 {
+        denominator = 10000
+    }
 
-	return &item, nil
+    if item.RawSellerRate > 0 {
+        item.SellerRate = float64(item.RawSellerRate) / float64(denominator)
+    } else {
+        item.SellerRate = 1.0
+    }
+
+    return &item, nil
 }
 
 func (d *Database) GetFleaMarketItemImages(itemID uint64) ([]utils.ItemImage, error) {
-	const q = `
+    const q = `
         SELECT
             id,
             item_id,
             sort_num,
             url
         FROM flea_item_images
-        WHERE item_id = ?
+        WHERE item_id = $1
         ORDER BY sort_num ASC, id ASC;
     `
-	var images []utils.ItemImage
-	if err := d.DB.Select(&images, q, itemID); err != nil {
-		return nil, err
-	}
-	return images, nil
+    var images []utils.ItemImage
+    // 直接 $1 に書き換えたので、Rebindを通さなくても動きます
+    if err := d.DB.Select(&images, q, itemID); err != nil {
+        return nil, err
+    }
+    return images, nil
 }
 
 // utils.CreateFleaMarketItemInput に ImageURLs []string がある前提です
 
 func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p utils.CreateFleaMarketItemInput) (int64, error) {
-	// 1. トランザクション開始
-	tx, err := db.DB.Begin()
-	if err != nil {
-		return 0, err
-	}
-	defer tx.Rollback()
+    // 1. トランザクション開始
+    tx, err := db.DB.BeginTx(ctx, nil) // Contextを渡すBeginTxが推奨です
+    if err != nil {
+        return 0, err
+    }
+    defer tx.Rollback()
 
-	// 2. flea_items テーブルへの保存 (ここは既存のまま)
-	query := `
+    // 2. flea_items テーブルへの保存
+    // 修正点: ? を $1 形式に、UTC_TIMESTAMP() を CURRENT_TIMESTAMP に。
+    // 最後に RETURNING id を追加して ID を取得できるようにします。
+    query := `
         INSERT INTO flea_items (
-            user_id,
-            name,
-            description,
-            price,
-            quantity,
-            type,
-            category_id,
-            supply_type_id,
-            category_name,
-            is_multi_purchasable,
-            main_image_url,
-            details,
-            ship_from,
-            shipping_fee_type,
-            ships_within_days,
-            seller_rate,
-            status,
-            commission_rate,
-            created_at,
-            updated_at
+            user_id, name, description, price, quantity, type,
+            category_id, supply_type_id, category_name, 
+            is_multi_purchasable, -- ← ここ！
+            main_image_url, details, ship_from, shipping_fee_type,
+            ships_within_days, seller_rate, status, commission_rate,
+            created_at, updated_at
         ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP()
-        )
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, 
+            $10::boolean::int, -- ★Goのboolを一度boolとして解釈させ、intに変換
+            $11, $12, $13, $14, $15, $16, $17, $18,
+            CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        ) RETURNING id
     `
 
-	res, err := db.DB.ExecContext(ctx, query,
-		userID,
-		p.Name,
-		p.Description,
-		p.Price,
-		p.Quantity,
-		p.Type,
-		p.CategoryID,
-		p.SupplyTypeID,
-		p.CategoryName,
-		p.IsMultiPurchasable,
-		p.MainImageURL,
-		p.Details,
-		p.ShipFrom,
-		p.ShippingFeeType,
-		p.ShipsWithinDays,
-		p.SellerRateBP,
-		1, // status: 出品中
-		p.CommissionRateBP,
-	)
-	if err != nil {
-		return 0, fmt.Errorf("insert item: %w", err)
-	}
+    var itemID int64
+    // 修正点: ExecContext ではなく QueryRowContext と Scan を使って RETURNING された ID を受け取る
+    err = tx.QueryRowContext(ctx, query,
+        userID,
+        p.Name,
+        p.Description,
+        p.Price,
+        p.Quantity,
+        p.Type,
+        p.CategoryID,
+        p.SupplyTypeID,
+        p.CategoryName,
+        p.IsMultiPurchasable,
+        p.MainImageURL,
+        p.Details,
+        p.ShipFrom,
+        p.ShippingFeeType,
+        p.ShipsWithinDays,
+        p.SellerRateBP,
+        1, // status: 出品中
+        p.CommissionRateBP,
+    ).Scan(&itemID)
 
-	itemID, err := res.LastInsertId()
-	if err != nil {
-		return 0, fmt.Errorf("get last insert id: %w", err)
-	}
+    if err != nil {
+        return 0, fmt.Errorf("insert item: %w", err)
+    }
 
-	// ------------------------------------------------------------
-	// ★★★  flea_item_images への保存処理 ★★★
-	// ------------------------------------------------------------
-	// p.ImageURLs には「下書きからの画像」と「新規画像」のすべてのURLが入っている必要があります
-	if len(p.ImageURLs) > 0 {
-		query := "INSERT INTO flea_item_images (item_id, url, sort_num) VALUES "
-		var args []interface{}
+    // ------------------------------------------------------------
+    // ★★★  flea_item_images への保存処理 ★★★
+    // ------------------------------------------------------------
+    if len(p.ImageURLs) > 0 {
+        // 大量挿入(Bulk Insert)の場合、手動で $1, $2 を振るのは大変なので
+        // sqlx の Rebind を使うか、ループ内でインデックスを計算します。
+        sqlStr := "INSERT INTO flea_item_images (item_id, url, sort_num) VALUES "
+        var args []interface{}
+        placeholderCount := 1
 
-		for i, url := range p.ImageURLs {
-			query += "(?, ?, ?),"
-			args = append(args, itemID, url, i) // sort_num は 0 からの連番
-		}
+        for i, url := range p.ImageURLs {
+            sqlStr += fmt.Sprintf("($%d, $%d, $%d),", placeholderCount, placeholderCount+1, placeholderCount+2)
+            args = append(args, itemID, url, i)
+            placeholderCount += 3
+        }
 
-		// 最後のカンマを削除
-		query = query[:len(query)-1]
+        // 最後のカンマを削除
+        sqlStr = sqlStr[:len(sqlStr)-1]
 
-		if _, err := tx.Exec(query, args...); err != nil {
-			return 0, fmt.Errorf("insert item images: %w", err)
-		}
-	}
-	// ------------------------------------------------------------
+        if _, err := tx.ExecContext(ctx, sqlStr, args...); err != nil {
+            return 0, fmt.Errorf("insert item images: %w", err)
+        }
+    }
 
-	// 3. コミット
-	if err := tx.Commit(); err != nil {
-		return 0, err
-	}
+    // 3. コミット
+    if err := tx.Commit(); err != nil {
+        return 0, err
+    }
 
-	return itemID, nil
+    return itemID, nil
 }
 
 // UpdateFleaItem: 商品テキスト情報の更新
