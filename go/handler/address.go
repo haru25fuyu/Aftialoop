@@ -93,6 +93,7 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 	var address utils.Address
 	err = json.NewDecoder(r.Body).Decode(&address)
 	if err != nil {
+		log.Println("Error decoding request body:", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -105,6 +106,7 @@ func (h *addressHandler) GetAddress(w http.ResponseWriter, r *http.Request) {
 	// アドレスの取得
 	addressData, erro := h.db.GetAddress(address_id, user_id)
 	if erro != nil {
+		log.Println("Error getting address:", erro)
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました" + erro.Error()})
 		return

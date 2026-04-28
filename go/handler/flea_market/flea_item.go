@@ -379,6 +379,7 @@ func (h *FleaMarketHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 	// 1. ユーザー認証
 	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
+		log.Printf("Unauthorized like attempt: %v", err)
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
@@ -388,6 +389,7 @@ func (h *FleaMarketHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 	itemIDStr := vars["id"]
 	itemID, err := strconv.ParseInt(itemIDStr, 10, 64)
 	if err != nil {
+		log.Printf("Invalid item ID for like toggle: %s", itemIDStr)
 		http.Error(w, "invalid item id", http.StatusBadRequest)
 		return
 	}
@@ -395,6 +397,7 @@ func (h *FleaMarketHandler) ToggleLike(w http.ResponseWriter, r *http.Request) {
 	// 3. トグル実行
 	isLiked, err := h.db.ToggleFleaLike(r.Context(), userID, itemID)
 	if err != nil {
+		log.Printf("Error toggling like for user %s on item %d: %v", userID, itemID, err)
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 		return
 	}

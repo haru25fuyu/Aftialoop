@@ -31,51 +31,57 @@ func (d *Database) SaveUser(user utils.SqlUser) error {
 }
 
 func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, username, default_card, point, icon_url, google_id ,following_count, followers_count,sales_balance,identity_status FROM users"
+    query := "SELECT id, email, name, username, default_card, point, icon_url, google_id, following_count, followers_count, sales_balance, identity_status FROM users"
 
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
-	}
+    if len(where) > 0 {
+        query += " WHERE " + strings.Join(where, " AND ")
+    }
 
-	var user utils.SqlUser
-	err := d.DB.Get(&user, query, values...)
+    // ★ PostgreSQL 用に ? を $1, $2 に一括変換
+    query = d.DB.Rebind(query)
 
-	if err != nil {
-		// データが無い場合
-		if err == sql.ErrNoRows {
-			return user, fmt.Errorf("user not found")
-		}
-		// ★それ以外のエラー（型変換エラーなど）もここでキャッチして返す！
-		log.Println("データベース取得エラー:", err) // ここに本当の原因が出ます
-		return user, err
-	}
+    var user utils.SqlUser
+    err := d.DB.Get(&user, query, values...)
 
-	return user, nil
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return user, fmt.Errorf("user not found")
+        }
+        log.Println("データベース取得エラー:", err)
+        return user, err
+    }
+
+    return user, nil
 }
 
 // 　ユーザーIDでカスタマーIDも含めたユーザーデータ取得
 func (d *Database) GetUserDataWithCustomerIDByID(userID string) (utils.SqlUser, error) {
-	return d.GetUserDataWithCustomerID([]string{"id = ?"}, []interface{}{userID})
+    return d.GetUserData([]string{"id = ?"}, []interface{}{userID})
 }
+// カスタマーIDも含めたユーザーデータ取得
+func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.RequestUserProfile, error) {
+    query := "SELECT id, email, name, username, default_card, point, customer_id, icon_url, following_count, followers_count FROM users"
+    
+    if len(where) > 0 {
+        query += " WHERE " + strings.Join(where, " AND ")
+    }
 
-// 　カスタマーIDも含めたユーザーデータ取得
-func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.SqlUser, error) {
-	query := "SELECT id, email, name, username, default_card, point, customer_id, icon_url, following_count, followers_count FROM users"
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
-	}
-	var user utils.SqlUser
-	err := d.DB.Get(&user, query, values...)
-	if err != nil {
-		// データが無い場合
-		if err == sql.ErrNoRows {
-			return user, fmt.Errorf("user not found")
-		}
-		// ★それ以外のエラー（型変換エラーなど）もここでキャッチして返す！
-		log.Println("データベース取得エラー:", err) // ここに本当の原因が出ます
-		return user, err
-	}
-	return user, nil
+    // ★ PostgreSQL 用に ? を $1, $2 形式に一括変換
+    query = d.DB.Rebind(query)
+
+    var user utils.SqlResponsUserProfile
+    // values... の展開と $n の数が Rebind によって一致します
+    err := d.DB.Get(&user, query, values...)
+    
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return utils.RequestUserProfile{}, fmt.Errorf("user not found")
+        }
+        log.Println("データベース取得エラー:", err)
+        return utils.RequestUserProfile{}, err
+    }
+    
+    return utils.ToUserProfileResponse(user), nil
 }
 
 func (d *Database) GetUserDataByID(userID string) (utils.SqlUser, error) {
@@ -87,7 +93,7 @@ func (d *Database) GetUserDataByEmail(email string) (utils.SqlUser, error) {
 }
 
 func (d *Database) GetCustomerID(userID string) (string, error) {
-	query := "SELECT customer_id FROM users WHERE id = ? LIMIT 1"
+	query := "SELECT customer_id FROM users WHERE id = $1 LIMIT 1"
 	var customerID string
 	err := d.DB.Get(&customerID, query, userID)
 	if err == sql.ErrNoRows {
@@ -170,7 +176,7 @@ func (d *Database) UpdateUser(id string, user utils.SqlUser) error {
 }
 
 func (d *Database) SetDefaultCard(userID, cardID string) error {
-	_, err := d.DB.Exec("UPDATE users SET default_card = ? WHERE id = ?", cardID, userID)
+	_, err := d.DB.Exec("UPDATE users SET default_card = $1 WHERE id = $2", cardID, userID)
 	return err
 }
 
@@ -178,7 +184,7 @@ func (d *Database) SetDefaultCard(userID, cardID string) error {
 func (d *Database) GetUserPasswordByID(userID string) (string, error) {
 	var password string
 	// passwordカラムだけを取得
-	query := "SELECT password FROM users WHERE id = ?"
+	query := "SELECT password FROM users WHERE id = $1 LIMIT 1"
 	err := d.DB.Get(&password, query, userID)
 	if err != nil {
 		return "", err
@@ -187,52 +193,53 @@ func (d *Database) GetUserPasswordByID(userID string) (string, error) {
 }
 
 func (d *Database) GetUserDataAndProfile(where []string, values []interface{}) (utils.RequestUserProfile, error) {
-	query := `
+    query := `
         SELECT 
-            u.id, u.name, u.email, u.username, u.default_card, u.icon_url,u.identity_status, u.following_count, u.followers_count, u.google_id,u.apple_id,
+            u.id, u.name, u.email, u.username, u.default_card, u.icon_url, u.identity_status, u.following_count, u.followers_count, u.google_id, u.apple_id,
             p.date_of_birth, p.gender, p.phone_number, p.bio   
         FROM users u
         LEFT JOIN profile p ON u.id = p.user_id
     `
-	// WHERE句の追加
-	if len(where) > 0 {
-		query += " WHERE " + strings.Join(where, " AND ")
-	}
+    // WHERE句の追加
+    if len(where) > 0 {
+        query += " WHERE " + strings.Join(where, " AND ")
+    }
 
-	var user utils.SqlResponsUserProfile
-	err := d.DB.Get(&user, query, values...)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return utils.RequestUserProfile{}, fmt.Errorf("user not found")
-		}
-		return utils.RequestUserProfile{}, err
-	}
-	return utils.ToUserProfileResponse(user), nil
+    // ★重要: ここで PostgreSQL 用の $1, $2 形式に一括変換
+    // これにより、whereスライスの中身が "id = ?" のままでも正しく動作します
+    query = d.DB.Rebind(query)
+
+    var user utils.SqlResponsUserProfile
+    err := d.DB.Get(&user, query, values...)
+    if err != nil {
+        if err == sql.ErrNoRows {
+            return utils.RequestUserProfile{}, fmt.Errorf("user not found")
+        }
+        return utils.RequestUserProfile{}, err
+    }
+    return utils.ToUserProfileResponse(user), nil
 }
 
 // メインまたは（認証済みの）予備メールアドレスからユーザーを検索
 func (d *Database) GetUserByAnyEmail(email string) (utils.SqlUser, error) {
-	// メインメアドが一致 OR (予備メアドが一致 かつ 認証済み)
-	query := `
-		SELECT * FROM users 
-		WHERE email = ? 
-		OR (sub_email = ? AND sub_email_verified_at IS NOT NULL)
-		LIMIT 1
-	`
-
-	var user utils.SqlUser
-	err := d.DB.Get(&user, query, email, email)
-
-	if err != nil {
-		return user, err
-	}
-	return user, nil
+    query := `
+        SELECT 
+            id, email, name, username, default_card, point, icon_url, 
+            google_id, following_count, followers_count, sales_balance, 
+            identity_status, sub_email, sub_email_verified_at 
+        FROM users 
+        WHERE email = $1
+        OR (sub_email = $2 AND sub_email_verified_at IS NOT NULL)
+        LIMIT 1
+    `
+    var user utils.SqlUser
+    err := d.DB.Get(&user, query, email, email)
+    return user, err
 }
 
 // 予備メールアドレスを更新（認証日時もセット）
 func (d *Database) UpdateSubEmail(userID string, email string) error {
-	// NOW() で現在時刻を入れる
-	query := "UPDATE users SET sub_email = ?, sub_email_verified_at = NOW() WHERE id = ?"
+	query := "UPDATE users SET sub_email = $1, sub_email_verified_at = CURRENT_TIMESTAMP WHERE id = $2"
 	_, err := d.DB.Exec(query, email, userID)
 	return err
 }
@@ -240,7 +247,7 @@ func (d *Database) UpdateSubEmail(userID string, email string) error {
 // ユーザーネームの重複チェック
 func (d *Database) IsUsernameTaken(username string) (bool, error) {
 	var count int
-	err := d.DB.Get(&count, "SELECT COUNT(*) FROM users WHERE username = ?", username)
+	err := d.DB.Get(&count, "SELECT COUNT(*) FROM users WHERE username = $1", username)
 	if err != nil {
 		return false, err
 	}

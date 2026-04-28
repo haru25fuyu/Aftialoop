@@ -4,7 +4,6 @@ import (
 	"animaloop/function"
 	SQL "animaloop/sql"
 	"animaloop/utils"
-	"database/sql"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -164,16 +163,6 @@ func (h *LoginHandler) googleLogin(w http.ResponseWriter, r *http.Request) {
 			"err":         err.Error(),
 		})
 		return
-	}
-
-	// 5. ユーザー情報の更新 (Googleの名前が変わっている場合などに備えて更新)
-	name, _ := payload["name"].(string)
-	err = h.db.UpdateUser(user.ID, utils.SqlUser{
-		Name:     name,
-		GoogleID: sql.NullString{String: googleID, Valid: true},
-	})
-	if err != nil {
-		log.Println("ユーザー情報更新失敗:", err)
 	}
 
 	// 6. トークン生成 (15分)

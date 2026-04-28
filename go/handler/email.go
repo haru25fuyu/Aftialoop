@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/big"
 	"net/http"
 
@@ -43,6 +44,7 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 
 	var req EmailReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Println("JSON decode error:", err)
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -52,17 +54,17 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ============================================================
-	// ★ 追加: Google連携済みの場合は変更不可にする
-	// ============================================================
+
 	// ユーザー自身の情報を取得
 	user, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{userID})
 	if err != nil {
+		log.Println("GetUserData error:", err)
 		http.Error(w, "User not found", http.StatusInternalServerError)
 		return
 	}
 
 	if user.GoogleID.String != "" {
+		log.Println("Googleアカウントでログインしているため、メールアドレスは変更できません")
 		http.Error(w, "Googleアカウントでログインしているため、メールアドレスは変更できません", http.StatusBadRequest)
 		return
 	}
@@ -72,6 +74,7 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 	existingUser, err := h.db.GetUserDataByEmail(req.NewEmail)
 	if err == nil && existingUser.ID != "" {
 		// エラーなし ＆ IDがある ＝ 既に使われている
+		log.Printf("Email %s is already in use by user ID %s", req.NewEmail, existingUser.ID)
 		http.Error(w, "このメールアドレスは既に使用されています", http.StatusConflict)
 		return
 	}
@@ -81,6 +84,7 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 	// ============================================================
 	n, err := rand.Int(rand.Reader, big.NewInt(1000000)) // 0 ~ 999999
 	if err != nil {
+		log.Println("Random number generation error:", err)
 		http.Error(w, "Server Error", http.StatusInternalServerError)
 		return
 	}
@@ -89,6 +93,7 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 	// Redisに保存 (ユーザーIDに紐づけて、新しいメアドとコードを保存)
 	err = utils.SaveEmailChangeCode(r.Context(), userID, req.NewEmail, code)
 	if err != nil {
+		log.Println("SaveEmailChangeCode error:", err)
 		http.Error(w, "Redis Error", http.StatusInternalServerError)
 		return
 	}
@@ -104,6 +109,7 @@ func (h *EmailHandler) RequestChange(w http.ResponseWriter, r *http.Request) {
 
 	_, err = function.SendMail(req.NewEmail, subject, body)
 	if err != nil {
+		log.Println("SendMail error:", err)
 		http.Error(w, "メール送信失敗: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -144,6 +150,7 @@ func (h *EmailHandler) VerifyChange(w http.ResponseWriter, r *http.Request) {
 	}
 	err = h.db.UpdateUser(userID, updateUser)
 	if err != nil {
+		log.Println("UpdateUser error:", err)
 		http.Error(w, "DB更新失敗", http.StatusInternalServerError)
 		return
 	}
@@ -180,6 +187,7 @@ func (h *EmailHandler) RequestSubEmail(w http.ResponseWriter, r *http.Request) {
 	// ============================================================
 	user, err := h.db.GetUserData([]string{"id = ?"}, []interface{}{userID})
 	if err != nil {
+		log.Println("GetUserData error:", err)
 		http.Error(w, "User not found", http.StatusInternalServerError)
 		return
 	}

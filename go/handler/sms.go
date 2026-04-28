@@ -6,6 +6,7 @@ import (
 	"animaloop/utils"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math/rand"
 	"net/http"
 	"time"
@@ -44,12 +45,14 @@ func (h *SMSHandler) SendSMS(w http.ResponseWriter, r *http.Request) {
 	_, err := function.CheckUser(h.db, w, r)
 
 	if err != nil {
+		log.Println("Unauthorized access attempt to SendSMS:", err)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
 
 	var req PhoneReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Println("JSON decode error in SendSMS:", err)
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
@@ -57,21 +60,19 @@ func (h *SMSHandler) SendSMS(w http.ResponseWriter, r *http.Request) {
 	// 電話番号の整形 (+81...)
 	formattedPhone := function.FormatPhoneNumber(req.PhoneNumber)
 
-	// ============================================================
-	// ▼ 追加: SMSを送る前に、DBで重複チェックを行う (コスト削減)
-	// ============================================================
-
 	// DBにその電話番号を持つユーザーがいるか検索
 	IsDuplicate, err := h.db.IsPhoneNumberDuplicate(formattedPhone)
 
 	if IsDuplicate {
 		// 既に使われている電話番号の場合は400を返す
+		log.Printf("Phone number %s is already in use", formattedPhone)
 		http.Error(w, "Phone number already in use", http.StatusBadRequest)
 		return
 	}
 
 	if err != nil {
 		// DBエラーの場合は500を返す
+		log.Printf("DB error while checking phone number %s: %v", formattedPhone, err)
 		http.Error(w, "Server Error (DB Check)", http.StatusInternalServerError)
 		return
 	}
@@ -85,6 +86,7 @@ func (h *SMSHandler) SendSMS(w http.ResponseWriter, r *http.Request) {
 	// Redisに保存
 	err = utils.SaveAuthCode(r.Context(), formattedPhone, code)
 	if err != nil {
+		log.Printf("Redis error while saving auth code for phone number %s: %v", formattedPhone, err)
 		http.Error(w, "Server Error (Redis)", http.StatusInternalServerError)
 		return
 	}
@@ -92,6 +94,7 @@ func (h *SMSHandler) SendSMS(w http.ResponseWriter, r *http.Request) {
 	// AWS SNSで送信
 	err = function.SendSMS(formattedPhone, "認証コード: "+code)
 	if err != nil {
+		log.Printf("SMS sending error for phone number %s: %v", formattedPhone, err)
 		http.Error(w, "SMS Send Error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -133,6 +136,7 @@ func (h *SMSHandler) VerifySMS(w http.ResponseWriter, r *http.Request) {
 	err = h.db.UpdatePhoneNumber(userID, formattedPhone)
 
 	if err != nil {
+		log.Printf("DB update error for user %d and phone number %s: %v", userID, formattedPhone, err)
 		http.Error(w, "DB Update Error", http.StatusInternalServerError)
 		return
 	}

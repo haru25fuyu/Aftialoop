@@ -211,6 +211,7 @@ func (h *CategoryHandler) LookupCategory(w http.ResponseWriter, r *http.Request)
 	// 1. URLパラメータから slug を取得
 	slug := r.URL.Query().Get("slug")
 	if slug == "" {
+		log.Printf("[lookup category] missing slug parameter")
 		http.Error(w, `{"error": "slug is required"}`, http.StatusBadRequest)
 		return
 	}
@@ -222,11 +223,14 @@ func (h *CategoryHandler) LookupCategory(w http.ResponseWriter, r *http.Request)
 		w.Header().Set("Content-Type", "application/json")
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
+			//エラーをログに
+			log.Printf("[lookup category] not found for slug: %s", slug)
 			w.Write([]byte(`{"error": "category or supply not found"}`)) // エラー文言も少し修正
 		} else {
 			w.WriteHeader(http.StatusInternalServerError)
 			// JSONを手書きするときはエスケープに注意が必要ですが、簡易的にはこれでもOK
 			// 本番なら json.NewEncoder でエラー構造体を返すと安全です
+			log.Printf("[lookup category] db error: %v", err)
 			w.Write([]byte(`{"error": "` + err.Error() + `"}`))
 		}
 		return

@@ -36,6 +36,10 @@ func (d *Database) UpdateAddress(
 		set = append(set, "pref = ?")
 		vals = append(vals, *p.Pref)
 	}
+	if p.PrefCode != nil {
+   		set = append(set, "pref_code = ?")
+    	vals = append(vals, *p.PrefCode)
+	}
 	if p.Address1 != nil && *p.Address1 != "" {
 		set = append(set, "address1 = ?")
 		vals = append(vals, *p.Address1)
@@ -59,6 +63,8 @@ func (d *Database) UpdateAddress(
 	)
 	vals = append(vals, id, userID)
 
+	q = d.DB.Rebind(q)
+
 	_, err := d.DB.Exec(q, vals...)
 	return err
 }
@@ -77,7 +83,7 @@ func (d *Database) GetAddress(id uint64, userID string) (utils.Address, error) {
 	query := `
 		SELECT id, name, phone, user_id, post_code, pref, pref_code, address1, address2, address3, status
 		FROM addresses
-		WHERE id = ? AND user_id = ?
+		WHERE id = $1 AND user_id = $2
 		LIMIT 1
 	`
 	var address utils.Address
@@ -91,16 +97,16 @@ func (d *Database) GetAddress(id uint64, userID string) (utils.Address, error) {
 func (d *Database) DeleteAddress(id string) error {
 	// 元コードは WHERE user_id = ? に id を渡してたので明確にバグ。
 	// ここは「id を渡す」想定で直す（意図に沿う）。
-	_, err := d.DB.Exec("UPDATE addresses SET status = ? WHERE id = ?", 3, id)
+	_, err := d.DB.Exec("UPDATE addresses SET status = $1 WHERE id = $2", 3, id)
 	return err
 }
 
 func (d *Database) SetStatusAddress(userID, addressID string) error {
-	_, err := d.DB.Exec("UPDATE addresses SET status = ? WHERE user_id = ? AND status = 1", 0, userID)
+	_, err := d.DB.Exec("UPDATE addresses SET status = $1 WHERE user_id = $2 AND status = 1", 0, userID)
 	if err != nil {
 		return err
 	}
-	_, err = d.DB.Exec("UPDATE addresses SET status = ? WHERE id = ?", 1, addressID)
+	_, err = d.DB.Exec("UPDATE addresses SET status = $1 WHERE id = $2", 1, addressID)
 	return err
 }
 
@@ -108,7 +114,7 @@ func (d *Database) GetAddressList(userID string) ([]utils.Address, error) {
 	query := `
 		SELECT id, name, phone, user_id, post_code, pref, pref_code, address1, address2, address3, status
 		FROM addresses
-		WHERE user_id = ? AND status != 3
+		WHERE user_id = $1 AND status != 3
 		ORDER BY status DESC
 	`
 	var addresses []utils.Address

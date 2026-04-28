@@ -221,6 +221,7 @@ func (h *userDataHandler) GetCustomerData(w http.ResponseWriter, r *http.Request
 func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	err := r.ParseMultipartForm(10 << 20)
 	if err != nil {
+		log.Println("ParseMultipartForm error:", err)
 		http.Error(w, "Failed to parse multipart form", http.StatusBadRequest)
 		return
 	}
@@ -235,6 +236,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	var request utils.RequestUserProfile
 	err = json.Unmarshal([]byte(r.FormValue("data")), &request)
 	if err != nil {
+		log.Println("EditProfile Unmarshal error:", err)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -256,6 +258,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 
 		outFile, err := os.Create(dir + fileName)
 		if err != nil {
+			log.Println("File creation error:", err)
 			http.Error(w, "Failed to save file", http.StatusInternalServerError)
 			return
 		}
@@ -281,6 +284,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	err = h.db.UpdateUser(user_id, user)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		log.Println("UpdateUser error:", err)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザー更新失敗: " + err.Error()})
 		return
 	}
@@ -297,6 +301,7 @@ func (h *userDataHandler) EditProfile(w http.ResponseWriter, r *http.Request) {
 	err = h.db.UpdateProfile(user_id, profile)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		log.Println("UpdateProfile error:", err)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "プロフィール更新失敗: " + err.Error()})
 		return
 	}
@@ -396,6 +401,7 @@ func (h *userDataHandler) fetchAndRespondProfile(w http.ResponseWriter, r *http.
 	// 1. 基本情報取得 (ここが失敗＝ユーザー無し)
 	basicInfo, err := h.db.GetUserDataAndProfile([]string{whereCol}, []interface{}{targetVal})
 	if err != nil {
+		log.Printf("User profile fetch error for %s: %v", targetVal, err)
 		http.Error(w, "user not found", http.StatusNotFound)
 		return
 	}
@@ -542,6 +548,7 @@ func (h *userDataHandler) ListUserListings(w http.ResponseWriter, r *http.Reques
 	// includeDrafts = false (他人のリストなので下書きは含めない)
 	items, err := h.db.GetUserListings(r.Context(), targetUserID, false, limit, offset)
 	if err != nil {
+		log.Println("ListUserListings error:", err)
 		http.Error(w, "failed to fetch listings", http.StatusInternalServerError)
 		return
 	}
@@ -563,6 +570,7 @@ func (h *userDataHandler) ListUserReviews(w http.ResponseWriter, r *http.Request
 
 	reviews, err := h.db.GetUserReviews(r.Context(), targetUserID, limit, offset)
 	if err != nil {
+		log.Println("ListUserReviews error:", err)
 		http.Error(w, "failed to fetch reviews", http.StatusInternalServerError)
 		return
 	}

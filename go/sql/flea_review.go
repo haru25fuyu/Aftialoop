@@ -35,63 +35,66 @@ func (d *Database) SaveFleaTransactionReview(
 
 // GetUserReviews: 指定したユーザー(reviewee)への評価を取得
 func (db *Database) GetUserReviews(ctx context.Context, revieweeID string, limit, offset int) ([]utils.UserReviewResponse, error) {
-	// 評価者(reviewer)の情報と、対象商品(item)の情報も一緒に取得
-	const q = `
-		SELECT
-			r.id,
-			r.rating,
-			r.comment,
-			r.created_at,
-			u.name AS reviewer_name,
-			u.icon_url AS reviewer_icon_url,
-			i.name AS item_name
-		FROM flea_reviews AS r
-		JOIN users AS u ON u.id = r.reviewer_id
-		LEFT JOIN flea_items AS i ON i.id = r.item_id
-		WHERE r.reviewee_id = ?
-		ORDER BY r.created_at DESC
-		LIMIT ? OFFSET ?
-	`
+    // 修正点: ? を $1, $2, $3 に変更
+    const q = `
+        SELECT
+            r.id,
+            r.rating,
+            r.comment,
+            r.created_at,
+            u.name AS reviewer_name,
+            u.icon_url AS reviewer_icon_url,
+            i.name AS item_name
+        FROM flea_reviews AS r
+        JOIN users AS u ON u.id = r.reviewer_id
+        LEFT JOIN flea_items AS i ON i.id = r.item_id
+        WHERE r.reviewee_id = $1
+        ORDER BY r.created_at DESC
+        LIMIT $2 OFFSET $3
+    `
 
-	rows, err := db.DB.QueryContext(ctx, q, revieweeID, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+    // 直接 $1 形式にしたので Rebind は不要です
+    rows, err := db.DB.QueryContext(ctx, q, revieweeID, limit, offset)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
 
-	var reviews []utils.UserReviewResponse
-	for rows.Next() {
-		var r utils.UserReviewResponse
-		var comment sql.NullString
-		var reviewerIcon sql.NullString
-		var itemName sql.NullString
+    var reviews []utils.UserReviewResponse
+    for rows.Next() {
+        var r utils.UserReviewResponse
+        var comment sql.NullString
+        var reviewerIcon sql.NullString
+        var itemName sql.NullString
 
-		if err := rows.Scan(
-			&r.ID,
-			&r.Rating,
-			&comment,
-			&r.CreatedAt,
-			&r.ReviewerName,
-			&reviewerIcon,
-			&itemName,
-		); err != nil {
-			return nil, err
-		}
+        if err := rows.Scan(
+            &r.ID,
+            &r.Rating,
+            &comment,
+            &r.CreatedAt,
+            &r.ReviewerName,
+            &reviewerIcon,
+            &itemName,
+        ); err != nil {
+            return nil, err
+        }
 
-		if comment.Valid {
-			r.Comment = comment.String
-		}
-		if reviewerIcon.Valid {
-			r.ReviewerIconURL = &reviewerIcon.String
-		}
-		if itemName.Valid {
-			r.ItemName = &itemName.String
-		}
+        if comment.Valid {
+            r.Comment = comment.String
+        }
+        if reviewerIcon.Valid {
+            s := reviewerIcon.String
+            r.ReviewerIconURL = &s
+        }
+        if itemName.Valid {
+            s := itemName.String
+            r.ItemName = &s
+        }
 
-		reviews = append(reviews, r)
-	}
+        reviews = append(reviews, r)
+    }
 
-	return reviews, nil
+    return reviews, nil
 }
 
 // レビューの平均点と件数を取得
@@ -106,7 +109,7 @@ func (d *Database) GetUserRatingStats(userID string) (float64, int, error) {
             COALESCE(AVG(rating), 0) as avg_rating, 
             COUNT(*) as count 
         FROM flea_reviews 
-        WHERE reviewee_id = ?
+        WHERE reviewee_id = $1
     `
 	err := d.DB.Get(&stats, query, userID)
 	return stats.AvgRating, stats.Count, err

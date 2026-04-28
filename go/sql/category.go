@@ -677,55 +677,52 @@ type LookupResult struct {
 }
 
 func (db *Database) GetCategoryBySlug(slug string) (*LookupResult, error) {
-	var result LookupResult
+    var result LookupResult
 
-	// 1. まず「生体カテゴリー」を探す
-	queryCat := `
-        SELECT id, name, slug, parent_id, path, built_in_type 
+    // 1. まず「生体カテゴリー」を探す
+    // 修正: ? -> $1, カラム名を安全のために "path" と囲む（環境によるが推奨）
+    queryCat := `
+        SELECT id, name, slug, parent_id, "path", built_in_type 
         FROM categories 
-        WHERE slug = ?
+        WHERE slug = $1
     `
-	var cat Category
-	err := db.DB.Get(&cat, queryCat, slug)
+    var cat Category
+    err := db.DB.Get(&cat, queryCat, slug)
 
-	if err == nil {
-		// ヒットしたら生体として返す
-		result.ID = cat.ID
-		result.Name = cat.Name
-		result.Slug = cat.Slug
-		result.Type = "CATEGORY"
-		result.ParentID = cat.ParentID
-		result.Path = cat.Path
-		result.BuiltInType = cat.BuiltInType
-		return &result, nil
-	}
+    if err == nil {
+        result.ID = cat.ID
+        result.Name = cat.Name
+        result.Slug = cat.Slug
+        result.Type = "CATEGORY"
+        result.ParentID = cat.ParentID
+        result.Path = cat.Path
+        result.BuiltInType = cat.BuiltInType
+        return &result, nil
+    }
 
-	// エラーが "見つからない" 以外なら、本当のエラーなので返す
-	if err != sql.ErrNoRows {
-		return nil, err
-	}
+    if err != sql.ErrNoRows {
+        return nil, err
+    }
 
-	// 2. なければ「用品種別」を探す
-	querySupply := `
+    // 2. なければ「用品種別」を探す
+    // 修正: ? -> $1
+    querySupply := `
         SELECT id, name, slug 
         FROM supply_types 
-        WHERE slug = ?
+        WHERE slug = $1
     `
-	var supply SupplyType
-	err = db.DB.Get(&supply, querySupply, slug)
+    var supply SupplyType
+    err = db.DB.Get(&supply, querySupply, slug)
 
-	if err == nil {
-		// ヒットしたら用品として返す
-		result.ID = supply.ID
-		result.Name = supply.Name
-		result.Slug = supply.Slug
-		result.Type = "SUPPLY"
-		// 用品にはPathやParentIDはないので空のまま
-		return &result, nil
-	}
+    if err == nil {
+        result.ID = supply.ID
+        result.Name = supply.Name
+        result.Slug = supply.Slug
+        result.Type = "SUPPLY"
+        return &result, nil
+    }
 
-	// 両方なければ 404 (ErrNoRows)
-	return nil, sql.ErrNoRows
+    return nil, sql.ErrNoRows
 }
 
 // -------------------------------------------------------
