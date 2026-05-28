@@ -10,10 +10,10 @@ import CommentList from "../../component/CommentList";
 import QuestionModal from "../../modal/QuestionModal";
 import PurchaseRequestModal from "../../modal/PurchaseRequestModal";
 
-import { itemImage, Content } from "../../types/Content";
+import { itemImage } from "../../types/Content";
 import { FleaContent, FleaComment } from "../../types/FleaMarket";
 
-import api, { getAccessToken } from "../../conf/api";
+import api from "../../conf/api";
 import { CONFIG } from "../../conf/config";
 import { SHIPPING_FEE_TYPES_MAP } from "../../conf/FleaMarket";
 import { getPrefName } from "../../conf/function";

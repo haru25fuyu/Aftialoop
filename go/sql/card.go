@@ -13,7 +13,7 @@ import (
 
 func (d *Database) SaveOrUpdateCardAddress(userID, cardID string, addressID string) error {
 	var count int
-	checkQuery := "SELECT COUNT(*) FROM user_payment_methods WHERE card_id = ?"
+	checkQuery := "SELECT COUNT(*) FROM user_payment_methods WHERE card_id = $1"
 	err := d.DB.Get(&count, checkQuery, cardID)
 	if err != nil {
 		return fmt.Errorf("DBチェック失敗: %w", err)
@@ -22,8 +22,8 @@ func (d *Database) SaveOrUpdateCardAddress(userID, cardID string, addressID stri
 	if count > 0 {
 		updateQuery := `
 			UPDATE user_payment_methods
-			SET address_id = ?, updated_at = UTC_TIMESTAMP()
-			WHERE card_id = ? AND user_id = ?
+			SET address_id = $1, updated_at = CURRENT_TIMESTAMP
+			WHERE card_id = $2 AND user_id = $3
 		`
 		_, err := d.DB.Exec(updateQuery, addressID, cardID, userID)
 		if err != nil {
@@ -33,7 +33,7 @@ func (d *Database) SaveOrUpdateCardAddress(userID, cardID string, addressID stri
 	} else {
 		insertQuery := `
 			INSERT INTO user_payment_methods (user_id, card_id, address_id, created_at, updated_at)
-			VALUES (?, ?, ?, UTC_TIMESTAMP(), UTC_TIMESTAMP())
+			VALUES ($1, $2, $3, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		`
 		_, err := d.DB.Exec(insertQuery, userID, cardID, addressID)
 		if err != nil {
@@ -50,7 +50,7 @@ func (d *Database) GetCardAddress(userID, cardID string) (utils.Address, error) 
 		SELECT a.id, a.name, a.phone, a.user_id, a.post_code, a.pref, a.pref_code, a.address1, a.address2, a.address3, a.status
 		FROM user_payment_methods upm
 		INNER JOIN addresses a ON upm.address_id = a.id
-		WHERE upm.user_id = ? AND upm.card_id = ?
+		WHERE upm.user_id = $1 AND upm.card_id = $2
 	`
 	var address utils.Address
 	err := d.DB.Get(&address, query, userID, cardID)
@@ -64,12 +64,12 @@ func (d *Database) GetCardAddress(userID, cardID string) (utils.Address, error) 
 }
 
 func (d *Database) DeleteCardAddress(userID, cardID string) error {
-	_, err := d.DB.Exec("DELETE FROM user_payment_methods WHERE user_id = ? AND card_id = ?", userID, cardID)
+	_, err := d.DB.Exec("DELETE FROM user_payment_methods WHERE user_id = $1 AND card_id = $2", userID, cardID)
 	return err
 }
 
 func (d *Database) GetCardAddressByID(cardID string) (utils.CardSummary, error) {
-	query := "SELECT id FROM cards WHERE id = ?"
+	query := "SELECT id FROM cards WHERE id = $1"
 	var card utils.CardSummary
 	err := d.DB.Get(&card, query, cardID)
 	if err == sql.ErrNoRows {

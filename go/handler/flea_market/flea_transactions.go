@@ -425,6 +425,8 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	paymentID := ""
 	provider := "NONE"
 
+	log.Printf("Calculated charge amount: %.2f yen (item: %d, shipping: %d, points used: %d, discount: %.2f, customer ID: %s)", chargeAmount, tx.PriceItem, tx.PriceShipping, input.UsePoints, discountYen, user.CustomerID)
+
 	if chargeAmount > 0 {
 		receiptURL, err := function.ChargeCard(user.CustomerID, *input.CardID, input.IdempotencyKey, chargeAmount)
 		if err != nil {
@@ -1658,6 +1660,7 @@ func (h *FleaMarketHandler) CancelTransaction(w http.ResponseWriter, r *http.Req
 	// 理由がない場合エラーを返す(理由は必須項目だとメッセージ)
 	if input.Reason == "" {
 		http.Error(w, "キャンセルの理由は必須です。", http.StatusBadRequest)
+		return
 	}
 
 	ctx := r.Context()

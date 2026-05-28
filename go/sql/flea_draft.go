@@ -19,78 +19,75 @@ import (
 // CreateDraft: ドラフト作成（画像保存対応版）
 // ==========================================
 func (db *Database) CreateDraft(ctx context.Context, userID string, p utils.DraftPayload) (id uint64, savedAt time.Time, err error) {
-    if db.DB == nil {
-        return 0, time.Time{}, errors.New("db not ready")
-    }
+	if db.DB == nil {
+		return 0, time.Time{}, errors.New("db not ready")
+	}
 
-    tx, err := db.DB.BeginTx(ctx, nil)
-    if err != nil {
-        return 0, time.Time{}, err
-    }
-    defer tx.Rollback()
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, time.Time{}, err
+	}
+	defer tx.Rollback()
 
-    var detailsJSON interface{} = nil
-    if p.Details != nil {
-        if b, err := json.Marshal(p.Details); err == nil {
-            detailsJSON = string(b)
-        }
-    }
+	var detailsJSON interface{} = nil
+	if p.Details != nil {
+		if b, err := json.Marshal(p.Details); err == nil {
+			detailsJSON = string(b)
+		}
+	}
 
-    // 2. 親テーブルへの INSERT (PostgreSQL専用: VALUES形式 + RETURNING)
-    // $4(price)に型キャストを追加して、型不明エラーを回避
-    query := `
+	// 親テーブルへの INSERT (PostgreSQL: VALUES + RETURNING)
+	query := `
         INSERT INTO flea_item_drafts (
-            user_id, name, description, price, quantity, type, 
-            category_id, supply_type_id, is_multi_purchasable, 
-            main_image_url, status, ship_from, shipping_fee_type, 
+            user_id, name, description, price, quantity, type,
+            category_id, supply_type_id, is_multi_purchasable,
+            main_image_url, status, ship_from, shipping_fee_type,
             ships_within_days, details, created_at, updated_at
         )
         VALUES (
-            $1, $2, $3, 
-            CASE WHEN $4::text IS NULL OR $4::text = '' THEN NULL ELSE $4::numeric END, 
-            $5, $6, $7, $8, COALESCE($9, 0), $10, 0, $11, $12, $13, $14, 
+            $1, $2, $3,
+            CASE WHEN $4::text IS NULL OR $4::text = '' THEN NULL ELSE $4::numeric END,
+            $5, $6, $7, $8, COALESCE($9, 0), $10, 0, $11, $12, $13, $14,
             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
         RETURNING id, updated_at
     `
 
-    // PostgreSQLでは LastInsertId が使えないので Scan で取得
-    err = tx.QueryRowContext(ctx, query,
-        userID, p.Name, p.Description, p.Price, // $1 ~ $4
-        p.Quantity, p.Type, p.CategoryID, p.SupplyTypeID, // $5 ~ $8
-        p.IsMultiPurchasable, p.MainImageURL, // $9 ~ $10
-        p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays, // $11 ~ $13
-        detailsJSON, // $14
-    ).Scan(&id, &savedAt)
+	err = tx.QueryRowContext(ctx, query,
+		userID, p.Name, p.Description, p.Price, // $1 ~ $4
+		p.Quantity, p.Type, p.CategoryID, p.SupplyTypeID, // $5 ~ $8
+		p.IsMultiPurchasable, p.MainImageURL, // $9 ~ $10
+		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays, // $11 ~ $13
+		detailsJSON, // $14
+	).Scan(&id, &savedAt)
+	if err != nil {
+		return 0, time.Time{}, fmt.Errorf("insert draft: %w", err)
+	}
 
-    if err != nil {
-        return 0, time.Time{}, fmt.Errorf("insert draft: %w", err)
-    }
+	// 子テーブル (画像) への INSERT
+	// ここは Rebind 方式 (? を書いて db.DB.Rebind で $n に変換) なので元のままで正しい。
+	if p.UploadedImages != nil && len(*p.UploadedImages) > 0 {
+		imgQuery := "INSERT INTO flea_item_draft_images (draft_id, asset_id, temp_path, sort_order) VALUES "
+		var args []interface{}
 
-    // 3. 子テーブル (画像) への INSERT
-    if p.UploadedImages != nil && len(*p.UploadedImages) > 0 {
-        imgQuery := "INSERT INTO flea_item_draft_images (draft_id, asset_id, temp_path, sort_order) VALUES "
-        var args []interface{}
+		for i, img := range *p.UploadedImages {
+			imgQuery += "(?, ?, ?, ?),"
+			args = append(args, id, img.ServerID, img.URL, i)
+		}
+		imgQuery = imgQuery[:len(imgQuery)-1]
 
-        for i, img := range *p.UploadedImages {
-            imgQuery += "(?, ?, ?, ?),"
-            args = append(args, id, img.ServerID, img.URL, i)
-        }
-        imgQuery = imgQuery[:len(imgQuery)-1]
+		imgQuery = db.DB.Rebind(imgQuery)
 
-        // ★ ここで Rebind を使い、? を $1, $2... に変換する
-        imgQuery = db.DB.Rebind(imgQuery)
+		if _, err := tx.ExecContext(ctx, imgQuery, args...); err != nil {
+			return 0, time.Time{}, fmt.Errorf("insert draft images: %w", err)
+		}
+	}
 
-        if _, err := tx.ExecContext(ctx, imgQuery, args...); err != nil {
-            return 0, time.Time{}, fmt.Errorf("insert draft images: %w", err)
-        }
-    }
+	if err := tx.Commit(); err != nil {
+		return 0, time.Time{}, err
+	}
 
-    if err := tx.Commit(); err != nil {
-        return 0, time.Time{}, err
-    }
-
-    return id, savedAt, nil
+	return id, savedAt, nil
 }
 
 // ==========================================
@@ -106,7 +103,7 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 	}
 	defer tx.Rollback()
 
-	// detailsをJSON文字列に
+	// details を JSON 文字列に
 	var detailsJSON interface{} = nil
 	if p.Details != nil {
 		b, err := json.Marshal(p.Details)
@@ -117,22 +114,19 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 
 	// 存在チェック
 	var exists bool
-    err = tx.QueryRowContext(ctx, `
+	err = tx.QueryRowContext(ctx, `
         SELECT EXISTS(
-            SELECT 1 FROM flea_item_drafts 
+            SELECT 1 FROM flea_item_drafts
             WHERE id = $1 AND user_id = $2 AND status = 0
         )
     `, draftID, userID).Scan(&exists)
-
-    if err != nil {
-        return time.Time{}, err
-    }
-
-    if !exists {
-        // ここで false になると「新規作成」に回ってしまいます
-        log.Printf("DEBUG: Draft %d not found for user %s", draftID, userID)
-        return time.Time{}, sql.ErrNoRows
-    }
+	if err != nil {
+		return time.Time{}, err
+	}
+	if !exists {
+		log.Printf("DEBUG: Draft %d not found for user %s", draftID, userID)
+		return time.Time{}, sql.ErrNoRows
+	}
 
 	// 親テーブル更新
 	_, err = tx.ExecContext(ctx, `
@@ -150,17 +144,16 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
                shipping_fee_type = COALESCE($11, shipping_fee_type),
                ships_within_days = COALESCE($12, ships_within_days),
                details = COALESCE($13, details),
-               updated_at = CURRENT_TIMESTAMP  -- ★最後のカンマは絶対に入れない
+               updated_at = CURRENT_TIMESTAMP
          WHERE id = $14 AND user_id = $15 AND status = 0
     `,
-        p.Name, p.Description, p.Price,
-        p.Quantity, p.Type, p.CategoryID, p.SupplyTypeID,
-        p.IsMultiPurchasable, p.MainImageURL,
-        p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
-        detailsJSON,
-        draftID, userID,
-    )
-
+		p.Name, p.Description, p.Price,
+		p.Quantity, p.Type, p.CategoryID, p.SupplyTypeID,
+		p.IsMultiPurchasable, p.MainImageURL,
+		p.ShipFrom, p.ShippingFeeType, p.ShipsWithinDays,
+		detailsJSON,
+		draftID, userID,
+	)
 	if err != nil {
 		return time.Time{}, err
 	}
@@ -171,11 +164,16 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 			return time.Time{}, err
 		}
 		if len(*p.UploadedImages) > 0 {
+			// ★修正: 以前は毎ループ "($1, $2, $3, $4)," を固定で書いており、
+			//   プレースホルダ番号が重複して 2 枚目以降が壊れていた。
+			//   ループごとに連番を振り直す。
 			query := "INSERT INTO flea_item_draft_images (draft_id, asset_id, temp_path, sort_order) VALUES "
 			var args []interface{}
+			ph := 1
 			for i, img := range *p.UploadedImages {
-				query += "($1, $2, $3, $4),"
+				query += fmt.Sprintf("($%d, $%d, $%d, $%d),", ph, ph+1, ph+2, ph+3)
 				args = append(args, draftID, img.ServerID, img.URL, i)
+				ph += 4
 			}
 			query = query[:len(query)-1]
 			if _, err := tx.ExecContext(ctx, query, args...); err != nil {
@@ -184,7 +182,9 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 		}
 	}
 
-	tx.QueryRowContext(ctx, "SELECT updated_at FROM flea_item_drafts WHERE id=$1", draftID).Scan(&savedAt)
+	if err := tx.QueryRowContext(ctx, "SELECT updated_at FROM flea_item_drafts WHERE id = $1", draftID).Scan(&savedAt); err != nil {
+		return time.Time{}, err
+	}
 	return savedAt, tx.Commit()
 }
 
@@ -192,38 +192,36 @@ func (db *Database) UpdateDraftByID(ctx context.Context, userID string, draftID 
 // GetFleaDraftByID: ドラフト取得（復元対応版）
 // ==========================================
 func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID uint64) (utils.LatestDraftResponse, error) {
-    var out utils.LatestDraftResponse
-    if db.DB == nil {
-        return out, errors.New("db not ready")
-    }
-    var updated time.Time
-    var detailsString sql.NullString
+	var out utils.LatestDraftResponse
+	if db.DB == nil {
+		return out, errors.New("db not ready")
+	}
+	var updated time.Time
+	var detailsString sql.NullString
 
-    // PostgreSQL版のクエリ
-    query := `
-        SELECT 
-            d.id, 
-            d.name, 
+	query := `
+        SELECT
+            d.id,
+            d.name,
             d.description,
-            -- 一度textにキャストしてからTRIMする
-            CASE 
-                WHEN d.price IS NULL THEN NULL 
-                ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM d.price::text)) 
+            CASE
+                WHEN d.price IS NULL THEN NULL
+                ELSE TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM d.price::text))
             END,
-            d.quantity, 
-            d.type, 
+            d.quantity,
+            d.type,
             d.category_id,
             d.supply_type_id,
-            CASE 
-                WHEN d.supply_type_id IS NOT NULL AND st.name IS NOT NULL 
+            CASE
+                WHEN d.supply_type_id IS NOT NULL AND st.name IS NOT NULL
                 THEN c.name || ' > ' || st.name
-                ELSE c.name 
+                ELSE c.name
             END AS category_name,
             d.is_multi_purchasable,
             d.main_image_url,
-            d.ship_from, 
-            d.shipping_fee_type, 
-            d.ships_within_days, 
+            d.ship_from,
+            d.shipping_fee_type,
+            d.ships_within_days,
             d.details,
             d.updated_at
         FROM flea_item_drafts AS d
@@ -232,38 +230,35 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
         WHERE d.id = $1 AND d.user_id = $2 AND d.status = 0
     `
 
-    err := db.DB.QueryRowContext(ctx, query, draftID, userID).Scan(
-        &out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type,
-        &out.CategoryID,
-        &out.SupplyTypeID,
-        &out.CategoryName,
-        &out.IsMultiPurchasable,
-        &out.MainImageURL, &out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays,
-        &detailsString,
-        &updated,
-    )
-    if err != nil {
-        return out, err
-    }
+	err := db.DB.QueryRowContext(ctx, query, draftID, userID).Scan(
+		&out.DraftID, &out.Name, &out.Description, &out.Price, &out.Quantity, &out.Type,
+		&out.CategoryID,
+		&out.SupplyTypeID,
+		&out.CategoryName,
+		&out.IsMultiPurchasable,
+		&out.MainImageURL, &out.ShipFrom, &out.ShippingFeeType, &out.ShipsWithinDays,
+		&detailsString,
+		&updated,
+	)
+	if err != nil {
+		return out, err
+	}
 
-    // (JSONのUnmarshal処理などはそのままでOK)
-    if detailsString.Valid && detailsString.String != "" {
-        var det interface{}
-        if err := json.Unmarshal([]byte(detailsString.String), &det); err == nil {
-            out.Details = det
-        }
-    }
+	if detailsString.Valid && detailsString.String != "" {
+		var det interface{}
+		if err := json.Unmarshal([]byte(detailsString.String), &det); err == nil {
+			out.Details = det
+		}
+	}
 
-    out.UpdatedAt = updated.UTC().Format(time.RFC3339)
+	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
 
-    // 画像取得のクエリも修正 ($1 に変更)
-    imgRows, err := db.DB.QueryContext(ctx, `
+	imgRows, err := db.DB.QueryContext(ctx, `
         SELECT asset_id, temp_path
           FROM flea_item_draft_images
          WHERE draft_id = $1
          ORDER BY sort_order ASC
     `, draftID)
-    // ... (以降の Scan 処理は今のままでOK)
 	if err != nil {
 		return out, err
 	}
@@ -276,7 +271,6 @@ func (db *Database) GetFleaDraftByID(ctx context.Context, userID string, draftID
 		if err := imgRows.Scan(&assetID, &path); err != nil {
 			return out, err
 		}
-
 		images = append(images, utils.DraftUploadedImage{
 			ID:       fmt.Sprintf("%d", assetID),
 			ServerID: assetID,
@@ -293,12 +287,13 @@ func (db *Database) ListDraftsByUser(ctx context.Context, userID string, limit, 
 		return out, errors.New("db not ready")
 	}
 
+	// ★修正: ? -> $n
 	rows, err := db.DB.QueryContext(ctx, `
 		SELECT id, name, updated_at, status, main_image_url
 		  FROM flea_item_drafts
-		 WHERE user_id = ? AND status = 0
+		 WHERE user_id = $1 AND status = 0
 		 ORDER BY updated_at DESC
-		 LIMIT ? OFFSET ?
+		 LIMIT $2 OFFSET $3
 	`, userID, limit, offset)
 	if err != nil {
 		return out, err
@@ -320,33 +315,30 @@ func (db *Database) ListDraftsByUser(ctx context.Context, userID string, limit, 
 }
 
 func (db *Database) ArchiveDraft(ctx context.Context, userID string, draftID uint64) error {
-    if db.DB == nil {
-        return errors.New("db not ready")
-    }
+	if db.DB == nil {
+		return errors.New("db not ready")
+	}
 
-    // PostgreSQL版: 関数名とプレースホルダを修正
-    res, err := db.DB.ExecContext(ctx, `
+	res, err := db.DB.ExecContext(ctx, `
         UPDATE flea_item_drafts
         SET status = 2, updated_at = CURRENT_TIMESTAMP
         WHERE id = $1 AND user_id = $2 AND status = 0
     `, draftID, userID)
-    
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 
-    if rows, _ := res.RowsAffected(); rows == 0 {
-        return sql.ErrNoRows
-    }
-    return nil
+	if rows, _ := res.RowsAffected(); rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }
 
 func (db *Database) UploadImageAsset(publicURL string) (int64, error) {
-    var id int64
-    // PostgreSQL版: ? を $1 に変え、RETURNING で ID を取得
-    err := db.DB.QueryRow("INSERT INTO image_assets (url) VALUES ($1) RETURNING id", publicURL).Scan(&id)
-    if err != nil {
-        return 0, err
-    }
-    return id, nil
+	var id int64
+	err := db.DB.QueryRow("INSERT INTO image_assets (url) VALUES ($1) RETURNING id", publicURL).Scan(&id)
+	if err != nil {
+		return 0, err
+	}
+	return id, nil
 }

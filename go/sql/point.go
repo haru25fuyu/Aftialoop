@@ -13,9 +13,7 @@ import (
 // ============================================================
 
 // ChargePoint: ポイントを減らす（履歴も自動記録）
-// ※ 決済以外の、単発でポイント減算する場合に使用
 func (d *Database) ChargePoint(ctx context.Context, userID string, amount int64, note string) error {
-	// 整合性を保つためトランザクションを開始
 	tx, err := d.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -23,13 +21,11 @@ func (d *Database) ChargePoint(ctx context.Context, userID string, amount int64,
 	defer tx.Rollback()
 
 	// 1. 残高チェック & 減算 (アトミック更新)
-	// point >= ? で残高不足なら更新されないようにする
 	res, err := tx.ExecContext(ctx, `
-		UPDATE users 
-		SET point = point - ? 
-		WHERE id = ? AND point >= ?
+		UPDATE users
+		SET point = point - $1
+		WHERE id = $2 AND point >= $3
 	`, amount, userID, amount)
-
 	if err != nil {
 		return fmt.Errorf("ポイント更新エラー: %w", err)
 	}
@@ -43,13 +39,12 @@ func (d *Database) ChargePoint(ctx context.Context, userID string, amount int64,
 	}
 
 	// 2. 履歴記録 (USED)
-	// amount はマイナスで記録するのが通例
 	if note == "" {
 		note = "ポイント利用"
 	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO point_histories (user_id, type, amount, note, created_at)
-		VALUES (?, 'USED', ?, ?, UTC_TIMESTAMP())
+		VALUES ($1, 'USED', $2, $3, CURRENT_TIMESTAMP)
 	`, userID, -amount, note)
 	if err != nil {
 		return fmt.Errorf("履歴保存エラー: %w", err)
@@ -59,15 +54,13 @@ func (d *Database) ChargePoint(ctx context.Context, userID string, amount int64,
 }
 
 // ChargePointTx: 既存のトランザクション内でポイントを減らし、履歴も記録する
-// ※ 商品購入処理 (PayTransaction) など、大きなトランザクションの一部として呼ぶ用
 func (d *Database) ChargePointTx(ctx context.Context, tx *sql.Tx, userID string, amount int64, note string) error {
 	// 1. 減算
 	res, err := tx.ExecContext(ctx, `
-		UPDATE users 
-		SET point = point - ? 
-		WHERE id = ? AND point >= ?
+		UPDATE users
+		SET point = point - $1
+		WHERE id = $2 AND point >= $3
 	`, amount, userID, amount)
-
 	if err != nil {
 		return fmt.Errorf("ポイント更新失敗: %w", err)
 	}
@@ -77,15 +70,14 @@ func (d *Database) ChargePointTx(ctx context.Context, tx *sql.Tx, userID string,
 		return fmt.Errorf("ポイント不足")
 	}
 
-	// 2. 履歴記録 (呼び出し元でINSERTしなくて済むよう、ここで行う)
+	// 2. 履歴記録
 	if note == "" {
 		note = "商品購入で利用"
 	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO point_histories (user_id, type, amount, note, created_at)
-		VALUES (?, 'USED', ?, ?, UTC_TIMESTAMP())
+		VALUES ($1, 'USED', $2, $3, CURRENT_TIMESTAMP)
 	`, userID, -amount, note)
-
 	if err != nil {
 		return fmt.Errorf("ポイント履歴記録失敗: %w", err)
 	}
@@ -94,7 +86,6 @@ func (d *Database) ChargePointTx(ctx context.Context, tx *sql.Tx, userID string,
 }
 
 // AddPoint: ポイントを増やす（履歴も自動記録）
-// ※ キャンペーン付与や補填などで使用
 func (d *Database) AddPoint(ctx context.Context, userID string, amount int64, note string) error {
 	tx, err := d.DB.BeginTx(ctx, nil)
 	if err != nil {
@@ -103,7 +94,7 @@ func (d *Database) AddPoint(ctx context.Context, userID string, amount int64, no
 	defer tx.Rollback()
 
 	// 1. 加算
-	_, err = tx.ExecContext(ctx, "UPDATE users SET point = point + ? WHERE id = ?", amount, userID)
+	_, err = tx.ExecContext(ctx, "UPDATE users SET point = point + $1 WHERE id = $2", amount, userID)
 	if err != nil {
 		return fmt.Errorf("ポイント加算エラー: %w", err)
 	}
@@ -114,7 +105,7 @@ func (d *Database) AddPoint(ctx context.Context, userID string, amount int64, no
 	}
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO point_histories (user_id, type, amount, note, created_at)
-		VALUES (?, 'ACQUIRED', ?, ?, UTC_TIMESTAMP())
+		VALUES ($1, 'ACQUIRED', $2, $3, CURRENT_TIMESTAMP)
 	`, userID, amount, note)
 	if err != nil {
 		return fmt.Errorf("履歴保存エラー: %w", err)
@@ -136,7 +127,7 @@ func (d *Database) ExchangeSalesToPoint(ctx context.Context, userID string, amou
 
 	// 1. 現在の売上残高をロックして取得
 	var currentSales int64
-	err = tx.GetContext(ctx, &currentSales, "SELECT sales_balance FROM users WHERE id = ? FOR UPDATE", userID)
+	err = tx.GetContext(ctx, &currentSales, "SELECT sales_balance FROM users WHERE id = $1 FOR UPDATE", userID)
 	if err != nil {
 		return fmt.Errorf("failed to lock user: %w", err)
 	}
@@ -147,12 +138,11 @@ func (d *Database) ExchangeSalesToPoint(ctx context.Context, userID string, amou
 	}
 
 	// 3. ユーザー情報の更新 (売上を減らし、ポイントを増やす)
-	// ※レートは等価交換(1円=1pt)とします
 	_, err = tx.ExecContext(ctx, `
-		UPDATE users 
-		SET sales_balance = sales_balance - ?, 
-			point = point + ? 
-		WHERE id = ?
+		UPDATE users
+		SET sales_balance = sales_balance - $1,
+			point = point + $2
+		WHERE id = $3
 	`, amount, amount, userID)
 	if err != nil {
 		return fmt.Errorf("failed to update balance: %w", err)
@@ -161,17 +151,16 @@ func (d *Database) ExchangeSalesToPoint(ctx context.Context, userID string, amou
 	// 4. 売上履歴に記録 (出金扱い)
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO sales_histories (user_id, type, amount, balance_snapshot, note, created_at)
-		VALUES (?, 'EXCHANGE', ?, ?, 'ポイントへ交換', UTC_TIMESTAMP())
+		VALUES ($1, 'EXCHANGE', $2, $3, 'ポイントへ交換', CURRENT_TIMESTAMP)
 	`, userID, -amount, currentSales-int64(amount))
 	if err != nil {
 		return fmt.Errorf("failed to log sales history: %w", err)
 	}
 
 	// 5. ポイント履歴に記録 (入金扱い)
-	// ※ point_histories テーブルがある前提。なければこのブロックはスキップでも可
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO point_histories (user_id, type, amount, note, created_at)
-		VALUES (?, 'ACQUIRED', ?, '売上金から交換', UTC_TIMESTAMP())
+		VALUES ($1, 'ACQUIRED', $2, '売上金から交換', CURRENT_TIMESTAMP)
 	`, userID, amount)
 	if err != nil {
 		// テーブルがない等のエラーは無視するか、ログに出して続行するなど調整
@@ -185,20 +174,18 @@ func (d *Database) ExchangeSalesToPoint(ctx context.Context, userID string, amou
 func (d *Database) GetUserPointHistory(ctx context.Context, userID string, limit, offset int) (*utils.PointHistoryResponse, error) {
 	// 1. 現在のポイント残高を取得
 	var currentPoints int
-	// COALESCE(point, 0) でNULL対策
-	err := d.DB.QueryRowContext(ctx, "SELECT COALESCE(point, 0) FROM users WHERE id = ?", userID).Scan(&currentPoints)
+	err := d.DB.QueryRowContext(ctx, "SELECT COALESCE(point, 0) FROM users WHERE id = $1", userID).Scan(&currentPoints)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get user points: %w", err)
 	}
 
 	// 2. 履歴リストを取得
-	// 新しい順 (DESC) に取得
 	query := `
         SELECT id, type, amount, COALESCE(note, '') as note, created_at
         FROM point_histories
-        WHERE user_id = ?
+        WHERE user_id = $1
         ORDER BY created_at DESC
-        LIMIT ? OFFSET ?
+        LIMIT $2 OFFSET $3
     `
 
 	rows, err := d.DB.QueryContext(ctx, query, userID, limit, offset)

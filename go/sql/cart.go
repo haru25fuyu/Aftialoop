@@ -8,26 +8,26 @@ import (
 )
 
 // ============================================================
-// カート関係
+// カート関係 (EC旧系)
 // ============================================================
 
 func (d *Database) AddToCart(userID string, item utils.Item) error {
 	var count int
-	checkQuery := "SELECT COUNT(*) FROM cart_items WHERE user_id = ? AND item_id = ?"
+	checkQuery := "SELECT COUNT(*) FROM cart_items WHERE user_id = $1 AND item_id = $2"
 	err := d.DB.Get(&count, checkQuery, userID, item.ID)
 	if err != nil {
 		return fmt.Errorf("DBチェック失敗: %w", err)
 	}
 
 	if count > 0 {
-		updateQuery := "UPDATE cart_items SET quantity = quantity + ? WHERE user_id = ? AND item_id = ?"
+		updateQuery := "UPDATE cart_items SET quantity = quantity + $1 WHERE user_id = $2 AND item_id = $3"
 		_, err := d.DB.Exec(updateQuery, item.Quantity, userID, item.ID)
 		if err != nil {
 			return fmt.Errorf("更新失敗: %w", err)
 		}
 		log.Printf("カートのアイテムを更新しました: %s", item.ID)
 	} else {
-		insertQuery := "INSERT INTO cart_items (user_id, item_id, quantity) VALUES (?, ?, ?)"
+		insertQuery := "INSERT INTO cart_items (user_id, item_id, quantity) VALUES ($1, $2, $3)"
 		_, err := d.DB.Exec(insertQuery, userID, item.ID, item.Quantity)
 		if err != nil {
 			return fmt.Errorf("挿入失敗: %w", err)
@@ -43,7 +43,7 @@ func (d *Database) GetCartItems(userID string) ([]utils.Item, error) {
 		SELECT i.id, i.name, i.price, i.point, i.main_image_url, c.quantity, c.is_selected
 		FROM cart_items c
 		INNER JOIN items i ON c.item_id = i.id
-		WHERE c.user_id = ?
+		WHERE c.user_id = $1
 	`
 	var items []utils.Item
 	err := d.DB.Select(&items, query, userID)
@@ -54,7 +54,7 @@ func (d *Database) GetCartItems(userID string) ([]utils.Item, error) {
 }
 
 func (d *Database) DeleteCartItem(userID, itemID string) error {
-	_, err := d.DB.Exec("DELETE FROM cart_items WHERE user_id = ? AND item_id = ?", userID, itemID)
+	_, err := d.DB.Exec("DELETE FROM cart_items WHERE user_id = $1 AND item_id = $2", userID, itemID)
 	if err != nil {
 		return fmt.Errorf("削除失敗: %w", err)
 	}
@@ -67,7 +67,7 @@ func (d *Database) UpdateCartItem(userID, itemID string, quantity int, isSelecte
 		return d.DeleteCartItem(userID, itemID)
 	}
 
-	query := "UPDATE cart_items SET quantity = ?, is_selected = ? WHERE user_id = ? AND item_id = ?"
+	query := "UPDATE cart_items SET quantity = $1, is_selected = $2 WHERE user_id = $3 AND item_id = $4"
 	_, err := d.DB.Exec(query, quantity, isSelected, userID, itemID)
 	if err != nil {
 		return fmt.Errorf("更新失敗: %w", err)

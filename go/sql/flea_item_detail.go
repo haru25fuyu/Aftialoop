@@ -17,7 +17,7 @@ func (d *Database) GetAnimalDetailsByItemID(itemID int64) (*utils.AnimalDetails,
 	const q = `
 		SELECT locality, hatch_date, generation, size, sex
 		FROM flea_item_animal_details
-		WHERE item_id = ?
+		WHERE item_id = $1
 		LIMIT 1;
 	`
 
@@ -37,16 +37,19 @@ func (db *Database) UpsertAnimalDetails(ctx context.Context, itemID uint64, d0 *
 		return nil
 	}
 
+	// ON DUPLICATE KEY UPDATE -> ON CONFLICT (item_id) DO UPDATE SET ... = EXCLUDED. ...
+	// item_id が主キー(または UNIQUE)である前提。
 	_, err := db.DB.ExecContext(ctx, `
         INSERT INTO flea_item_animal_details
             (item_id, locality, hatch_date, generation, size, sex)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            locality   = VALUES(locality),
-            hatch_date = VALUES(hatch_date),
-            generation = VALUES(generation),
-            size       = VALUES(size),
-            sex        = VALUES(sex)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (item_id) DO UPDATE SET
+            locality   = EXCLUDED.locality,
+            hatch_date = EXCLUDED.hatch_date,
+            generation = EXCLUDED.generation,
+            size       = EXCLUDED.size,
+            sex        = EXCLUDED.sex,
+            updated_at = CURRENT_TIMESTAMP
     `,
 		itemID,
 		d0.Locality,
@@ -66,11 +69,12 @@ func (db *Database) UpsertSupplyDetails(ctx context.Context, itemID uint64, d0 *
 	_, err := db.DB.ExecContext(ctx, `
         INSERT INTO flea_item_supply_details
             (item_id, brand, sku, net_weight_g)
-        VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            brand        = VALUES(brand),
-            sku          = VALUES(sku),
-            net_weight_g = VALUES(net_weight_g)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (item_id) DO UPDATE SET
+            brand        = EXCLUDED.brand,
+            sku          = EXCLUDED.sku,
+            net_weight_g = EXCLUDED.net_weight_g,
+            updated_at   = CURRENT_TIMESTAMP
     `,
 		itemID,
 		d0.Brand,
@@ -84,7 +88,7 @@ func (d *Database) GetSupplyDetailsByItemID(itemID int64) (*utils.SupplyDetails,
 	const q = `
 		SELECT brand, sku, net_weight_g
 		FROM flea_item_supply_details
-		WHERE item_id = ?
+		WHERE item_id = $1
 		LIMIT 1;
 	`
 
@@ -118,15 +122,12 @@ func (d *Database) GetFleaMarketItemDetail(id int64, itemType string) (*utils.Fl
 		detail.Supply = sd
 
 	default:
-		// なかったログ
 		log.Printf("[flea_item_detail] unknown item type: %s", itemType)
 		return nil, nil
 	}
 
 	return detail, nil
 }
-
-// sql/flea_market.go に追加
 
 // UpdateAnimalDetails: 生体詳細の更新 (UPSERT)
 func (d *Database) UpdateAnimalDetails(itemID uint64, locality, hatchDate, size, generation, sex string) error {
@@ -138,17 +139,16 @@ func (d *Database) UpdateAnimalDetails(itemID uint64, locality, hatchDate, size,
 		hDate = hatchDate
 	}
 
-	// テーブル名: flea_item_animal_details
 	query := `
         INSERT INTO flea_item_animal_details (item_id, locality, hatch_date, size, generation, sex)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            locality = VALUES(locality),
-            hatch_date = VALUES(hatch_date),
-            size = VALUES(size),
-            generation = VALUES(generation),
-            sex = VALUES(sex),
-            updated_at = UTC_TIMESTAMP()
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (item_id) DO UPDATE SET
+            locality   = EXCLUDED.locality,
+            hatch_date = EXCLUDED.hatch_date,
+            size       = EXCLUDED.size,
+            generation = EXCLUDED.generation,
+            sex        = EXCLUDED.sex,
+            updated_at = CURRENT_TIMESTAMP
     `
 	_, err := d.DB.Exec(query, itemID, locality, hDate, size, generation, sex)
 	return err
@@ -156,16 +156,14 @@ func (d *Database) UpdateAnimalDetails(itemID uint64, locality, hatchDate, size,
 
 // UpdateSupplyDetails: 用品詳細の更新 (UPSERT)
 func (d *Database) UpdateSupplyDetails(itemID uint64, brand, sku string, netWeight int) error {
-	// テーブル名: flea_item_supply_details
-	// net_weight_g カラムに注意
 	query := `
         INSERT INTO flea_item_supply_details (item_id, brand, sku, net_weight_g)
-        VALUES (?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            brand = VALUES(brand),
-            sku = VALUES(sku),
-            net_weight_g = VALUES(net_weight_g),
-            updated_at = UTC_TIMESTAMP()
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (item_id) DO UPDATE SET
+            brand        = EXCLUDED.brand,
+            sku          = EXCLUDED.sku,
+            net_weight_g = EXCLUDED.net_weight_g,
+            updated_at   = CURRENT_TIMESTAMP
     `
 	_, err := d.DB.Exec(query, itemID, brand, sku, netWeight)
 	return err

@@ -54,14 +54,10 @@ func (d *Database) GetUserData(where []string, values []interface{}) (utils.SqlU
     return user, nil
 }
 
-// 　ユーザーIDでカスタマーIDも含めたユーザーデータ取得
-func (d *Database) GetUserDataWithCustomerIDByID(userID string) (utils.SqlUser, error) {
-    return d.GetUserData([]string{"id = ?"}, []interface{}{userID})
-}
 // カスタマーIDも含めたユーザーデータ取得
-func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.RequestUserProfile, error) {
+func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{}) (utils.SqlUser, error) {
     query := "SELECT id, email, name, username, default_card, point, customer_id, icon_url, following_count, followers_count FROM users"
-    
+
     if len(where) > 0 {
         query += " WHERE " + strings.Join(where, " AND ")
     }
@@ -69,19 +65,24 @@ func (d *Database) GetUserDataWithCustomerID(where []string, values []interface{
     // ★ PostgreSQL 用に ? を $1, $2 形式に一括変換
     query = d.DB.Rebind(query)
 
-    var user utils.SqlResponsUserProfile
+    var user utils.SqlUser
     // values... の展開と $n の数が Rebind によって一致します
     err := d.DB.Get(&user, query, values...)
-    
+
     if err != nil {
         if err == sql.ErrNoRows {
-            return utils.RequestUserProfile{}, fmt.Errorf("user not found")
+            return utils.SqlUser{}, fmt.Errorf("user not found")
         }
         log.Println("データベース取得エラー:", err)
-        return utils.RequestUserProfile{}, err
+        return utils.SqlUser{}, err
     }
-    
-    return utils.ToUserProfileResponse(user), nil
+
+    return user, nil
+}
+
+// 　ユーザーIDでカスタマーIDも含めたユーザーデータ取得
+func (d *Database) GetUserDataWithCustomerIDByID(userID string) (utils.SqlUser, error) {
+    return d.GetUserDataWithCustomerID([]string{"id = ?"}, []interface{}{userID})
 }
 
 func (d *Database) GetUserDataByID(userID string) (utils.SqlUser, error) {

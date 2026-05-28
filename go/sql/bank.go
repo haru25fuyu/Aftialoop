@@ -9,19 +9,16 @@ import (
 func (d *Database) GetUserBankAccount(userID string) (*utils.UserBankAccountResponse, error) {
 	var response utils.UserBankAccountResponse
 
-	// 1. 既存の d.DB (*sql.DB) を sqlx でラップする
-	// (アプリの初期化時に d.DB 自体を *sqlx.DB にしてしまうのがベストですが、ここでは局所的に使います)
-	dbx := sqlx.NewDb(d.DB.DB, "mysql")
+	// ★修正: ドライバ名を "mysql" -> "postgres" に。
+	//   sqlx は driverName を見て Rebind の挙動(?→$n)を決めるため、ここが mysql だと
+	//   NamedExec での :name 展開後のプレースホルダが正しく $n にならない。
+	dbx := sqlx.NewDb(d.DB.DB, "postgres")
 
-	// 2. Getメソッドを使うと、dbタグを見て自動でマッピングしてくれます！
-	// Scan(&...) を大量に書く必要はもうありません。
-	// SELECT * で全カラム取ってくれば、タグ名と一致する場所に自動で入ります。
-	query := `SELECT * FROM user_bank_accounts WHERE user_id = ?`
+	// SELECT * で全カラム取得し、db タグ名で自動マッピング
+	query := `SELECT * FROM user_bank_accounts WHERE user_id = $1`
 
 	err := dbx.Get(&response, query, userID)
-
 	if err != nil {
-		// sqlx もデータがない場合は sql.ErrNoRows を返します
 		return nil, err
 	}
 
@@ -30,34 +27,35 @@ func (d *Database) GetUserBankAccount(userID string) (*utils.UserBankAccountResp
 
 // UpsertUserBankAccount: sqlx.NamedExec を使って構造体をそのまま保存
 func (d *Database) UpsertUserBankAccount(b *utils.UserBankAccountResponse) error {
-	dbx := sqlx.NewDb(d.DB.DB, "mysql")
+	// ★修正: "mysql" -> "postgres"
+	dbx := sqlx.NewDb(d.DB.DB, "postgres")
 
-	// コロン (:カラム名) を使うと、構造体の db:"カラム名" の値が自動で入ります
-	// VALUES の中身を ? から :name 形式に変えるだけでOKです
+	// ★修正:
+	//   - UTC_TIMESTAMP() -> CURRENT_TIMESTAMP
+	//   - ON DUPLICATE KEY UPDATE ... VALUES(col) -> ON CONFLICT (user_id) DO UPDATE SET ... = EXCLUDED.col
+	//   ※ user_bank_accounts.user_id が UNIQUE である前提。
 	query := `
-        INSERT INTO user_bank_accounts 
+        INSERT INTO user_bank_accounts
         (
-            user_id, bank_name, bank_code, branch_name, branch_code, 
+            user_id, bank_name, bank_code, branch_name, branch_code,
             account_type, account_number, account_holder_name, created_at, updated_at
         )
-        VALUES 
+        VALUES
         (
-            :user_id, :bank_name, :bank_code, :branch_name, :branch_code, 
-            :account_type, :account_number, :account_holder_name, UTC_TIMESTAMP(), UTC_TIMESTAMP()
+            :user_id, :bank_name, :bank_code, :branch_name, :branch_code,
+            :account_type, :account_number, :account_holder_name, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         )
-        ON DUPLICATE KEY UPDATE
-            bank_name           = VALUES(bank_name),
-            bank_code           = VALUES(bank_code),
-            branch_name         = VALUES(branch_name),
-            branch_code         = VALUES(branch_code),
-            account_type        = VALUES(account_type),
-            account_number      = VALUES(account_number),
-            account_holder_name = VALUES(account_holder_name),
-            updated_at          = UTC_TIMESTAMP()
+        ON CONFLICT (user_id) DO UPDATE SET
+            bank_name           = EXCLUDED.bank_name,
+            bank_code           = EXCLUDED.bank_code,
+            branch_name         = EXCLUDED.branch_name,
+            branch_code         = EXCLUDED.branch_code,
+            account_type        = EXCLUDED.account_type,
+            account_number      = EXCLUDED.account_number,
+            account_holder_name = EXCLUDED.account_holder_name,
+            updated_at          = CURRENT_TIMESTAMP
     `
 
-	// 構造体 b をそのまま渡すだけ！
 	_, err := dbx.NamedExec(query, b)
-
 	return err
 }

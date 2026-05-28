@@ -65,24 +65,23 @@ func (d *Database) GetFleaItemMessages(itemID uint64) ([]*utils.FleaItemMessage,
 }
 
 func (d *Database) AddFleaItemMessage(itemID uint64, userID string, parentID *uint64, body string) (int64, error) {
-    body = strings.TrimSpace(body)
-    if body == "" {
-        return 0, fmt.Errorf("body empty")
-    }
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return 0, fmt.Errorf("body empty")
+	}
 
-    var newID int64
-    // 修正: $n 形式、UTC_TIMESTAMP() -> CURRENT_TIMESTAMP、RETURNING id を追加
-    query := `
+	var newID int64
+	query := `
         INSERT INTO flea_item_messages (item_id, parent_message_id, user_id, body, created_at)
         VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
         RETURNING id
     `
-    err := d.DB.QueryRow(query, itemID, parentID, userID, body).Scan(&newID)
-    if err != nil {
-        return 0, err
-    }
+	err := d.DB.QueryRow(query, itemID, parentID, userID, body).Scan(&newID)
+	if err != nil {
+		return 0, err
+	}
 
-    return newID, nil
+	return newID, nil
 }
 
 func (d *Database) GetFleaItemMessageUserIDs(itemID uint64, userID string) ([]string, error) {
@@ -117,7 +116,7 @@ func (d *Database) GetFleaItemMessageUserIDs(itemID uint64, userID string) ([]st
 // 取引メッセージ一覧取得
 func (d *Database) GetTransactionMessages(prID uint64) ([]utils.FleaTXMessage, error) {
 	query := `
-        SELECT 
+        SELECT
             m.id, m.purchase_request_id, m.user_id, m.message, m.created_at,
             u.name AS user_name, u.icon_url AS user_icon_url
         FROM flea_transaction_messages m
@@ -126,18 +125,18 @@ func (d *Database) GetTransactionMessages(prID uint64) ([]utils.FleaTXMessage, e
         ORDER BY m.created_at ASC
     `
 
-    var messages []utils.FleaTXMessage
-    // Select を使うので Rebind は不要（直接 $1 と書いたため）
-    err := d.DB.Select(&messages, query, prID)
-    return messages, err
+	var messages []utils.FleaTXMessage
+	err := d.DB.Select(&messages, query, prID)
+	return messages, err
 }
 
 // 取引メッセージ追加
 func (d *Database) CreateTransactionMessage(prID uint64, userID string, message string) error {
-    // 修正: ? -> $1, $2, $3
-    // ここも created_at が自動でないなら CURRENT_TIMESTAMP を足す必要がありますが、
-    // DB側で DEFAULT CURRENT_TIMESTAMP になっているならこのままでOK
-    query := `INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message) VALUES ($1, $2, $3)`
-    _, err := d.DB.Exec(query, prID, userID, message)
-    return err
+	// ★修正: created_at を明示的に入れる (DEFAULT が無い環境でも動くように)
+	query := `
+        INSERT INTO flea_transaction_messages (purchase_request_id, user_id, message, created_at)
+        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+    `
+	_, err := d.DB.Exec(query, prID, userID, message)
+	return err
 }

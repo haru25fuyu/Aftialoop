@@ -54,9 +54,10 @@ func (d *Database) RotateRefreshToken(
 	newToken string,
 	newExpiresAt time.Time,
 ) error {
+	// UTC_TIMESTAMP() -> CURRENT_TIMESTAMP
 	_, err := d.DB.Exec(`
 		UPDATE refresh_tokens
-		SET refresh_token = $1, expires_at = $2, created_at = UTC_TIMESTAMP()
+		SET refresh_token = $1, expires_at = $2, created_at = CURRENT_TIMESTAMP
 		WHERE user_id = $3 AND refresh_token = $4
 	`, newToken, newExpiresAt, userID, oldToken)
 
@@ -64,13 +65,14 @@ func (d *Database) RotateRefreshToken(
 }
 
 func (d *Database) CreateRefreshToken(userID string, token string, expiresAt time.Time) error {
+	// UTC_TIMESTAMP() -> CURRENT_TIMESTAMP (ON CONFLICT 構文は元から PostgreSQL 用で正しい)
 	_, err := d.DB.Exec(`
 		INSERT INTO refresh_tokens (user_id, refresh_token, expires_at)
 		VALUES ($1, $2, $3)
 		ON CONFLICT (user_id) DO UPDATE SET
 			refresh_token = EXCLUDED.refresh_token,
 			expires_at = EXCLUDED.expires_at,
-			created_at = UTC_TIMESTAMP()
+			created_at = CURRENT_TIMESTAMP
 	`, userID, token, expiresAt)
 
 	return err

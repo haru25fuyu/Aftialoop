@@ -19,9 +19,9 @@ func (db *Database) GetNotifications(ctx context.Context, userID string, limit, 
 	const q = `
 		SELECT id, type, title, body, url, is_read, created_at
 		FROM notifications
-		WHERE user_id = ? OR user_id IS NULL
+		WHERE user_id = $1 OR user_id IS NULL
 		ORDER BY created_at DESC
-		LIMIT ? OFFSET ?
+		LIMIT $2 OFFSET $3
 	`
 	var notifs []Notification
 	err := db.DB.SelectContext(ctx, &notifs, q, userID, limit, offset)
@@ -30,9 +30,10 @@ func (db *Database) GetNotifications(ctx context.Context, userID string, limit, 
 
 // CreateNotification: 通知を作成
 func (db *Database) CreateNotification(userID *string, nType, title, body, url string) error {
+	// UTC_TIMESTAMP() -> CURRENT_TIMESTAMP, ? -> $n
 	const q = `
 		INSERT INTO notifications (user_id, type, title, body, url, created_at)
-		VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())
+		VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
 	`
 	_, err := db.DB.Exec(q, userID, nType, title, body, url)
 	return err
@@ -40,7 +41,8 @@ func (db *Database) CreateNotification(userID *string, nType, title, body, url s
 
 // MarkNotificationAsRead: 既読にする
 func (db *Database) MarkNotificationAsRead(userID string, notifID uint64) error {
-	const q = `UPDATE notifications SET is_read = TRUE WHERE id = ? AND user_id = ?`
+	// TRUE は PostgreSQL でも有効。? -> $n
+	const q = `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`
 	_, err := db.DB.Exec(q, notifID, userID)
 	return err
 }

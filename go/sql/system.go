@@ -15,19 +15,19 @@ import (
 // ============================================================
 
 func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
+	// このSELECTは既に PostgreSQL 用 (二重引用符) で正しいのでそのまま。
 	rows, err := d.DB.Query(`
         SELECT "key", "value", "updated_at"
         FROM system_settings
         WHERE "key" IN (
-            'flea.base_rate', 
-            'flea.max_rate', 
-            'flea.rate_den', 
+            'flea.base_rate',
+            'flea.max_rate',
+            'flea.rate_den',
             'flea.commission_rate',
             'payout.transfer_fee',
             'payout.min_amount'
         )
     `)
-
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +54,6 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 			}
 			cfg.BaseRate = f
 			updatedAt = ua
-
 		case "flea.max_rate":
 			f, err := strconv.ParseInt(v, 10, 64)
 			if err != nil {
@@ -85,11 +84,9 @@ func (d *Database) LoadFleaConfig() (*config.FleaConfig, error) {
 			updatedAt = ua
 		case "payout.min_amount":
 			minPayout, err = strconv.ParseInt(v, 10, 64)
-
 			if err != nil {
 				return nil, fmt.Errorf("invalid min_amount: %w", err)
 			}
-
 			cfg.MinPayoutAmount = minPayout
 			updatedAt = ua
 		default:
@@ -131,11 +128,17 @@ func (d *Database) SaveFleaConfig(ctx context.Context, cfg config.FleaConfig) er
 	}
 	defer tx.Rollback()
 
+	// ★修正:
+	//   - MySQL のバッククォート `key`, `value` -> PostgreSQL の二重引用符 "key", "value"
+	//   - プレースホルダ ? -> $1, $2
+	//   - ON DUPLICATE KEY UPDATE value = VALUES(value)
+	//       -> ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value"
+	//   ※ system_settings の "key" が主キー(または UNIQUE)である前提。
 	upsert := `
-		INSERT INTO system_settings (` + "`key`, `value`" + `)
-		VALUES (?, ?)
-		ON DUPLICATE KEY UPDATE
-			value = VALUES(value),
+		INSERT INTO system_settings ("key", "value")
+		VALUES ($1, $2)
+		ON CONFLICT ("key") DO UPDATE SET
+			"value" = EXCLUDED."value",
 			updated_at = CURRENT_TIMESTAMP
 	`
 
