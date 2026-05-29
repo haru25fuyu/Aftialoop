@@ -1,13 +1,16 @@
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import { BrowserRouter as Router, } from 'react-router-dom'
+import { StrictMode } from "react";
+import { createRoot } from "react-dom/client";
+import "./index.css";
+import App from "./App.tsx";
+import { BrowserRouter as Router } from "react-router-dom";
+import { injectCSSVariables } from "./styles/cssVariables";
 
-createRoot(document.getElementById('root')!).render(
+injectCSSVariables();
+
+createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Router>
       <App />
     </Router>
   </StrictMode>,
-)
+);

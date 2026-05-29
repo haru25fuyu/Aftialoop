@@ -1,20 +1,21 @@
 export interface Content {
   id: string;
   name: string;
-  description: string;   // ✅ discription → description に修正
+  description: string;
   point: number;
   price: number;
   main_image_url: string;
   quantity: number;
   status: number;
-  // is_selected は Cart 側でローカル管理するため削除
 }
 
+// ✅ default_card を snake_case に統一
+//    バックエンド (userData.go) が "default_card" で返しているため
 export interface Customer {
   id: string;
   name: string;
   email: string;
-  defaultCard: string | null;
+  default_card: string | null; // 旧: defaultCard
   point: number;
 }
 

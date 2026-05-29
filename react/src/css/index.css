@@ -1,0 +1,26 @@
+/* ============================================================
+   ANIMALOOP — CSS エントリーポイント
+   読み込み順序を必ず守ること：
+     1. Tailwind（ユーティリティのベース）
+     2. theme.css（デザイントークン定義）
+     3. components.css（共通コンポーネント）
+     4. pages.css（ページ固有スタイル）
+   ============================================================ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import "./theme.css";
+@import "./components.css";
+@import "./pages.css";
+
+/* --------------------------------------------------
+   Tailwind との共存ルール
+   - カラーはCSS変数を使う（Tailwindクラスは上書き可）
+   - コンポーネントクラスと Tailwind ユーティリティの
+     混在は避け、どちらかに統一する
+   -------------------------------------------------- */
+
+/* Google Fonts 読み込み */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Dela+Gothic+One&display=swap");

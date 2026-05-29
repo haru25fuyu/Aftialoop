@@ -1,0 +1,196 @@
+/* ============================================================
+   ANIMALOOP — デザイントークン（ロゴカラー準拠版）
+
+   ロゴから抽出したカラー：
+     アンバー   #D4913A  — 文字「af」「as」
+     グレー     #8C8C8C  — 文字「t」「aloop」
+     ダークレッド #7A1A1A  — 人型「i」のドット
+     ブラック   #1A1A1A  — 角の「p」
+
+   設計方針：
+     - アンバーをブランドプライマリ（ロゴの主役色）
+     - ダークレッドをアクセント（CTA・購入ボタン等）
+     - グレー系をニュートラル（テキスト・ボーダー等）
+     - グリーン系はセマンティック「成功」にのみ使用
+   ============================================================ */
+
+:root {
+  /* --------------------------------------------------
+     プライマリ（アンバー：ロゴの「af」「as」から）
+     -------------------------------------------------- */
+  --color-primary-50:  #fdf5e8;
+  --color-primary-100: #f9e4be;
+  --color-primary-200: #f3cc88;
+  --color-primary-300: #ecaf50;
+  --color-primary-400: #e49a2a;
+  --color-primary-500: #d4913a;   /* ロゴアンバー */
+  --color-primary-600: #b87530;
+  --color-primary-700: #935c24;
+  --color-primary-800: #6b421a;
+  --color-primary-900: #432910;
+
+  /* --------------------------------------------------
+     アクセント（ダークレッド：ロゴの人型「i」から）
+     -------------------------------------------------- */
+  --color-accent-50:   #f9eaea;
+  --color-accent-100:  #f0c4c4;
+  --color-accent-200:  #e08888;
+  --color-accent-400:  #b03030;
+  --color-accent-500:  #7a1a1a;   /* ロゴダークレッド */
+  --color-accent-600:  #611515;
+  --color-accent-800:  #3d0d0d;
+
+  /* --------------------------------------------------
+     ニュートラル（グレー：ロゴの「t」「aloop」から）
+     -------------------------------------------------- */
+  --color-neutral-0:   #ffffff;
+  --color-neutral-50:  #f8f7f5;   /* ページ背景（温かみのある白）*/
+  --color-neutral-100: #f0eeeb;   /* カード背景 */
+  --color-neutral-200: #e0ddd8;   /* ボーダー */
+  --color-neutral-300: #c4c1bb;   /* 区切り線 */
+  --color-neutral-400: #8c8c8c;   /* ロゴグレー / プレースホルダー */
+  --color-neutral-600: #5c5a56;   /* サブテキスト */
+  --color-neutral-800: #302e2a;   /* 本文テキスト */
+  --color-neutral-900: #1a1a1a;   /* ロゴブラック / 見出し */
+
+  /* --------------------------------------------------
+     セマンティックカラー
+     -------------------------------------------------- */
+  --color-danger-bg:   #f9eaea;
+  --color-danger:      #b03030;
+  --color-danger-dark: #7a1a1a;
+
+  --color-success-bg:  #eaf3e8;
+  --color-success:     #3a7a22;
+
+  --color-warning-bg:  #fdf5e8;
+  --color-warning:     #935c24;
+
+  --color-info-bg:     #e8eef8;
+  --color-info:        #2c4eb0;
+
+  /* --------------------------------------------------
+     背景
+     -------------------------------------------------- */
+  --bg-page:        var(--color-neutral-50);
+  --bg-surface:     var(--color-neutral-0);
+  --bg-surface-alt: var(--color-neutral-100);
+  --bg-header:      var(--color-neutral-0);
+
+  /* --------------------------------------------------
+     テキスト
+     -------------------------------------------------- */
+  --text-primary:    var(--color-neutral-900);
+  --text-secondary:  var(--color-neutral-600);
+  --text-muted:      var(--color-neutral-400);
+  --text-inverse:    var(--color-neutral-0);
+  --text-link:       var(--color-primary-700);
+  --text-link-hover: var(--color-primary-900);
+
+  /* --------------------------------------------------
+     ボーダー
+     -------------------------------------------------- */
+  --border-color:       var(--color-neutral-200);
+  --border-color-focus: var(--color-primary-500);
+  --border-width:       1px;
+  --border-radius-sm:   8px;
+  --border-radius-md:   12px;
+  --border-radius-lg:   16px;
+  --border-radius-xl:   24px;
+  --border-radius-full: 9999px;
+
+  /* --------------------------------------------------
+     シャドウ
+     -------------------------------------------------- */
+  --shadow-sm: 0 1px 3px rgba(26, 26, 26, 0.07);
+  --shadow-md: 0 4px 12px rgba(26, 26, 26, 0.10);
+  --shadow-lg: 0 8px 24px rgba(26, 26, 26, 0.14);
+
+  /* --------------------------------------------------
+     タイポグラフィ
+     -------------------------------------------------- */
+  --font-family-base:    "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Meiryo", sans-serif;
+  --font-family-display: "Dela Gothic One", "Noto Sans JP", sans-serif;
+  --font-family-mono:    "JetBrains Mono", "Fira Code", monospace;
+
+  --font-size-xs:   11px;
+  --font-size-sm:   13px;
+  --font-size-base: 15px;
+  --font-size-md:   17px;
+  --font-size-lg:   20px;
+  --font-size-xl:   24px;
+  --font-size-2xl:  30px;
+  --font-size-3xl:  36px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-bold:   700;
+
+  --line-height-tight:  1.3;
+  --line-height-normal: 1.6;
+  --line-height-loose:  1.9;
+
+  /* --------------------------------------------------
+     スペーシング（8pxグリッド）
+     -------------------------------------------------- */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* --------------------------------------------------
+     レイアウト
+     -------------------------------------------------- */
+  --content-max-width:  1200px;
+  --content-narrow:      720px;
+  --content-padding:    var(--space-4);
+  --header-height:       64px;
+  --bottom-nav-height:   64px;
+
+  /* --------------------------------------------------
+     トランジション
+     -------------------------------------------------- */
+  --transition-fast:   100ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow:   350ms ease;
+
+  /* --------------------------------------------------
+     z-index
+     -------------------------------------------------- */
+  --z-header:  100;
+  --z-modal:   200;
+  --z-toast:   300;
+  --z-tooltip: 400;
+}
+
+/* ダークモード */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg-page:        #1e1c18;
+    --bg-surface:     #272420;
+    --bg-surface-alt: #2e2b26;
+    --bg-header:      #222018;
+
+    --text-primary:   #f0ede8;
+    --text-secondary: #a09d97;
+    --text-muted:     #66635e;
+    --text-inverse:   #1a1a1a;
+
+    --border-color:   #3a3730;
+
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.55);
+
+    --color-danger-bg:   #2e1010;
+    --color-success-bg:  #102010;
+    --color-warning-bg:  #2e2010;
+    --color-info-bg:     #101828;
+  }
+}
