@@ -1,15 +1,12 @@
-import React from 'react';
-import { useParams, Link, Navigate } from 'react-router-dom';
-import { GUIDE_DATA } from './GuideData';
+import React from "react";
+import { useParams, Link, Navigate } from "react-router-dom";
+
+import { GUIDE_DATA } from "./GuideData";
 
 const UserGuide: React.FC = () => {
-  // URLの /guide/:guideId の部分を取得
   const { guideId } = useParams<{ guideId: string }>();
-
-  // 該当するデータを探す
   const activeContent = GUIDE_DATA.find((item) => item.id === guideId);
 
-  // もしURLが無効なら、最初のページにリダイレクト
   if (!activeContent) {
     return <Navigate to={`/guide/${GUIDE_DATA[0].id}`} replace />;
   }
@@ -22,11 +19,11 @@ const UserGuide: React.FC = () => {
         {GUIDE_DATA.map((item) => (
           <Link
             key={item.id}
-            to={`/guide/${item.id}`} // URLを変更
+            to={`/guide/${item.id}`}
             className={`px-6 py-3 text-sm transition-colors ${
               guideId === item.id
-                ? 'bg-blue-600 text-white font-bold'
-                : 'text-gray-600 hover:bg-gray-100'
+                ? "bg-blue-600 text-white font-bold"
+                : "text-gray-600 hover:bg-gray-100"
             }`}
           >
             {item.title}

@@ -92,7 +92,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 };
 
 // ── カスタムフック ────────────────────────────────────────
-
+// NOTE: fast-refresh の警告を完全に消すには useAuth を useAuth.ts に分離するのが理想だが、
+//       AuthContext と密結合しているため eslint-disable で抑制する
+// eslint-disable-next-line react-refresh/only-export-components
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within an AuthProvider");
