@@ -704,5 +704,40 @@ func (d *Database) AutoMigrate(ctx context.Context) error {
 		}
 	}
 
+	// system_settings の初期データ投入（フリマ手数料などの設定）。
+	// InitConfig が起動時にこれらを読むため、空だと "flea config is incomplete" で落ちる。
+	// 値は config.GetFleaConfig() のデフォルトに合わせている。
+	// ON CONFLICT DO NOTHING なので、既に値があれば上書きしない（管理画面での変更を尊重）。
+	if err := d.seedSystemSettings(ctx); err != nil {
+		return fmt.Errorf("seed system_settings failed: %w", err)
+	}
+
+	return nil
+}
+
+// seedSystemSettings は system_settings に初期値を入れる（無い場合のみ）。
+func (d *Database) seedSystemSettings(ctx context.Context) error {
+	defaults := []struct {
+		key   string
+		value string
+	}{
+		{"flea.base_rate", "10200"},
+		{"flea.max_rate", "11000"},
+		{"flea.rate_den", "10000"},
+		{"flea.commission_rate", "1000"},
+		{"payout.transfer_fee", "200"},
+		{"payout.min_amount", "201"},
+	}
+
+	const q = `
+		INSERT INTO system_settings ("key", "value")
+		VALUES ($1, $2)
+		ON CONFLICT ("key") DO NOTHING
+	`
+	for _, kv := range defaults {
+		if _, err := d.DB.ExecContext(ctx, q, kv.key, kv.value); err != nil {
+			return fmt.Errorf("seed %q: %w", kv.key, err)
+		}
+	}
 	return nil
 }

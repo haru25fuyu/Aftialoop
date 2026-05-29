@@ -17,8 +17,9 @@ import (
 
 // SearchFleaItems は条件に基づいて商品一覧を取得します
 func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarketRequest, currentUserID int64) ([]utils.FleaMarketListLite, error) {
-    // 1. ベースのクエリ (修正: ? は Rebind で解決するためそのまま、EXISTSに::boolean追加、CONCATを||に変更)
-    query := `
+	// 1. ベースのクエリ
+	//    生体詳細(ad)・用品詳細(sd)を LEFT JOIN。1商品につき高々1行なので DISTINCT は維持。
+	query := `
         SELECT DISTINCT
             f.id,
             f.name,
@@ -39,163 +40,191 @@ func (db *Database) SearchFleaItems(ctx context.Context, req utils.ListFleaMarke
         FROM flea_items AS f
         LEFT JOIN users AS u ON u.id = f.user_id
         LEFT JOIN search_tags st ON f.category_id = st.category_id
+        LEFT JOIN flea_item_animal_details ad ON ad.item_id = f.id
+        LEFT JOIN flea_item_supply_details sd ON sd.item_id = f.id
         WHERE f.deleted_at IS NULL
     `
 
-    args := []interface{}{currentUserID}
+	args := []interface{}{currentUserID}
 
-    // ---------------------------------------------------------
-    // 2. 検索条件の追加
-    // ---------------------------------------------------------
-    if req.Keyword != "" {
-        keyword := strings.ReplaceAll(req.Keyword, "　", " ")
-        words := strings.Fields(keyword)
+	// ---------------------------------------------------------
+	// 2. 検索条件の追加
+	// ---------------------------------------------------------
+	if req.Keyword != "" {
+		keyword := strings.ReplaceAll(req.Keyword, "　", " ")
+		words := strings.Fields(keyword)
 
-        for _, w := range words {
-            // 修正: PostgreSQLの文字列結合は || を使用、CHAR_LENGTH は LENGTH に
-            condition := ` AND (
-                f.name LIKE ? 
-                OR f.description LIKE ? 
-                OR f.details::text LIKE ?
+		for _, w := range words {
+			// details::text LIKE は廃止。代わりに専用テーブルの locality / generation を対象に含める。
+			condition := ` AND (
+                f.name LIKE ?
+                OR f.description LIKE ?
+                OR ad.locality LIKE ?
+                OR ad.generation LIKE ?
+                OR sd.brand LIKE ?
                 OR st.term LIKE ?
                 OR (? LIKE '%' || st.term || '%' AND LENGTH(st.term) >= 2)
             )`
-            query += condition
-            likeWord := "%" + w + "%"
-            exactWord := w
-            args = append(args, likeWord, likeWord, likeWord, likeWord, exactWord)
-        }
-    }
+			query += condition
+			likeWord := "%" + w + "%"
+			exactWord := w
+			args = append(args, likeWord, likeWord, likeWord, likeWord, likeWord, likeWord, exactWord)
+		}
+	}
 
-    if req.Type != "" {
-        query += " AND f.type = ?"
-        args = append(args, req.Type)
-    }
+	if req.Type != "" {
+		query += " AND f.type = ?"
+		args = append(args, req.Type)
+	}
 
-    if req.Type == "SUPPLY" && req.SupplyTypeID != nil && *req.SupplyTypeID > 0 {
-        query += " AND f.supply_type_id = ?"
-        args = append(args, req.SupplyTypeID)
-    } else if req.CategoryID > 0 {
-        // 修正: PostgreSQLのパス前方一致検索
-        query += ` AND f.category_id IN (
-            SELECT id FROM categories 
+	if req.Type == "SUPPLY" && req.SupplyTypeID != nil && *req.SupplyTypeID > 0 {
+		query += " AND f.supply_type_id = ?"
+		args = append(args, req.SupplyTypeID)
+	} else if req.CategoryID > 0 {
+		// カテゴリ階層: 選んだカテゴリの配下を path 前方一致で取る
+		query += ` AND f.category_id IN (
+            SELECT id FROM categories
             WHERE path LIKE (SELECT path FROM categories WHERE id = ?) || '%'
         )`
-        args = append(args, req.CategoryID)
-    }
+		args = append(args, req.CategoryID)
+	}
 
-    if req.MinPrice != nil {
-        query += " AND f.price >= ?"
-        args = append(args, *req.MinPrice)
-    }
+	if req.MinPrice != nil {
+		query += " AND f.price >= ?"
+		args = append(args, *req.MinPrice)
+	}
 
-    if req.MaxPrice != nil {
-        query += " AND f.price <= ?"
-        args = append(args, *req.MaxPrice)
-    }
+	if req.MaxPrice != nil {
+		query += " AND f.price <= ?"
+		args = append(args, *req.MaxPrice)
+	}
 
-    if req.Status != 0 {
-        query += " AND f.status = ?"
-        args = append(args, req.Status)
-    }
+	if req.Status != 0 {
+		query += " AND f.status = ?"
+		args = append(args, req.Status)
+	}
 
-    // 詳細条件 (JSON)
-    // 修正: MySQLの ->>'$.key' は PostgreSQLでは ->>'key' と書く
-    if req.DetailSex != "" {
-        query += " AND f.details->>'sex' = ?"
-        args = append(args, req.DetailSex)
-    }
-    if req.DetailLocality != "" {
-        query += " AND (f.details->>'locality' LIKE ? OR f.details->>'morph' LIKE ?)"
-        search := "%" + req.DetailLocality + "%"
-        args = append(args, search, search)
-    }
-    if req.DetailBrand != "" {
-        query += " AND f.details->>'brand' LIKE ?"
-        search := "%" + req.DetailBrand + "%"
-        args = append(args, search)
-    }
+	// ---------------------------------------------------------
+	// 詳細条件（専用テーブル参照）
+	// ---------------------------------------------------------
+	if req.DetailSex != "" {
+		query += " AND ad.sex = ?"
+		args = append(args, req.DetailSex)
+	}
+	if req.DetailLocality != "" {
+		query += " AND ad.locality ILIKE ?"
+		args = append(args, "%"+req.DetailLocality+"%")
+	}
+	if req.DetailBrand != "" {
+		query += " AND sd.brand ILIKE ?"
+		args = append(args, "%"+req.DetailBrand+"%")
+	}
+	if req.DetailSizeUnit != "" && (req.DetailSizeMin != nil || req.DetailSizeMax != nil) {
+		query += " AND ad.size_unit = ?"
+		args = append(args, req.DetailSizeUnit)
+	}
+	if req.DetailSizeMin != nil {
+		query += " AND ad.size_value >= ?"
+		args = append(args, *req.DetailSizeMin)
+	}
+	if req.DetailSizeMax != nil {
+		query += " AND ad.size_value <= ?"
+		args = append(args, *req.DetailSizeMax)
+	}
 
-    // ---------------------------------------------------------
-    // 3. 並び替え (そのまま)
-    // ---------------------------------------------------------
-    switch req.Sort {
-    case "price_asc":
-        query += " ORDER BY f.price ASC"
-    case "price_desc":
-        query += " ORDER BY f.price DESC"
-    case "likes":
-        query += " ORDER BY likes_count DESC"
-    case "oldest":
-        query += " ORDER BY f.created_at ASC"
-    default:
-        query += " ORDER BY f.created_at DESC"
-    }
+	// ---------------------------------------------------------
+	// 3. 並び替え
+	// ---------------------------------------------------------
+	switch req.Sort {
+	case "price_asc":
+		query += " ORDER BY f.price ASC"
+	case "price_desc":
+		query += " ORDER BY f.price DESC"
+	case "likes":
+		query += " ORDER BY likes_count DESC"
+	case "oldest":
+		query += " ORDER BY f.created_at ASC"
+	default:
+		query += " ORDER BY f.created_at DESC"
+	}
 
-    // ---------------------------------------------------------
-    // 4. ページネーション (LIMIT/OFFSET)
-    // ---------------------------------------------------------
-    query += " LIMIT ? OFFSET ?"
-    limit := req.Limit
-    if limit <= 0 { limit = 20 }
-    offset := (req.Page - 1) * limit
-    if offset < 0 { offset = 0 }
-    args = append(args, limit, offset)
+	// ---------------------------------------------------------
+	// 4. ページネーション
+	// ---------------------------------------------------------
+	query += " LIMIT ? OFFSET ?"
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	offset := (req.Page - 1) * limit
+	if offset < 0 {
+		offset = 0
+	}
+	args = append(args, limit, offset)
 
-    // ---------------------------------------------------------
-    // 5. 実行 & スキャン
-    // ---------------------------------------------------------
-    
-    // ★重要: PostgreSQL用の $1, $2 形式に一括変換
-    query = db.DB.Rebind(query)
+	// ---------------------------------------------------------
+	// 5. 実行 & スキャン
+	// ---------------------------------------------------------
+	query = db.DB.Rebind(query)
 
-    rows, err := db.DB.QueryContext(ctx, query, args...)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	rows, err := db.DB.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    items := make([]utils.FleaMarketListLite, 0, limit)
+	items := make([]utils.FleaMarketListLite, 0, limit)
 
-    for rows.Next() {
-        var (
-            it            utils.FleaMarketListLite
-            mainURL       sql.NullString
-            sellerName    sql.NullString
-            sellerIconURL sql.NullString
-            shippingFee   sql.NullInt64
-            createdAt     sql.NullTime
-            supplyTypeID  sql.NullInt64
-        )
+	for rows.Next() {
+		var (
+			it            utils.FleaMarketListLite
+			mainURL       sql.NullString
+			sellerName    sql.NullString
+			sellerIconURL sql.NullString
+			shippingFee   sql.NullInt64
+			createdAt     sql.NullTime
+			supplyTypeID  sql.NullInt64
+		)
 
-        if err := rows.Scan(
-            &it.ID, &it.Name, &it.Price, &it.SellerRate, &it.Type,
-            &it.CategoryID, &supplyTypeID, &mainURL, &it.Status, &it.Quantity,
-            &shippingFee, &sellerName, &sellerIconURL, &it.IsLiked, &it.LikesCount,
-            &createdAt,
-        ); err != nil {
-            return nil, err
-        }
+		if err := rows.Scan(
+			&it.ID, &it.Name, &it.Price, &it.SellerRate, &it.Type,
+			&it.CategoryID, &supplyTypeID, &mainURL, &it.Status, &it.Quantity,
+			&shippingFee, &sellerName, &sellerIconURL, &it.IsLiked, &it.LikesCount,
+			&createdAt,
+		); err != nil {
+			return nil, err
+		}
 
-        // マッピング処理
-        if mainURL.Valid { s := mainURL.String; it.MainImageURL = &s }
-        if sellerName.Valid { it.SellerName = sellerName.String }
-        if sellerIconURL.Valid { s := sellerIconURL.String; it.SellerIconURL = &s }
-        it.ShippingFeeType = int(shippingFee.Int64)
-        if supplyTypeID.Valid { val := uint64(supplyTypeID.Int64); it.SupplyTypeID = &val }
+		if mainURL.Valid {
+			s := mainURL.String
+			it.MainImageURL = &s
+		}
+		if sellerName.Valid {
+			it.SellerName = sellerName.String
+		}
+		if sellerIconURL.Valid {
+			s := sellerIconURL.String
+			it.SellerIconURL = &s
+		}
+		it.ShippingFeeType = int(shippingFee.Int64)
+		if supplyTypeID.Valid {
+			val := uint64(supplyTypeID.Int64)
+			it.SupplyTypeID = &val
+		}
 
-        items = append(items, it)
-    }
+		items = append(items, it)
+	}
 
-    return items, rows.Err()
+	return items, rows.Err()
 }
-func (d *Database) GetFleaMarketItemByID(userID string, id uint64) (*utils.FleaMarketItemDetailResponse, error) {
-    var item utils.FleaMarketItemDetailResponse
 
-    // 修正点:
-    // 1. ? を $1, $2 に対応させる準備 (Rebindを使用)
-    // 2. EXISTS の結果を明示的に boolean として扱う
-    query := `
+func (d *Database) GetFleaMarketItemByID(userID string, id uint64) (*utils.FleaMarketItemDetailResponse, error) {
+	var item utils.FleaMarketItemDetailResponse
+
+	// f.* は details 列が無くなったぶん自動で追従する。
+	// ※ FleaMarketItemDetailResponse 側に details の db タグが残っていても
+	//   実害は無いが、混乱を避けるなら構造体からも details を消すこと。
+	query := `
         SELECT 
             f.*, 
             u.name AS user_name, 
@@ -208,33 +237,30 @@ func (d *Database) GetFleaMarketItemByID(userID string, id uint64) (*utils.FleaM
         LIMIT 1;
     `
 
-    // ★ PostgreSQL 用にプレースホルダを $1, $2 に変換
-    query = d.DB.Rebind(query)
+	query = d.DB.Rebind(query)
 
-    // 引数の順番はそのまま (userID -> $1, id -> $2)
-    if err := d.DB.Get(&item, query, userID, id); err != nil {
-        log.Printf("GetFleaMarketItemByID error: %v", err)
-        return nil, err
-    }
+	if err := d.DB.Get(&item, query, userID, id); err != nil {
+		log.Printf("GetFleaMarketItemByID error: %v", err)
+		return nil, err
+	}
 
-    // --- レート計算ロジックは変更なし ---
-    cfg := config.GetFleaConfig()
-    denominator := cfg.RateDen
-    if denominator == 0 {
-        denominator = 10000
-    }
+	cfg := config.GetFleaConfig()
+	denominator := cfg.RateDen
+	if denominator == 0 {
+		denominator = 10000
+	}
 
-    if item.RawSellerRate > 0 {
-        item.SellerRate = float64(item.RawSellerRate) / float64(denominator)
-    } else {
-        item.SellerRate = 1.0
-    }
+	if item.RawSellerRate > 0 {
+		item.SellerRate = float64(item.RawSellerRate) / float64(denominator)
+	} else {
+		item.SellerRate = 1.0
+	}
 
-    return &item, nil
+	return &item, nil
 }
 
 func (d *Database) GetFleaMarketItemImages(itemID uint64) ([]utils.ItemImage, error) {
-    const q = `
+	const q = `
         SELECT
             id,
             item_id,
@@ -244,104 +270,145 @@ func (d *Database) GetFleaMarketItemImages(itemID uint64) ([]utils.ItemImage, er
         WHERE item_id = $1
         ORDER BY sort_num ASC, id ASC;
     `
-    var images []utils.ItemImage
-    // 直接 $1 に書き換えたので、Rebindを通さなくても動きます
-    if err := d.DB.Select(&images, q, itemID); err != nil {
-        return nil, err
-    }
-    return images, nil
+	var images []utils.ItemImage
+	if err := d.DB.Select(&images, q, itemID); err != nil {
+		return nil, err
+	}
+	return images, nil
 }
 
-// utils.CreateFleaMarketItemInput に ImageURLs []string がある前提です
-
+// CreateFleaMarketItem: 商品を作成し、生体/用品の詳細も同一トランザクションで専用テーブルに保存する
 func (db *Database) CreateFleaMarketItem(ctx context.Context, userID string, p utils.CreateFleaMarketItemInput) (int64, error) {
-    // 1. トランザクション開始
-    tx, err := db.DB.BeginTx(ctx, nil) // Contextを渡すBeginTxが推奨です
-    if err != nil {
-        return 0, err
-    }
-    defer tx.Rollback()
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return 0, err
+	}
+	defer tx.Rollback()
 
-    // 2. flea_items テーブルへの保存
-    // 修正点: ? を $1 形式に、UTC_TIMESTAMP() を CURRENT_TIMESTAMP に。
-    // 最後に RETURNING id を追加して ID を取得できるようにします。
-    query := `
+	// 1. flea_items への保存（details 列は廃止したので含めない）
+	query := `
         INSERT INTO flea_items (
             user_id, name, description, price, quantity, type,
-            category_id, supply_type_id, category_name, 
-            is_multi_purchasable, -- ← ここ！
-            main_image_url, details, ship_from, shipping_fee_type,
+            category_id, supply_type_id, category_name,
+            is_multi_purchasable,
+            main_image_url, ship_from, shipping_fee_type,
             ships_within_days, seller_rate, status, commission_rate,
             created_at, updated_at
         ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, 
-            $10::boolean::int, -- ★Goのboolを一度boolとして解釈させ、intに変換
-            $11, $12, $13, $14, $15, $16, $17, $18,
+            $1, $2, $3, $4, $5, $6, $7, $8, $9,
+            $10::boolean::int,
+            $11, $12, $13, $14, $15, $16, $17,
             CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
         ) RETURNING id
     `
 
-    var itemID int64
-    // 修正点: ExecContext ではなく QueryRowContext と Scan を使って RETURNING された ID を受け取る
-    err = tx.QueryRowContext(ctx, query,
-        userID,
-        p.Name,
-        p.Description,
-        p.Price,
-        p.Quantity,
-        p.Type,
-        p.CategoryID,
-        p.SupplyTypeID,
-        p.CategoryName,
-        p.IsMultiPurchasable,
-        p.MainImageURL,
-        p.Details,
-        p.ShipFrom,
-        p.ShippingFeeType,
-        p.ShipsWithinDays,
-        p.SellerRateBP,
-        1, // status: 出品中
-        p.CommissionRateBP,
-    ).Scan(&itemID)
+	var itemID int64
+	err = tx.QueryRowContext(ctx, query,
+		userID,
+		p.Name,
+		p.Description,
+		p.Price,
+		p.Quantity,
+		p.Type,
+		p.CategoryID,
+		p.SupplyTypeID,
+		p.CategoryName,
+		p.IsMultiPurchasable,
+		p.MainImageURL,
+		p.ShipFrom,
+		p.ShippingFeeType,
+		p.ShipsWithinDays,
+		p.SellerRateBP,
+		1, // status: 出品中
+		p.CommissionRateBP,
+	).Scan(&itemID)
+	if err != nil {
+		return 0, fmt.Errorf("insert item: %w", err)
+	}
 
-    if err != nil {
-        return 0, fmt.Errorf("insert item: %w", err)
-    }
+	// 2. 詳細を専用テーブルへ（入力があるときだけ）
+	if p.Animal != nil {
+		if _, err := tx.ExecContext(ctx, `
+            INSERT INTO flea_item_animal_details
+                (item_id, locality, hatch_date, generation, size_value, size_unit, sex, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (item_id) DO UPDATE SET
+                locality   = EXCLUDED.locality,
+                hatch_date = EXCLUDED.hatch_date,
+                generation = EXCLUDED.generation,
+                size_value = EXCLUDED.size_value,
+                size_unit  = EXCLUDED.size_unit,
+                sex        = EXCLUDED.sex,
+                updated_at = CURRENT_TIMESTAMP
+        `,
+			itemID,
+			p.Animal.Locality,
+			nullableDate(p.Animal.HatchDate),
+			p.Animal.Generation,
+			p.Animal.SizeValue,
+			p.Animal.SizeUnit,
+			p.Animal.Sex,
+		); err != nil {
+			return 0, fmt.Errorf("insert animal details: %w", err)
+		}
+	}
 
-    // ------------------------------------------------------------
-    // ★★★  flea_item_images への保存処理 ★★★
-    // ------------------------------------------------------------
-    if len(p.ImageURLs) > 0 {
-        // 大量挿入(Bulk Insert)の場合、手動で $1, $2 を振るのは大変なので
-        // sqlx の Rebind を使うか、ループ内でインデックスを計算します。
-        sqlStr := "INSERT INTO flea_item_images (item_id, url, sort_num) VALUES "
-        var args []interface{}
-        placeholderCount := 1
+	if p.Supply != nil {
+		if _, err := tx.ExecContext(ctx, `
+            INSERT INTO flea_item_supply_details
+                (item_id, brand, sku, net_weight_g, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            ON CONFLICT (item_id) DO UPDATE SET
+                brand        = EXCLUDED.brand,
+                sku          = EXCLUDED.sku,
+                net_weight_g = EXCLUDED.net_weight_g,
+                updated_at   = CURRENT_TIMESTAMP
+        `,
+			itemID,
+			p.Supply.Brand,
+			p.Supply.SKU,
+			p.Supply.NetWeightG,
+		); err != nil {
+			return 0, fmt.Errorf("insert supply details: %w", err)
+		}
+	}
 
-        for i, url := range p.ImageURLs {
-            sqlStr += fmt.Sprintf("($%d, $%d, $%d),", placeholderCount, placeholderCount+1, placeholderCount+2)
-            args = append(args, itemID, url, i)
-            placeholderCount += 3
-        }
+	// 3. 画像の保存（バルクINSERT・連番プレースホルダ）
+	if len(p.ImageURLs) > 0 {
+		sqlStr := "INSERT INTO flea_item_images (item_id, url, sort_num) VALUES "
+		var args []interface{}
+		placeholderCount := 1
 
-        // 最後のカンマを削除
-        sqlStr = sqlStr[:len(sqlStr)-1]
+		for i, url := range p.ImageURLs {
+			sqlStr += fmt.Sprintf("($%d, $%d, $%d),", placeholderCount, placeholderCount+1, placeholderCount+2)
+			args = append(args, itemID, url, i)
+			placeholderCount += 3
+		}
+		sqlStr = sqlStr[:len(sqlStr)-1]
 
-        if _, err := tx.ExecContext(ctx, sqlStr, args...); err != nil {
-            return 0, fmt.Errorf("insert item images: %w", err)
-        }
-    }
+		if _, err := tx.ExecContext(ctx, sqlStr, args...); err != nil {
+			return 0, fmt.Errorf("insert item images: %w", err)
+		}
+	}
 
-    // 3. コミット
-    if err := tx.Commit(); err != nil {
-        return 0, err
-    }
+	if err := tx.Commit(); err != nil {
+		return 0, err
+	}
 
-    return itemID, nil
+	return itemID, nil
 }
 
-// UpdateFleaItem: 商品テキスト情報の更新
-func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, categoryID *int64, supplyTypeID *int64, method, fee string, from, days, status int, details string) error {
+// nullableDate は空文字を nil(NULL) に変換する。DATE 列に "" を入れられないため。
+func nullableDate(s *string) interface{} {
+	if s == nil || *s == "" {
+		return nil
+	}
+	return *s
+}
+
+// UpdateFleaItem: 商品テキスト情報の更新（details 列は廃止）
+// ※ 生体/用品の詳細更新は UpsertAnimalDetails / UpsertSupplyDetails を別途呼ぶ。
+func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, categoryID *int64, supplyTypeID *int64, method, fee string, from, days, status int) error {
 	query := `
         UPDATE flea_items
         SET name = $1, 
@@ -354,13 +421,13 @@ func (d *Database) UpdateFleaItem(itemID uint64, name, desc string, price int, c
             ship_from = $8, 
             ships_within_days = $9,
             status = $10,
-            details = $11,
             updated_at = CURRENT_TIMESTAMP
-        WHERE id = $12
+        WHERE id = $11
     `
-	_, err := d.DB.Exec(query, name, desc, price, categoryID, supplyTypeID, method, fee, from, days, status, details, itemID)
+	_, err := d.DB.Exec(query, name, desc, price, categoryID, supplyTypeID, method, fee, from, days, status, itemID)
 	return err
 }
+
 // SyncFleaItemImages: 指定されたID以外の画像を削除する
 func (d *Database) SyncFleaItemImages(itemID uint64, keptIDs []uint64) error {
 	if len(keptIDs) == 0 {
@@ -375,7 +442,6 @@ func (d *Database) SyncFleaItemImages(itemID uint64, keptIDs []uint64) error {
 		args[i+1] = id
 	}
 
-	// ★Rebindが必要
 	_, err := d.DB.Exec(d.DB.Rebind(query), args...)
 	return err
 }
@@ -506,19 +572,18 @@ func (d *Database) GetUserListings(ctx context.Context, userID string, includeDr
 
 	query := "SELECT id, name, price, main_image_url, status, created_at, updated_at FROM flea_items WHERE user_id = ?"
 
-    if includeDrafts {
-        query += " AND status IN (0, 1, 2, 3, 4) "
-    } else {
-        query += " AND status IN (1, 2, 3, 4) "
-    }
+	if includeDrafts {
+		query += " AND status IN (0, 1, 2, 3, 4) "
+	} else {
+		query += " AND status IN (1, 2, 3, 4) "
+	}
 
-    query += " AND deleted_at IS NULL ORDER BY status ASC, created_at DESC LIMIT ? OFFSET ? "
+	query += " AND deleted_at IS NULL ORDER BY status ASC, created_at DESC LIMIT ? OFFSET ? "
 
-    query = d.DB.Rebind(query)
+	query = d.DB.Rebind(query)
 
 	var items []utils.FleaMarketItemResponse
-	// ★Rebindが必要
-	err := d.DB.SelectContext(ctx, &items, d.DB.Rebind(query), userID, limit, offset)
+	err := d.DB.SelectContext(ctx, &items, query, userID, limit, offset)
 	if err != nil {
 		return nil, err
 	}
@@ -526,53 +591,43 @@ func (d *Database) GetUserListings(ctx context.Context, userID string, includeDr
 }
 
 // ToggleFleaLike: いいねの切り替え (登録されていれば削除、なければ追加)
-// 戻り値: (isLiked: true=登録した, false=解除した, err)
 func (db *Database) ToggleFleaLike(ctx context.Context, userID string, itemID int64) (bool, error) {
-    if db.DB == nil {
-        return false, errors.New("db not ready")
-    }
+	if db.DB == nil {
+		return false, errors.New("db not ready")
+	}
 
-    // トランザクション開始
-    tx, err := db.DB.BeginTx(ctx, nil)
-    if err != nil {
-        return false, err
-    }
-    defer tx.Rollback()
+	tx, err := db.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return false, err
+	}
+	defer tx.Rollback()
 
-    // 1. 既にいいねしているか確認
-    // 修正: ? -> $1, $2
-    var exists int
-    err = tx.QueryRowContext(ctx, `
+	var exists int
+	err = tx.QueryRowContext(ctx, `
         SELECT COUNT(*) FROM flea_likes WHERE user_id = $1 AND item_id = $2
     `, userID, itemID).Scan(&exists)
-    if err != nil {
-        return false, err
-    }
+	if err != nil {
+		return false, err
+	}
 
-    var isLiked bool
-    if exists > 0 {
-        // 2. 削除 (いいね解除)
-        // 修正: ? -> $1, $2
-        _, err = tx.ExecContext(ctx, "DELETE FROM flea_likes WHERE user_id = $1 AND item_id = $2", userID, itemID)
-        isLiked = false
-    } else {
-        // 3. 追加 (いいね登録)
-        // 修正: ? -> $1, $2
-        // ※created_at が自動付与されない設計なら、ここで CURRENT_TIMESTAMP を足してください
-        _, err = tx.ExecContext(ctx, "INSERT INTO flea_likes (user_id, item_id) VALUES ($1, $2)", userID, itemID)
-        isLiked = true
-    }
+	var isLiked bool
+	if exists > 0 {
+		_, err = tx.ExecContext(ctx, "DELETE FROM flea_likes WHERE user_id = $1 AND item_id = $2", userID, itemID)
+		isLiked = false
+	} else {
+		_, err = tx.ExecContext(ctx, "INSERT INTO flea_likes (user_id, item_id) VALUES ($1, $2)", userID, itemID)
+		isLiked = true
+	}
 
-    if err != nil {
-        return false, err
-    }
+	if err != nil {
+		return false, err
+	}
 
-    // 4. コミット
-    if err := tx.Commit(); err != nil {
-        return false, err
-    }
+	if err := tx.Commit(); err != nil {
+		return false, err
+	}
 
-    return isLiked, nil
+	return isLiked, nil
 }
 
 // ListLikedFleaItems: 自分がいいねした商品一覧を取得
@@ -590,7 +645,6 @@ func (db *Database) ListLikedFleaItems(ctx context.Context, userID string, limit
         ORDER BY l.created_at DESC
         LIMIT ? OFFSET ?;
     `
-	// ★Rebindが必要
 	rows, err := db.DB.QueryContext(ctx, db.DB.Rebind(q), userID, limit, offset)
 	if err != nil {
 		return nil, err
@@ -609,9 +663,17 @@ func (db *Database) ListLikedFleaItems(ctx context.Context, userID string, limit
 		if err := rows.Scan(&it.ID, &it.Name, &it.Price, &it.SellerRate, &it.Type, &mainURL, &sellerName, &sellerIconURL, &status); err != nil {
 			return nil, err
 		}
-		if mainURL.Valid { s := mainURL.String; it.MainImageURL = &s }
-		if sellerName.Valid { it.SellerName = sellerName.String }
-		if sellerIconURL.Valid { s := sellerIconURL.String; it.SellerIconURL = &s }
+		if mainURL.Valid {
+			s := mainURL.String
+			it.MainImageURL = &s
+		}
+		if sellerName.Valid {
+			it.SellerName = sellerName.String
+		}
+		if sellerIconURL.Valid {
+			s := sellerIconURL.String
+			it.SellerIconURL = &s
+		}
 		it.IsLiked = true
 		items = append(items, it)
 	}

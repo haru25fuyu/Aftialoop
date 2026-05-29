@@ -275,6 +275,15 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
+	// 詳細をパース（カテゴリ別キー名を共通キーに正規化）
+	var animal *utils.AnimalDetails
+	var supply *utils.SupplyDetails
+	if itemType == "SUPPLY" {
+		supply = parseSupplyDetails(detailsJSON)
+	} else {
+		animal = parseAnimalDetails(detailsJSON)
+	}
+
 	// ---------------------------------------------------------
 	// DB登録用データの作成 (既存の構造体 utils.CreateFleaMarketItemInput を使用)
 	// ---------------------------------------------------------
@@ -293,14 +302,15 @@ func (h *FleaMarketHandler) CreateFleaItem(w http.ResponseWriter, r *http.Reques
 		MainImageURL: mainURL,
 		ImageURLs:    finalImageURLs,
 
-		// 詳細情報JSONを入れる
-		Details: detailsJSON,
-
 		ShippingFeeType:  shipFeeType,
 		ShipFrom:         &shipFrom,
 		ShipsWithinDays:  &shipsWithin,
 		SellerRateBP:     int64(sellerRateBP),
 		CommissionRateBP: int64(commissionRateBP),
+
+		// 詳細は専用テーブルに保存される（parseで正規化済み）
+		Animal: animal,
+		Supply: supply,
 	}
 
 	// 既存のメソッドを呼ぶ
@@ -554,7 +564,9 @@ func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 7. アイテム情報の更新
-	if err := h.db.UpdateFleaItem(itemID, name, desc, price, categoryID, supplyTypeID, shippingMethod, shippingFeeType, shipFrom, daysToShip, status, detailsJSON); err != nil {
+	if err := h.db.UpdateFleaItem(itemID, name, desc, price, categoryID,
+		supplyTypeID, shippingMethod, shippingFeeType, shipFrom, daysToShip,
+		status); err != nil {
 		log.Println("Failed to update flea item:", err)
 		http.Error(w, "failed to update item", http.StatusInternalServerError)
 		return
@@ -562,23 +574,16 @@ func (h *FleaMarketHandler) UpdateFleaItem(w http.ResponseWriter, r *http.Reques
 	// type は item 変数（GetFleaItemByIDの結果）から判定します
 	switch item.Type {
 	case "ANIMAL":
-		locality := r.FormValue("locality")
-		hatchDate := r.FormValue("hatch_date")
-		size := r.FormValue("size")
-		generation := r.FormValue("generation")
-		sex := r.FormValue("sex")
-
-		if err := h.db.UpdateAnimalDetails(itemID, locality, hatchDate, size, generation, sex); err != nil {
-			log.Printf("Failed to update animal details: %v", err)
+		if ad := parseAnimalDetails(detailsJSON); ad != nil {
+			if err := h.db.UpsertAnimalDetailsSimple(itemID, ad); err != nil {
+				log.Printf("Failed to update animal details: %v", err)
+			}
 		}
-
 	case "SUPPLY":
-		brand := r.FormValue("brand")
-		sku := r.FormValue("sku")
-		netWeight, _ := strconv.Atoi(r.FormValue("net_weight"))
-
-		if err := h.db.UpdateSupplyDetails(itemID, brand, sku, netWeight); err != nil {
-			log.Printf("Failed to update supply details: %v", err)
+		if sd := parseSupplyDetails(detailsJSON); sd != nil {
+			if err := h.db.UpsertSupplyDetailsSimple(itemID, sd); err != nil {
+				log.Printf("Failed to update supply details: %v", err)
+			}
 		}
 	}
 

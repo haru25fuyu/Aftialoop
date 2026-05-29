@@ -328,6 +328,11 @@ type ListFleaMarketRequest struct {
 	DetailSex      string `json:"detail_sex"`      // 性別 (male, female, pair...)
 	DetailLocality string `json:"detail_locality"` // 産地・モルフ (部分一致)
 	DetailBrand    string `json:"detail_brand"`    // ブランド (用品用・部分一致)
+
+	// サイズ絞り込み (size_value / size_unit。専用テーブル参照)
+	DetailSizeMin  *float64 `json:"detail_size_min"`
+	DetailSizeMax  *float64 `json:"detail_size_max"`
+	DetailSizeUnit string   `json:"detail_size_unit"`
 }
 
 type FleaMarketItem struct {
@@ -425,20 +430,24 @@ type CreateFleaMarketItemInput struct {
 	CategoryName       *string  `json:"category_name"`
 	Description        *string  `json:"description,omitempty"`
 	MainImageURL       string   `json:"main_image_url"`
-	Details            string   `json:"details,omitempty"` // JSON文字列
-	ImageURLs          []string `json:"imageUrls"`         // 画像を先にアップしてURL化しておく想定
-	ShippingFeeType    int      `json:"shippingFeeType"`   // 0送料込み/1着払い/2送料別
+	ImageURLs          []string `json:"imageUrls"`
+	ShippingFeeType    int      `json:"shippingFeeType"`
 	ShipFrom           *int     `json:"shipFrom,omitempty"`
 	ShipsWithinDays    *int     `json:"shipsWithinDays,omitempty"`
-	AssetIDs           []string `json:"asset_ids,omitempty"` // 画像アセットID群
+	AssetIDs           []string `json:"asset_ids,omitempty"`
+
+	// 詳細（どちらか一方。未入力なら nil）
+	Animal *AnimalDetails `json:"animal,omitempty"`
+	Supply *SupplyDetails `json:"supply,omitempty"`
 }
 
 type AnimalDetails struct {
-	Locality   *string `db:"locality" json:"locality"`
-	HatchDate  *string `db:"hatch_date" json:"hatch_date"`
-	Generation *string `db:"generation" json:"generation"`
-	Size       *string `db:"size" json:"size"`
-	Sex        *string `db:"sex" json:"sex"`
+	Locality   *string  `db:"locality" json:"locality"`
+	HatchDate  *string  `db:"hatch_date" json:"hatch_date"`
+	Generation *string  `db:"generation" json:"generation"`
+	SizeValue  *float64 `db:"size_value" json:"size_value"`
+	SizeUnit   *string  `db:"size_unit" json:"size_unit"`
+	Sex        *string  `db:"sex" json:"sex"`
 }
 
 type SupplyDetails struct {

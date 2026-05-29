@@ -7,7 +7,7 @@ import (
 	flea "animaloop/handler/flea_market"
 	SQL "animaloop/sql"
 	"animaloop/utils"
-
+	"context"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -27,11 +27,15 @@ func main() {
 		log.Fatalf("Error loading .env file: %v", err)
 	}
 
-
 	// DB初期化
 	db, err := SQL.NewDatabase()
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
+	}
+
+	// テーブル作成（存在しなければ作る）。InitConfig より前に必ず実行する。
+	if err := db.AutoMigrate(context.Background()); err != nil {
+		log.Fatalf("AutoMigrate failed: %v", err)
 	}
 
 	if err := function.InitConfig(db); err != nil {

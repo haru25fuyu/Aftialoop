@@ -1,16 +1,14 @@
 export interface Content {
   id: string;
   name: string;
-  description: string;
+  description: string;   // ✅ discription → description に修正
   point: number;
   price: number;
   main_image_url: string;
   quantity: number;
-  is_selected: boolean;
   status: number;
+  // is_selected は Cart 側でローカル管理するため削除
 }
-
-
 
 export interface Customer {
   id: string;
@@ -26,8 +24,6 @@ export interface itemImage {
   url: string;
   sort_num: number;
 }
-
-
 
 export type UserProfile = {
   name: string;

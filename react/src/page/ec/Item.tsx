@@ -1,302 +1,225 @@
-import React, { useEffect, useState } from "react";
-import { useLocation, useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 
 import { Header } from "../../component/Header";
-//import { Footer } from '../component/Footer';        // ← .tsx は不要
 import DirectCheckoutModal from "../../component/DirectCheckoutModal";
-import BottomBarPortal from "../../component/BottomBarPortal"
-import { CartAddBar } from "../../SnackBar/AddCart"; // ← カート追加バー
+import BottomBarPortal from "../../component/BottomBarPortal";
+import { CartAddBar } from "../../SnackBar/AddCart";
 
-import { Content } from "../../types/Content";
-import { itemImage } from "../../types/Content"; // ← itemImage をインポート
+import { Content, itemImage } from "../../types/Content";
 
 import api, { getAccessToken } from "../../conf/api";
-import { hasAllFlags } from "../../conf/function"; // getItemStatusLabels をインポート
-import { ITEM__STATUS } from "../../conf/config"; // ITEM__STATUS をインポート
+import { hasAllFlags } from "../../conf/function";
+import { ITEM__STATUS } from "../../conf/config";
 
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Pagination, Navigation } from "swiper/modules";
 import "swiper/swiper-bundle.css";
-import { get } from "react-hook-form";
 
-// ローカルストレージ用カート追加関数
+// ── ローカルカート ────────────────────────────────────────
+
 const addLocalCart = (item: Content) => {
-    const cart: Content[] = JSON.parse(localStorage.getItem("cart") || "[]");
-    const idx = cart.findIndex((ci) => ci.id === item.id);
-    if (!item.quantity) return;
-    if (idx !== -1) {
-        cart[idx].quantity = (cart[idx].quantity || 1) + item.quantity;
-    } else {
-        cart.push({ ...item, quantity: item.quantity });
-    }
-    localStorage.setItem("cart", JSON.stringify(cart));
+  const cart: Content[] = JSON.parse(localStorage.getItem("cart") || "[]");
+  const idx = cart.findIndex((ci) => ci.id === item.id);
+  if (!item.quantity) return;
+  if (idx !== -1) {
+    cart[idx].quantity = (cart[idx].quantity || 1) + item.quantity;
+  } else {
+    cart.push({ ...item, quantity: item.quantity });
+  }
+  localStorage.setItem("cart", JSON.stringify(cart));
 };
 
-// コンポーネント名は大文字で始めるのが慣例
+// ── コンポーネント ────────────────────────────────────────
+
 const Item: React.FC = () => {
-    const [showModal, setShowModal] = useState(false);
-    const [item, setItem] = useState<Content | null>(null);
-    const [images, setImages] = useState<itemImage[]>([]);
-    const [selectQuantity, setSelectQuantity] = useState(1);
-    const location = useLocation();
-    const { id } = useParams<{ id: string }>();
-    const [orderFlag, setOrderFlag] = useState(false);
-    const [showCartBar, setShowCartBar] = useState(false);
+  const { id } = useParams<{ id: string }>();
 
-    useEffect(() => {
-        if (!id) {
-            console.error("ID が取得できませんでした");
-            return;
-        }
-        // ここでAPIから商品情報を取得する処理を追加する
-        api
-            .get(`/item/get/${id}`)
-            .then((res) => {
-                if (res.data) {
-                    setItem(res.data.item);
-                    setImages(res.data.images || []);
-                    setOrderFlag(
-                        hasAllFlags(res.data.item.status, [
-                            ITEM__STATUS.ACCEPTS_ORDER,
-                            ITEM__STATUS.HAS_RESTOCK,
-                        ])
-                    );
-                    console.log("商品情報:", res.data.item);
-                } else {
-                    console.error("商品情報が取得できませんでした");
-                }
-            })
-            .catch((err) => {
-                console.error("APIエラー:", err);
-            });
-    }, [location.search]);
+  const [item, setItem] = useState<Content | null>(null);
+  const [images, setImages] = useState<itemImage[]>([]);
+  const [selectQuantity, setSelectQuantity] = useState(1);
+  const [orderFlag, setOrderFlag] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [showCartBar, setShowCartBar] = useState(false);
 
-    const decrement = () => {
-        if (selectQuantity > 1) {
-            setSelectQuantity(selectQuantity - 1);
-        } else {
-            alert("数量は1以上で入力してください。");
-        }
-    };
+  // ✅ async/await に統一・console.log 削除
+  useEffect(() => {
+    if (!id) return;
 
-    const increment = () => {
-        setSelectQuantity(selectQuantity + 1);
-        if (item && selectQuantity >= item.quantity) {
-            alert(`在庫は ${item.quantity} 個です。`);
-            setSelectQuantity(item.quantity);
-            console.log("在庫数を超えています。数量を在庫数に設定しました。");
-        }
-    };
+    api
+      .get(`/item/get/${id}`)
+      .then((res) => {
+        if (!res.data) return;
+        setItem(res.data.item);
+        setImages(res.data.images || []);
+        setOrderFlag(
+          hasAllFlags(res.data.item.status, [
+            ITEM__STATUS.ACCEPTS_ORDER,
+            ITEM__STATUS.HAS_RESTOCK,
+          ]),
+        );
+      })
+      .catch(console.error);
+  }, [id]);
 
-    const AddCart = () => {
-        if (!item) {
-            alert("商品情報がありません");
-            return;
-        }
-        if (selectQuantity <= 0) {
-            alert("数量は1以上で入力してください。");
-            return;
-        }
+  // ✅ 在庫チェックを共通関数に切り出し（AddCart・Purchase で重複していたロジックを統一）
+  const validateStock = (): boolean => {
+    if (!item) {
+      alert("商品情報がありません");
+      return false;
+    }
+    if (selectQuantity <= 0) {
+      alert("数量は1以上で入力してください。");
+      return false;
+    }
 
-        // 受注可能かどうかチェック
-        if (item.quantity <= 0 && !orderFlag) {
-            alert("この商品は現在在庫がありません。");
-            return;
-        } else if (item.quantity <= 0 && orderFlag) {
-            const ok = window.confirm(
-                "この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？"
-            );
-            if (!ok) {
-                console.log("ユーザーがキャンセルしました");
-                return;
-            }
-        } else if (item.quantity < selectQuantity) {
-            alert(`在庫は ${item.quantity} 個です。`);
-            return;
-        }
+    if (item.quantity <= 0 && !orderFlag) {
+      alert("この商品は現在在庫がありません。");
+      return false;
+    }
+    if (item.quantity <= 0 && orderFlag) {
+      return window.confirm(
+        "この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？",
+      );
+    }
+    if (item.quantity < selectQuantity) {
+      alert(`在庫は ${item.quantity} 個です。`);
+      return false;
+    }
+    return true;
+  };
 
-        const token = getAccessToken();
-        const addItem: Content = { ...item, quantity: selectQuantity };
-        if (!token || token === "undefined") {
-            addLocalCart(addItem);
-        } else {
-            api
-                .post("/cart/add", [addItem])
-                .then((res) => console.log("カートに追加しました:", res.data))
-                .catch(() => addLocalCart(addItem));
-        }
-        setShowCartBar(true);
-    };
+  const decrement = () => {
+    if (selectQuantity > 1) {
+      setSelectQuantity((q) => q - 1);
+    } else {
+      alert("数量は1以上で入力してください。");
+    }
+  };
 
-    const Purchase = () => {
-        if (!item) {
-            alert("商品情報がありません");
-            return;
-        }
-        if (selectQuantity <= 0) {
-            alert("数量は1以上で入力してください。");
-            return;
-        }
+  const increment = () => {
+    if (item && selectQuantity >= item.quantity) {
+      alert(`在庫は ${item.quantity} 個です。`);
+      return;
+    }
+    setSelectQuantity((q) => q + 1);
+  };
 
-        // 受注可能かどうかチェック
-        if (item.quantity <= 0 && !orderFlag) {
-            alert("この商品は現在在庫がありません。");
-            return;
-        } else if (item.quantity <= 0 && orderFlag) {
-            const ok = window.confirm(
-                "この商品はお取り寄せ対応です。\n発送までにお時間がかかる場合があります。\nキャンセルとなる可能性もあります。注文を続けますか？"
-            );
-            if (!ok) {
-                console.log("ユーザーがキャンセルしました");
-                return;
-            }
-        }
-        setShowModal(true);
-    };
+  const AddCart = () => {
+    if (!validateStock()) return;
 
-    return (
-        <div className="pb-32 md:pb-0">
-            <Header />
+    const token = getAccessToken();
+    const addItem: Content = { ...item!, quantity: selectQuantity };
 
-            {item ? (
-                <main>
-                    <h2 className="text-xl font-semibold mb-2">{item.name}</h2>
-                    <div className="item-detail">
-                        <Swiper
-                            modules={[Pagination, Navigation]}
-                            direction="horizontal"
-                            spaceBetween={0}
-                            slidesPerView={1}
-                            pagination={{ clickable: true }}
-                            navigation
-                            loop={true}
-                            speed={500}
-                        >
-                            {images.map((item) => (
-                                <SwiperSlide className="!w-full !h-auto" key={item.id}>
-                                    <img className="!mr-0" src={item.url} alt="商品画像" />
-                                </SwiperSlide>
-                            ))}
-                        </Swiper>
-                        <div className="item-info">
-                            <div className="space-y-4 w-full">
-                                {/* 価格・ポイントカード */}
-                                <div className="border rounded-xl p-4 shadow-sm bg-white">
-                                    <p className="text-lg font-semibold mb-2">
-                                        💰 価格とポイント
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold text-gray-600 text-2xl">
-                                            {item.price.toLocaleString()}
-                                        </span>
-                                        円(税込み)
-                                    </p>
-                                    <p>
-                                        <span className="font-semibold text-gray-600 text-2xl">
-                                            {item.point.toLocaleString()}
-                                        </span>{" "}
-                                        pt(ポイントで購入)
-                                    </p>
-                                    <>
-                                        <p className="mt-2">
-                                            <span className="font-semibold text-gray-600">在庫:</span>{" "}
-                                            {item.quantity > 0 ? (
-                                                <span className="text-green-600 font-medium">
-                                                    {item.quantity} 個
-                                                </span>
-                                            ) : (
-                                                <span className="text-red-500 font-medium">
-                                                    在庫切れ{orderFlag ? "(お取り寄せ)" : ""}
-                                                </span>
-                                            )}
-                                        </p>
-                                        {orderFlag && item.quantity <= 0 && (
-                                            <div className="text-sm text-red-500 mt-1">
-                                                ※お届けまでに時間がかかる場合があります。
-                                            </div>
-                                        )}
-                                    </>
-                                    <BottomBarPortal>
-                                        {/* 数量・カート・購入ボタン固定バー */}
-                                        <div className=" fixed bottom-0 left-0 right-0 z-50 bg-white shadow-lg h-[130px] p-3 md:static md:shadow-none md:p-0">
-                                            <div className="flex items-center justify-between w-full mb-3 md:mb-0">
-                                                <span className="text-gray-800 text-base w-16">数量</span>
-                                                <div className="flex items-center border border-gray-200 rounded-xl bg-white flex-1 mx-2">
-                                                    <input
-                                                        type="text"
-                                                        value={selectQuantity}
-                                                        readOnly
-                                                        className="w-full h-10 text-center text-gray-800 bg-white outline-none"
-                                                    />
-                                                </div>
-                                                <div className="flex items-center gap-2">
-                                                    <button
-                                                        onClick={decrement}
-                                                        className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition"
-                                                        aria-label="数量を減らす"
-                                                    >
-                                                        －
-                                                    </button>
-                                                    <button
-                                                        onClick={increment}
-                                                        className="w-10 h-10 rounded-xl bg-gray-100 text-black hover:bg-gray-300 transition"
-                                                        aria-label="数量を増やす"
-                                                    >
-                                                        ＋
-                                                    </button>
-                                                </div>
-                                            </div>
+    if (!token || token === "undefined") {
+      addLocalCart(addItem);
+    } else {
+      api.post("/cart/add", [addItem]).catch(() => addLocalCart(addItem));
+    }
+    setShowCartBar(true);
+  };
 
-                                            {/* ボタン横並び */}
-                                            <div className="flex gap-2">
-                                                <button
-                                                    className="flex-1 rounded-xl bg-yellow-400 text-black hover:bg-yellow-200 p-3 transition font-medium"
-                                                    onClick={AddCart}
-                                                >
-                                                    カートに入れる
-                                                </button>
-                                                <button
-                                                    className="flex-1 rounded-xl bg-orange-400 text-black hover:bg-orange-200 p-3 transition font-medium"
-                                                    onClick={Purchase}
-                                                >
-                                                    購入手続きへ
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </BottomBarPortal>
-                                </div>
+  const Purchase = () => {
+    if (!validateStock()) return;
+    setShowModal(true);
+  };
 
-                                {/* 説明・在庫カード */}
-                                <div className="border rounded-xl p-4 shadow-sm bg-white">
-                                    <p className="text-lg font-semibold mb-2">📦 商品情報</p>
-                                    <p className="text-gray-700 mb-2">{item.description}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+  return (
+    <div className="pb-32 md:pb-0">
+      <Header />
 
-                    <h2>レビュー</h2>
-                    {/* レビューリスト */}
-
-                    <DirectCheckoutModal
-                        item={item}
-                        isOpen={showModal}
-                        quantity={selectQuantity}
-                        onClose={() => setShowModal(false)}
+      {item ? (
+        <main>
+          <div>
+            <div>
+              <Swiper
+                modules={[Pagination, Navigation]}
+                pagination={{ clickable: true }}
+                navigation
+              >
+                {images.map((img) => (
+                  <SwiperSlide key={img.id}>
+                    <img
+                      src={img.url}
+                      alt={item.name}
+                      className="w-full object-cover"
                     />
-                </main>
-            ) : (
-                <p>商品情報が取得できませんでした。</p>
-            )}
+                  </SwiperSlide>
+                ))}
+              </Swiper>
+            </div>
 
-            <CartAddBar
-                visible={showCartBar}
-                onClose={() => setShowCartBar(false)}
-                onViewCart={() => (window.location.href = "/cart")}
-                item={item} // カート追加バーに商品情報を渡す
-            />
-        </div>
-    );
+            <div>
+              <div>
+                <h1>{item.name}</h1>
+                <p>{item.price.toLocaleString()}円</p>
+              </div>
+
+              <BottomBarPortal>
+                <div>
+                  <div>
+                    <button
+                      onClick={decrement}
+                      className="w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 transition"
+                      aria-label="数量を減らす"
+                    >
+                      －
+                    </button>
+                    <span>{selectQuantity}</span>
+                    <button
+                      onClick={increment}
+                      className="w-10 h-10 rounded-xl bg-gray-100 text-black hover:bg-gray-300 transition"
+                      aria-label="数量を増やす"
+                    >
+                      ＋
+                    </button>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <button
+                      className="flex-1 rounded-xl bg-yellow-400 text-black hover:bg-yellow-200 p-3 transition font-medium"
+                      onClick={AddCart}
+                    >
+                      カートに入れる
+                    </button>
+                    <button
+                      className="flex-1 rounded-xl bg-orange-400 text-black hover:bg-orange-200 p-3 transition font-medium"
+                      onClick={Purchase}
+                    >
+                      購入手続きへ
+                    </button>
+                  </div>
+                </div>
+              </BottomBarPortal>
+
+              <div className="border rounded-xl p-4 shadow-sm bg-white">
+                <p className="text-lg font-semibold mb-2">📦 商品情報</p>
+                <p className="text-gray-700 mb-2">{item.description}</p>
+              </div>
+            </div>
+          </div>
+
+          <h2>レビュー</h2>
+
+          <DirectCheckoutModal
+            item={item}
+            isOpen={showModal}
+            quantity={selectQuantity}
+            onClose={() => setShowModal(false)}
+          />
+        </main>
+      ) : (
+        <p>商品情報が取得できませんでした。</p>
+      )}
+
+      <CartAddBar
+        visible={showCartBar}
+        onClose={() => setShowCartBar(false)}
+        onViewCart={() => (window.location.href = "/cart")}
+        item={item}
+      />
+    </div>
+  );
 };
 
-export default Item; // ← コンポーネント名と一致！
+export default Item;

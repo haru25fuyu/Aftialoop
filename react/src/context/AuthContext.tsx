@@ -1,103 +1,100 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import api, { initAuthOnce, getAccessToken } from "../conf/api";
-import LoginModal from "../modal/Login";
-import { Customer } from "../types/Content"; // ユーザーの型定義があればインポート
 import { useLocation } from "react-router-dom";
 
+import api, { initAuthOnce, getAccessToken, setAccessToken } from "../conf/api";
+import { clearUserProfile } from "../conf/function";
+import LoginModal from "../modal/Login";
+import { Customer } from "../types/Content";
 
-// Contextで使える機能の型定義
+// ── 型定義 ────────────────────────────────────────────────
+
 interface AuthContextType {
-    user: Customer | null;       // ログイン中のユーザー情報 (型は適宜調整)
-    loading: boolean;       // 読み込み中かどうか
-    isAuthenticated: boolean;
-    openLoginModal: () => void; // どこからでもログイン画面を出せる関数
-    logout: () => void;     // ログアウト関数
-    refreshUser: () => void; // ユーザー情報を再取得する関数
+  user: Customer | null;
+  loading: boolean;
+  isAuthenticated: boolean;
+  openLoginModal: () => void;
+  logout: () => void;
+  refreshUser: () => void;
 }
+
+// ── Context ───────────────────────────────────────────────
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// ── Provider ──────────────────────────────────────────────
+
 export const AuthProvider = ({ children }: { children: ReactNode }) => {
-    const [user, setUser] = useState<Customer | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [showModal, setShowModal] = useState(false);
+  const [user, setUser] = useState<Customer | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
 
-    const location = useLocation(); // 2. locationを取得
+  const location = useLocation();
 
-    // 3. パス(URL)が変わるたびにモーダルを閉じる
-    useEffect(() => {
-        setShowModal(false);
-    }, [location.pathname]);
+  // パスが変わったらモーダルを閉じる
+  useEffect(() => {
+    setShowModal(false);
+  }, [location.pathname]);
 
-    // 初回ロード時にトークンチェックとユーザー取得を行う
-    useEffect(() => {
-        initAuthOnce().finally(() => {
-            fetchUser();
-        });
-    }, []);
+  // ✅ initAuthOnce は AuthContext の1箇所だけで呼ぶ（App.tsx 側の呼び出しは削除）
+  useEffect(() => {
+    initAuthOnce().finally(fetchUser);
+  }, []);
 
-    const fetchUser = async () => {
-        const token = getAccessToken();
-        if (!token || token === "undefined") {
-            setUser(null);
-            setLoading(false);
-            return;
-        }
+  const fetchUser = async () => {
+    const token = getAccessToken();
+    if (!token || token === "undefined") {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      const res = await api.post("/customer", {});
+      setUser(res.data.user ?? null);
+    } catch {
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-        try {
-            const res = await api.post("/customer", {});
-            if (res.data.user) {
-                setUser(res.data.user);
-                console.log("Authenticated user:", res.data.user);
-            } else {
-                setUser(null);
-            }
-        } catch (error) {
-            console.error("Auth check failed", error);
-            setUser(null);
-        } finally {
-            setLoading(false);
-        }
-    };
+  // ✅ メモリ上のトークンもリセットしてからログアウト
+  const logout = async () => {
+    try { await api.post("/auth/logout"); } catch { /* サーバー側エラーは無視 */ }
+    setAccessToken(null);
+    clearUserProfile();
+    setUser(null);
+    window.location.href = "/";
+  };
 
-    const logout = () => {
-        // トークン削除などの処理 (API側にログアウトエンドポイントがあれば叩く)
-        localStorage.removeItem("accessToken"); // 仮
-        // 必要なら api.post("/logout")
-        setUser(null);
-        window.location.href = "/"; // トップへ戻す
-    };
-
-    return (
-        <AuthContext.Provider value={{
-            user,
-            loading,
-            isAuthenticated: !!user,
-            openLoginModal: () => setShowModal(true),
-            logout,
-            refreshUser: fetchUser
-        }}>
-            {children}
-
-            <LoginModal
-                isOpen={showModal}
-                onClose={() => setShowModal(false)}
-                onLoginSuccess={async () => {
-                    await fetchUser(); 
-                    setShowModal(false);
-                }}
-
-                showCloseButton={true}
-            />
-        </AuthContext.Provider>
-    );
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        isAuthenticated: !!user,
+        openLoginModal: () => setShowModal(true),
+        logout,
+        refreshUser: fetchUser,
+      }}
+    >
+      {children}
+      <LoginModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onLoginSuccess={async () => {
+          await fetchUser();
+          setShowModal(false);
+        }}
+        showCloseButton={true}
+      />
+    </AuthContext.Provider>
+  );
 };
 
-// 簡単に使うためのカスタムフック
+// ── カスタムフック ────────────────────────────────────────
+
 export const useAuth = () => {
-    const context = useContext(AuthContext);
-    if (!context) {
-        throw new Error("useAuth must be used within an AuthProvider");
-    }
-    return context;
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within an AuthProvider");
+  return context;
 };

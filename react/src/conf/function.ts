@@ -9,19 +9,8 @@ import { FleaContent } from "../types/FleaMarket";
 
 import { ToastCtx } from "./toast-context";
 
-//// トークンが期限切れかを確認する関数
-//function isTokenExpired(token: string | null): boolean {
-//  if (!token) return true; // トークンがない場合は期限切れとみなす
-//  const payload = JSON.parse(atob(token.split(".")[1])); // JWTのペイロードをデコード
-//  const exp = payload.exp * 1000; // JWTのexpは秒単位なのでミリ秒に変換
-//  return Date.now() > exp; // 現在の時刻が`exp`を超えていれば期限切れ
-//}
-//
-//module.exports = { isTokenExpired };
+// ── 型定義 ────────────────────────────────────────────────
 
-//----------------------------------------------------------------------
-// 支払い関数
-//----------------------------------------------------------------------
 type PaymentData = {
   price: number;
   cardID: string;
@@ -29,74 +18,46 @@ type PaymentData = {
   addressID: string;
 };
 
-type EcPaymentData = PaymentData & {
-  items: Content[];
-};
+type EcPaymentData = PaymentData & { items: Content[] };
+type FleaPaymentData = PaymentData & { items: FleaContent[] };
 
-type FleaPaymentData = PaymentData & {
-  items: FleaContent[];
-};
+// ── 決済関数 ─────────────────────────────────────────────
+// ✅ .then() チェーンを async/await に統一
+//    → エラーが呼び出し元に正しく伝播するようになる
 
-// クレジットカードの支払いを行う関数
 export const chargeCard = async (paymentData: EcPaymentData) => {
-  api
-    .post("/card/charge", {
-      amount: paymentData.price,
-      cardID: paymentData.cardID,
-      customerID: paymentData.customerID,
-      items: paymentData.items,
-      addressID: paymentData.addressID,
-    })
-    .then((res) => {
-      console.log("決済成功:", res.data);
-      // 決済成功後の処理を追加
-      return res.data; // 必要に応じてレスポンスを返す
-    })
-    .catch((err) => {
-      console.error("決済失敗:", err);
-      throw new Error("決済に失敗しました。" + err.message); // エラーを投げて呼び出し元で処理
-    });
+  const res = await api.post("/card/charge", {
+    amount: paymentData.price,
+    cardID: paymentData.cardID,
+    customerID: paymentData.customerID,
+    items: paymentData.items,
+    addressID: paymentData.addressID,
+  });
+  return res.data;
 };
 
-// ポイントの支払いを行う関数
 export const chargePoint = async (paymentData: EcPaymentData) => {
-  api
-    .post("/point/charge", {
-      amount: paymentData.price,
-      customerID: paymentData.customerID,
-      items: paymentData.items,
-      addressID: paymentData.addressID,
-    })
-    .then((res) => {
-      console.log("ポイント決済成功:", res.data);
-      // ポイント決済成功後の処理を追加
-      return res.data; // 必要に応じてレスポンスを返す
-    })
-    .catch((err) => {
-      console.error("ポイント決済失敗:", err);
-      throw new Error("ポイント決済に失敗しました。" + err.message); // エラーを投げて呼び出し元で処理
-    });
+  const res = await api.post("/point/charge", {
+    amount: paymentData.price,
+    customerID: paymentData.customerID,
+    items: paymentData.items,
+    addressID: paymentData.addressID,
+  });
+  return res.data;
 };
 
 export const fleaCheckout = async (paymentData: FleaPaymentData) => {
-  api
-    .post("/card/charge", {
-      amount: paymentData.price,
-      cardID: paymentData.cardID,
-      customerID: paymentData.customerID,
-      items: paymentData.items,
-      addressID: paymentData.addressID,
-    })
-    .then((res) => {
-      console.log("決済成功:", res.data);
-      // 決済成功後の処理を追加
-      return res.data; // 必要に応じてレスポンスを返す
-    })
-    .catch((err) => {
-      console.error("決済失敗:", err);
-      throw new Error("決済に失敗しました。" + err.message); // エラーを投げて呼び出し元で処理
-    });
+  const res = await api.post("/card/charge", {
+    amount: paymentData.price,
+    cardID: paymentData.cardID,
+    customerID: paymentData.customerID,
+    items: paymentData.items,
+    addressID: paymentData.addressID,
+  });
+  return res.data;
 };
+
+// ── 住所取得 ──────────────────────────────────────────────
 
 export async function fetchAddress(id: string) {
   try {
@@ -108,15 +69,20 @@ export async function fetchAddress(id: string) {
   }
 }
 
+// ── ステータスラベル ──────────────────────────────────────
+
 export function GetItemStatusLabels(status: number): string[] {
   return Object.values(ITEM_STATUS_LABELS)
     .map(({ flag, yes, no }) => (status & flag ? yes : no))
     .filter((label): label is string => label !== null);
 }
+
 export function hasAllFlags(status: number, flags: number[]): boolean {
   const combined = flags.reduce((acc, f) => acc | f, 0);
   return (status & combined) === combined;
 }
+
+// ── Toast ────────────────────────────────────────────────
 
 export function useToast() {
   const ctx = useContext(ToastCtx);
@@ -124,10 +90,14 @@ export function useToast() {
   return ctx.toast;
 }
 
+// ── 都道府県名 ────────────────────────────────────────────
+
 export function getPrefName(id: number): string {
   const pref = PREFS.find((p) => p.id === id);
   return pref ? pref.name : "未設定";
 }
+
+// ── ユーザープロフィール（localStorage） ─────────────────
 
 export const setUserProfile = (p: UserProfile | null) => {
   if (!p) {
