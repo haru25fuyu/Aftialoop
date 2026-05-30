@@ -1,0 +1,22 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight, shadow } from "../../tokens";
+
+export const s = {
+page: { backgroundColor: semantic.bgPage, minHeight: "100vh", paddingBottom: 80 },
+header: { backgroundColor: semantic.bgSurface, position: "sticky" as const, top: 0, zIndex: 10, borderBottom: `1px solid ${semantic.borderDefault}` },
+headerInner: { maxWidth: 640, margin: "0 auto", padding: `0 ${spacing[4]}px`, height: 56, display: "flex", alignItems: "center", gap: spacing[4] },
+title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: semantic.textPrimary },
+tabs: { display: "flex", backgroundColor: semantic.bgSurface, borderBottom: `1px solid ${semantic.borderDefault}` },
+tab: (active: boolean) => ({ flex: 1, padding: `${spacing[3]}px 0`, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: active ? semantic.textPrimary : semantic.textMuted, background: "none", border: "none", cursor: "pointer", borderBottom: active ? `2px solid ${semantic.textPrimary}` : "none" }),
+grid: { maxWidth: 640, margin: "0 auto", padding: spacing[4], display: "grid", gridTemplateColumns: "repeat(1, 1fr)", gap: spacing[3] },
+item: { display: "flex", gap: spacing[4], backgroundColor: semantic.bgSurface, borderRadius: radius.xl, border: `1px solid ${semantic.borderDefault}`, padding: spacing[4], textDecoration: "none", ...shadow.sm },
+imgWrap: { width: 80, height: 80, borderRadius: radius.lg, overflow: "hidden", flexShrink: 0, position: "relative" as const, border: `1px solid ${semantic.borderDefault}` },
+img: { width: "100%", height: "100%", objectFit: "cover" as const },
+imgOverlay: { position: "absolute" as const, inset: 0, backgroundColor: "rgba(0,0,0,0.05)" },
+info: { flex: 1, minWidth: 0 },
+itemName: { fontWeight: fontWeight.bold, fontSize: fontSize.sm, color: semantic.textPrimary, marginBottom: spacing[1] },
+statusBadge: (color: string) => ({ display: "inline-flex", alignItems: "center", gap: spacing[1], fontSize: 10, fontWeight: fontWeight.bold, padding: `2px ${spacing[2]}px`, borderRadius: radius.full, ...color }),
+bottomRow: { display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginTop: spacing[2] },
+amountLabel: { fontSize: fontSize.xs, color: semantic.textMuted },
+amount: { fontWeight: fontWeight.bold, fontSize: fontSize.lg, color: semantic.textPrimary },
+storeBadge: { display: "flex", alignItems: "center", gap: spacing[1], fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: colors.success, backgroundColor: colors.successBg, padding: `${spacing[1]}px ${spacing[2]}px`, borderRadius: radius.md },
+};

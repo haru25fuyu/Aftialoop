@@ -1,43 +1,28 @@
 import React from "react";
 import { useParams, Link, Navigate } from "react-router-dom";
-
 import { GUIDE_DATA } from "./GuideData";
+import { s } from "../../styles/page/user_guid/UserGuide.styles";
 
 const UserGuide: React.FC = () => {
   const { guideId } = useParams<{ guideId: string }>();
   const activeContent = GUIDE_DATA.find((item) => item.id === guideId);
 
-  if (!activeContent) {
-    return <Navigate to={`/guide/${GUIDE_DATA[0].id}`} replace />;
-  }
+  if (!activeContent) return <Navigate to={`/guide/${GUIDE_DATA[0].id}`} replace />;
 
   return (
-    <div className="flex w-full min-h-screen bg-white">
-      {/* サイドメニュー */}
-      <nav className="w-64 bg-gray-50 border-r py-8 flex flex-col">
-        <div className="px-6 mb-4 text-xs font-bold text-gray-400 uppercase">ガイドメニュー</div>
+    <div style={s.layout}>
+      <nav style={s.sidebar}>
+        <div style={{ padding: "0 16px 16px", fontSize: 11, fontWeight: 700, color: "#8c8c8c", textTransform: "uppercase", letterSpacing: "0.06em" }}>ガイドメニュー</div>
         {GUIDE_DATA.map((item) => (
-          <Link
-            key={item.id}
-            to={`/guide/${item.id}`}
-            className={`px-6 py-3 text-sm transition-colors ${
-              guideId === item.id
-                ? "bg-blue-600 text-white font-bold"
-                : "text-gray-600 hover:bg-gray-100"
-            }`}
-          >
+          <Link key={item.id} to={`/guide/${item.id}`} style={s.sidebarLink(guideId === item.id)}>
             {item.title}
           </Link>
         ))}
       </nav>
-
-      {/* コンテンツエリア */}
-      <main className="flex-1 p-12 overflow-y-auto">
-        <article className="max-w-3xl">
-          <h1 className="text-3xl font-bold mb-8 border-b pb-4 text-gray-800">
-            {activeContent.title}
-          </h1>
-          <div className="prose prose-blue text-gray-700 leading-relaxed">
+      <main style={s.content}>
+        <article style={{ maxWidth: 720 }}>
+          <h1 style={s.h1}>{activeContent.title}</h1>
+          <div style={{ color: "#5c5a56", lineHeight: 1.9 }}>
             {activeContent.content}
           </div>
         </article>

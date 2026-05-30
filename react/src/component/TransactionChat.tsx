@@ -1,143 +1,61 @@
-import React, { useEffect, useState, useRef, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { Avatar } from "./Avatar";
 import api from "../conf/api";
-import { Avatar } from "./Avatar"; // 前回作ったやつ
+import { s } from "../styles/component/TransactionChat.styles";
 
-type Message = {
-    id: number;
-    user_id: string;
-    message: string;
-    created_at: string;
-    user_name: string;
-    user_icon_url: string;
-};
+type Message = { id: number; user_id: string; user_name: string; user_icon_url: string; message: string; created_at: string; };
+type Props = { transactionId: string; myUserId: string; };
 
-type Props = {
-    purchase_request_id: string;
-    myUserId: string; // 自分のID (左右の出し分け用)
-};
+const TransactionChat: React.FC<Props> = ({ transactionId, myUserId }) => {
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputText, setInputText] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-export const TransactionChat: React.FC<Props> = ({ purchase_request_id, myUserId }) => {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [inputText, setInputText] = useState("");
-    const [sending, setSending] = useState(false);
+  useEffect(() => {
+    api.get(`/flea-market/transactions/${transactionId}/messages`)
+      .then((res) => setMessages(res.data.messages || []))
+      .catch(console.error);
+  }, [transactionId]);
 
-    // 自動スクロール用
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
+  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
 
-    const fetchMessages = useCallback(async () => {
-        try {
-            const res = await api.get(`/flea-market/transactions/${purchase_request_id}/messages`);
-            setMessages(res.data);
-        } catch (error) {
-            console.error(error);
-        }
-    }, [purchase_request_id]); // この関数が使う変数を依存配列に入れる
+  const handleSend = async () => {
+    if (!inputText.trim() || sending) return;
+    setSending(true);
+    try {
+      const res = await api.post(`/flea-market/transactions/${transactionId}/messages`, { message: inputText });
+      setMessages((prev) => [...prev, res.data.message]);
+      setInputText("");
+    } catch (e) { console.error(e); }
+    finally { setSending(false); }
+  };
 
-    useEffect(() => {
-        fetchMessages();
-        // 簡易的なポーリング（5秒ごとに更新）を入れるとリアルタイムっぽくなります
-        const interval = setInterval(fetchMessages, 5000);
-        return () => clearInterval(interval);
-    }, [fetchMessages]);
-
-    // メッセージが増えたら一番下にスクロール
-    useEffect(() => {
-        if (scrollContainerRef.current) {
-            const container = scrollContainerRef.current;
-            // 枠の「中身の高さ(scrollHeight)」までスクロールさせる
-            container.scrollTo({
-                top: container.scrollHeight,
-                behavior: "smooth",
-            });
-        }
-    }, [messages]);
-
-    const handleSend = async () => {
-        if (!inputText.trim()) return;
-        setSending(true);
-        try {
-            await api.post(`/flea-market/transactions/${purchase_request_id}/messages`, {
-                message: inputText
-            });
-            setInputText("");
-            fetchMessages(); // すぐに再取得
-        } catch (error) {
-            alert("送信に失敗しました");
-            console.error(error);
-        } finally {
-            setSending(false);
-        }
-    };
-
-    return (
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-[320px]">
-            <div className="p-4 border-b bg-gray-50 font-bold text-gray-700">
-                取引メッセージ
+  return (
+    <div style={s.container}>
+      <div style={s.messageList}>
+        {messages.map((msg) => {
+          const isMe = msg.user_id === myUserId;
+          return (
+            <div key={msg.id} style={s.messageRow(isMe)}>
+              <Avatar src={msg.user_icon_url} name={msg.user_name} size={40} />
+              <div style={s.bubbleWrap(isMe)}>
+                <div style={s.timestamp}>{isMe ? "あなた" : msg.user_name} • {new Date(msg.created_at).toLocaleString()}</div>
+                <div style={s.bubble(isMe)}>{msg.message}</div>
+              </div>
             </div>
-
-            {/* メッセージ表示エリア */}
-            <div
-                ref={scrollContainerRef}
-                className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50"
-            >
-                {messages?.length === 0 && (
-                    <div className="text-center text-gray-400 text-sm mt-10">
-                        まだメッセージはありません。<br />挨拶を送ってみましょう！
-                    </div>
-                )}
-
-                {messages?.map((msg) => {
-                    const isMe = msg.user_id === myUserId;
-                    return (
-                        <div key={msg.id} className={`flex gap-3 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                            {/* アイコン */}
-                            <Avatar
-                                src={msg.user_icon_url}
-                                name={msg.user_name}
-                                className="w-10 h-10 border shadow-sm"
-                            />
-
-                            {/* 吹き出し */}
-                            <div className={`max-w-[70%] space-y-1 ${isMe ? "items-end flex flex-col" : "items-start flex flex-col"}`}>
-                                <div className="text-xs text-gray-500 mb-1">
-                                    {isMe ? "あなた" : msg.user_name} • {new Date(msg.created_at).toLocaleString()}
-                                </div>
-                                <div className={`p-3 rounded-2xl text-sm whitespace-pre-wrap leading-relaxed shadow-sm ${isMe
-                                    ? "bg-emerald-600 text-white rounded-tr-none"
-                                    : "bg-white text-gray-800 border border-gray-200 rounded-tl-none"
-                                    }`}>
-                                    {msg.message}
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-
-            </div>
-
-            {/* 入力エリア */}
-            <div className="p-4 bg-white border-t border-gray-100 ">
-                <div className="flex gap-2 mx-auto">
-                    <textarea
-                        value={inputText}
-                        onChange={(e) => setInputText(e.target.value)}
-                        placeholder="取引メッセージを入力..."
-                        className="flex-1 p-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none resize-none text-sm"
-                        rows={1}
-                        disabled={sending}
-                    />
-                    <button
-                        onClick={handleSend}
-                        disabled={sending || !inputText.trim()}
-                        className={`px-4 rounded-xl font-bold text-white transition-all ${sending || !inputText.trim()
-                            ? "bg-gray-300 cursor-not-allowed"
-                            : "bg-emerald-600 hover:bg-emerald-700 shadow-md"
-                            }`}
-                    >
-                        送信
-                    </button>
-                </div>
-            </div>
+          );
+        })}
+        <div ref={bottomRef} />
+      </div>
+      <div style={s.inputArea}>
+        <div style={s.inputRow}>
+          <textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="取引メッセージを入力..." style={s.textarea} rows={1} disabled={sending} />
+          <button onClick={handleSend} disabled={sending || !inputText.trim()} style={s.sendBtn(sending || !inputText.trim())}>送信</button>
         </div>
-    );
+      </div>
+    </div>
+  );
 };
+
+export default TransactionChat;

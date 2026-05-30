@@ -1,45 +1,24 @@
-// src/component/Avatar.tsx
 import React, { useMemo } from 'react';
 import { CONFIG } from '../conf/config';
+import { s } from '../styles/component/Avatar.styles';
 
 type AvatarProps = {
-    src?: string | null; // 画像のURL (任意)
-    name: string;        // ユーザー名 (イニシャル生成用、必須)
-    className?: string;  // 追加のクラス名 (サイズ調整など)
+  src?: string | null;
+  name: string;
+  size?: number;
 };
 
-// デフォルトのサイズクラス
-const defaultSizeClass = 'w-10 h-10 text-sm';
+export const Avatar: React.FC<AvatarProps> = ({ src, name, size = 40 }) => {
+  const timestamp = useMemo(() => new Date().getTime(), []);
+  const initial = name ? name.charAt(0).toUpperCase() : '?';
+  const baseStyle = { ...s.avatarBase, width: size, height: size, fontSize: size * 0.35 };
 
-export const Avatar: React.FC<AvatarProps> = ({ src, name, className = '' }) => {
-    // 基本となるクラス（円形、サイズ、配置など）
-    // className prop で渡されたサイズ指定などが優先されるように後置する
-    const baseClassName = `rounded-full flex-shrink-0 flex items-center justify-center font-bold leading-none ${defaultSizeClass} ${className}`;
-
-    const timestamp = useMemo(() => new Date().getTime(), []);
-
-    // 画像URLがある場合 -> 画像を表示
-    if (src) {
-        return (
-            <img
-                src={`${CONFIG.BASE_URL}${src}?v=${timestamp}`} // キャッシュ対策にタイムスタンプを付与
-                alt={name}
-                className={`${baseClassName} object-cover`}
-            />
-        );
-    }
-
-    // 画像がない場合 -> 名前のイニシャルを表示
-    // 空文字対策で '?' をデフォルトに
-    const initial = name ? name.charAt(0).toUpperCase() : '?';
-
-    return (
-        <div
-            // 良い感じのグラデーション背景を指定
-            className={`${baseClassName} bg-gradient-to-br from-indigo-400 to-purple-500 text-white shadow-sm`}
-            aria-label={name}
-        >
-            {initial}
-        </div>
-    );
+  if (src) {
+    return <img src={`${CONFIG.BASE_URL}${src}?v=${timestamp}`} alt={name} style={{ ...baseStyle, ...s.avatarImg }} />;
+  }
+  return (
+    <div style={{ ...baseStyle, ...s.avatarInitial }} aria-label={name}>
+      {initial}
+    </div>
+  );
 };

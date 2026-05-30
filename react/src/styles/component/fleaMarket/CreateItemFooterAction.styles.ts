@@ -1,0 +1,46 @@
+import { colors, semantic, spacing, radius, fontWeight } from "../../tokens";
+
+export const s = {
+  footer: {
+    position: "fixed" as const,
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: semantic.bgSurface,
+    borderTop: `1px solid ${semantic.borderDefault}`,
+    padding: `${spacing[3]}px ${spacing[4]}px`,
+    paddingBottom: `calc(${spacing[3]}px + env(safe-area-inset-bottom))`,
+  },
+  inner: { maxWidth: 572, margin: "0 auto", display: "flex", gap: spacing[3] },
+  prevBtn: {
+    flex: 1,
+    height: 48,
+    backgroundColor: colors.neutral100,
+    color: semantic.textPrimary,
+    border: "none",
+    borderRadius: radius.lg,
+    fontWeight: fontWeight.bold,
+    cursor: "pointer",
+  },
+  nextBtn: {
+    flex: 2,
+    height: 48,
+    backgroundColor: colors.neutral900,
+    color: colors.neutral0,
+    border: "none",
+    borderRadius: radius.lg,
+    fontWeight: fontWeight.bold,
+    cursor: "pointer",
+  },
+  publishBtn: {
+    flex: 2,
+    height: 48,
+    backgroundColor: colors.accent500,
+    color: colors.neutral0,
+    border: "none",
+    borderRadius: radius.lg,
+    fontWeight: fontWeight.bold,
+    cursor: "pointer",
+  },
+  publishBtnBusy: { opacity: 0.45, cursor: "not-allowed" },
+};

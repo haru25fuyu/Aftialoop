@@ -1,0 +1,18 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight, shadow } from "../../tokens";
+
+export const s = {
+page: { backgroundColor: semantic.bgSurfaceAlt, minHeight: "100vh", paddingBottom: 80 },
+header: { backgroundColor: semantic.bgSurface, borderBottom: `1px solid ${semantic.borderDefault}`, position: "sticky" as const, top: 0, zIndex: 10 },
+headerInner: { maxWidth: 512, margin: "0 auto", height: 56, paddingLeft: spacing[4], paddingRight: spacing[4], display: "flex", alignItems: "center", gap: spacing[3] },
+title: { fontWeight: fontWeight.bold, fontSize: fontSize.lg, color: semantic.textPrimary },
+main: { maxWidth: 512, margin: "0 auto", padding: spacing[4], display: "flex", flexDirection: "column" as const, gap: spacing[6] },
+sectionLabel: { fontSize: fontSize.xs, fontWeight: fontWeight.bold, color: semantic.textMuted, marginBottom: spacing[2], marginLeft: spacing[1] },
+menuList: { backgroundColor: semantic.bgSurface, borderRadius: radius.lg, ...shadow.sm, overflow: "hidden" },
+menuItem: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: spacing[4], borderBottom: `1px solid ${colors.neutral50}`, textDecoration: "none", color: semantic.textPrimary },
+menuItemLeft: { display: "flex", alignItems: "center", gap: spacing[3] },
+menuItemLabel: { fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: semantic.textPrimary },
+menuItemSub: { fontSize: fontSize.xs, color: semantic.textMuted, marginTop: 2 },
+verifiedIcon: { color: colors.success },
+unverifiedIcon: { color: colors.neutral300 },
+dangerItem: { display: "flex", alignItems: "center", justifyContent: "space-between", padding: spacing[4], textDecoration: "none", color: colors.danger, width: "100%", background: "none", border: "none", cursor: "pointer", textAlign: "left" as const },
+};

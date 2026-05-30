@@ -17,6 +17,8 @@ import { WithdrawRequestButton } from "../../WithdrawRequestButton";
 import { RejectRequestButton } from "../../RejectRequestButton";
 import { RequestCancelledPanel} from "./RequestCancelledPanel"
 
+import { s } from "../../../styles/component/fleaMarket/fleaMarketPhases/CompletePanel.styles";
+
 // Icons
 import {
     Calculator, Truck, Thermometer, Box, MapPin, Info, ArrowRight
@@ -345,274 +347,211 @@ export default function SellerSetTerms({
     // ----------------------------------------------------
     // SELLER View
     // ----------------------------------------------------
+     if (pr && (pr.status === "WITHDRAWN" || pr.status === "REJECTED")) {
+    return <RequestCancelledPanel status={pr.status} reason={pr.rejection_reason || pr.withdrawal_reason} />;
+  }
+ 
+  if (!pr) return null;
+ 
+  // BUYER View
+  if (role === "BUYER") {
     return (
-        <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-            {/* Header */}
-            <div className="bg-gray-50 p-5 border-b border-gray-200">
-                <h3 className="font-bold text-lg text-black">取引条件の提示</h3>
-                <p className="text-sm text-gray-600 mt-1">
-                    購入者の希望を確認し、正式な送料・配送方法を決定してください。
-                </p>
-            </div>
-
-            <div className="p-5 space-y-8">
-                <ItemSummary item={item} />
-
-                {/* 購入者の希望 */}
-                <div className="relative">
-                    <div className="absolute -top-3 left-3 bg-white px-2 text-xs font-bold text-gray-400">
-                        購入者の希望
-                    </div>
-                    <div className="rounded-xl border border-gray-200 p-4 pt-5 grid grid-cols-1 gap-2 text-sm">
-                        <div className="flex items-center gap-2 text-gray-700">
-                            <Truck size={16} className="text-gray-400" />
-                            <span>配送: </span>
-                            <span className="font-bold text-black">
-                                {SHIPPING_METHODS.find((m) => m.id === pr.shipping_method_pref)?.label}
-                            </span>
-                        </div>
-                        <div className="flex items-center gap-2 text-gray-700">
-                            <Box size={16} className="text-gray-400" />
-                            <span>送料: </span>
-                            <span className="font-bold text-black">
-                                {SHIPPING_FEE_TYPES.find((f) => f.id === pr.shipping_fee_pref)?.label}
-                            </span>
-                        </div>
-                        {pr.note && (
-                            <div className="mt-2 text-xs text-gray-500 bg-gray-50 p-2 rounded">
-                                備考: {pr.note}
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* 設定フォーム */}
-                <div className="space-y-6">
-                    {/* 配送方法 */}
-                    <div className="space-y-2">
-                        <label className="text-sm font-bold text-black flex items-center gap-2">
-                            1. 配送方法 <span className="text-red-500 text-xs font-normal">必須</span>
-                        </label>
-                        <div className="flex gap-3">
-                            <SegButton
-                                active={shippingMethod === ShippingMethod.DELIVERY}
-                                onClick={() => setShippingMethod(ShippingMethod.DELIVERY)}
-                                icon={Truck}
-                            >
-                                配送
-                            </SegButton>
-                            <SegButton
-                                active={shippingMethod === ShippingMethod.MEETUP}
-                                onClick={() => setShippingMethod(ShippingMethod.MEETUP)}
-                                icon={MapPin}
-                            >
-                                手渡し
-                            </SegButton>
-                        </div>
-                    </div>
-
-                    {isDelivery && (
-                        <>
-                            {/* 送料負担 */}
-                            <div className="space-y-2">
-                                <label className="text-sm font-bold text-black flex items-center gap-2">
-                                    2. 送料負担 <span className="text-red-500 text-xs font-normal">必須</span>
-                                </label>
-                                <div className="flex gap-3">
-                                    <SegButton
-                                        active={feeType === ShippingFeePref.INCLUDED}
-                                        onClick={() => setFeeType(ShippingFeePref.INCLUDED)}
-                                    >
-                                        送料込み (出品者負担)
-                                    </SegButton>
-                                    <SegButton
-                                        active={feeType === ShippingFeePref.COD}
-                                        onClick={() => setFeeType(ShippingFeePref.COD)}
-                                    >
-                                        着払い (購入者負担)
-                                    </SegButton>
-                                </div>
-                            </div>
-
-                            {/* 送料計算 & 入力 */}
-                            {isIncluded && (
-                                <div className="space-y-4">
-                                    {/* 計算機カード */}
-                                    <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                        <div className="flex items-center gap-2 mb-3 text-sm font-bold text-gray-700">
-                                            <Calculator size={16} /> 送料計算ツール
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            {/* 条件選択 */}
-                                            <div className="space-y-2">
-                                                <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                    <Truck size={12} /> 業者
-                                                </div>
-                                                <div className="flex flex-wrap gap-2">
-                                                    {CARRIER_OPTIONS.map((o) => (
-                                                        <Pill key={o.id} active={carrier === o.id} onClick={() => setCarrier(o.id)}>
-                                                            {o.label}
-                                                        </Pill>
-                                                    ))}
-                                                </div>
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-4">
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                        <Thermometer size={12} /> 温度帯
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {TEMP_OPTIONS.filter(o => !(carrier === "JP" && o.id === "FROZEN")).map((o) => (
-                                                            <Pill key={o.id} active={temp === o.id} onClick={() => setTemp(o.id)}>
-                                                                {o.label}
-                                                            </Pill>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                                <div className="space-y-2">
-                                                    <div className="flex items-center gap-2 text-xs text-gray-500">
-                                                        <Box size={12} /> サイズ
-                                                    </div>
-                                                    <div className="flex flex-wrap gap-2">
-                                                        {SIZE_OPTIONS.filter(s => carrier === "YAMATO" && ["CHILLED", "FROZEN"].includes(temp) ? s <= 120 : true).map((s) => (
-                                                            <Pill key={s} active={size === s} onClick={() => setSize(s)}>
-                                                                {s}
-                                                            </Pill>
-                                                        ))}
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            {/* 計算結果表示エリア */}
-                                            <div className="mt-4 pt-3 border-t border-gray-200 flex items-center justify-between">
-                                                <div className="text-xs text-gray-500">
-                                                    参考送料:
-                                                    {estimateLoading ? (
-                                                        <span className="ml-2">計算中...</span>
-                                                    ) : estimateError ? (
-                                                        <span className="ml-2 text-red-500">取得失敗</span>
-                                                    ) : estimate !== null ? (
-                                                        <span className="ml-2 font-bold text-gray-900 text-lg">{yen(estimate)}</span>
-                                                    ) : (
-                                                        <span className="ml-2">-</span>
-                                                    )}
-                                                </div>
-                                                <button
-                                                    type="button"
-                                                    disabled={estimate === null}
-                                                    onClick={applyEstimateToFee}
-                                                    className="text-xs bg-black text-white px-3 py-1.5 rounded-lg disabled:opacity-50 hover:bg-gray-800 transition"
-                                                >
-                                                    入力欄に反映
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* 金額入力メイン */}
-                                    <div className="space-y-2">
-                                        <label className="text-sm font-bold text-black">
-                                            3. 最終的な送料 <span className="text-red-500 text-xs font-normal">※購入者に請求する額</span>
-                                        </label>
-                                        <div className="relative">
-                                            <input
-                                                type="number"
-                                                min={0}
-                                                className="w-full text-right pr-12 pl-4 py-3 text-xl font-bold border border-gray-300 rounded-xl focus:ring-2 focus:ring-black focus:border-black outline-none transition-all"
-                                                value={Number.isFinite(feeAmount) ? feeAmount : 0}
-                                                onChange={(e) => setFeeAmount(Number(e.target.value))}
-                                            />
-                                            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 font-bold">
-                                                円
-                                            </span>
-                                        </div>
-
-                                        {/* クイックボタン */}
-                                        <div className="flex flex-wrap gap-2 justify-end">
-                                            {[500, 800, 1000, 1200, 1500].map(v => (
-                                                <button
-                                                    key={v}
-                                                    type="button"
-                                                    onClick={() => setFeeAmount(v)}
-                                                    className="text-xs border border-gray-200 rounded-full px-3 py-1 hover:bg-gray-50 text-gray-600"
-                                                >
-                                                    {yen(v)}
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </>
-                    )}
-
-                    {!isDelivery && (
-                        <div className="bg-gray-50 p-4 rounded-xl text-sm flex gap-2 text-gray-600">
-                            <Info size={18} className="shrink-0 mt-0.5" />
-                            手渡しのため、システム上の送料は 0円 で設定されます。
-                        </div>
-                    )}
-
-                    {/* チャットエリアを追加 */}
-                    {pr && myUserId && (
-                        <div className="mt-8">
-                            <TransactionChat
-                                purchase_request_id={pr.id.toString()}
-                                myUserId={myUserId}
-                            />
-                        </div>
-                    )}
-                    {/* 申請却下ボタン */}
-                    <div className="mt-4">
-                        <RejectRequestButton
-                            requestId={pr.id}
-                            onSuccess={onChanged}
-                            className="w-full bg-white border-none text-red-500 hover:bg-red-50 hover:text-red-600"
-                        />
-                    </div>
-                </div>
-
-                {/* 合計確認エリア */}
-                <div className="border-t-2 border-dashed border-gray-200 pt-6">
-                    <div className="bg-gray-900 rounded-2xl p-6 text-white space-y-4 shadow-lg">
-                        <div className="flex justify-between items-center text-sm text-gray-400">
-                            <span>商品価格</span>
-                            <span>{yen(safeItemPrice)}</span>
-                        </div>
-                        <div className="flex justify-between items-center text-sm text-gray-400">
-                            <span>送料</span>
-                            <span>
-                                {isDelivery
-                                    ? (isIncluded ? yen(safeFeeAmount) : "着払い")
-                                    : "なし"
-                                }
-                            </span>
-                        </div>
-                        <div className="h-px bg-gray-700 my-2" />
-                        <div className="flex justify-between items-end">
-                            <span className="font-bold">購入者に提示する合計</span>
-                            <span className="text-2xl font-bold tracking-tight">{yen(total)}</span>
-                        </div>
-                    </div>
-
-                    <button
-                        type="button"
-                        disabled={!canSubmit}
-                        onClick={handleSubmitTerms}
-                        className={cn(
-                            "mt-4 w-full py-4 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all",
-                            canSubmit
-                                ? "bg-black text-white hover:bg-gray-800 shadow-md hover:scale-[1.01]"
-                                : "bg-gray-200 text-gray-400 cursor-not-allowed"
-                        )}
-                    >
-                        条件を確定して取引を開始する
-                        <ArrowRight size={20} />
-                    </button>
-                </div>
-            </div>
+      <div style={s.wrap}>
+        <ItemSummary item={item} />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 0", textAlign: "center", gap: 12 }}>
+          <div style={{ width: 48, height: 48, backgroundColor: "#f0eeeb", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Truck size={24} style={{ color: "#8c8c8c" }} />
+          </div>
+          <div>
+            <h3 style={{ fontWeight: 700, color: "#1a1a1a" }}>出品者の確認待ち</h3>
+            <p style={{ fontSize: 14, color: "#8c8c8c", marginTop: 4 }}>
+              出品者が配送方法や送料を確認しています。<br />
+              条件が提示されるまでしばらくお待ちください。
+            </p>
+          </div>
         </div>
+        <div style={{ borderTop: `1px solid #e0ddd8`, paddingTop: 16 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#8c8c8c", marginBottom: 12, textTransform: "uppercase", letterSpacing: "0.06em" }}>Your Request</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 12, fontSize: 14 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#5c5a56" }}>配送希望</span>
+              <span style={{ fontWeight: 500 }}>{SHIPPING_METHODS.find((m) => m.id === pr.shipping_method_pref)?.label}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: "#5c5a56" }}>送料負担</span>
+              <span style={{ fontWeight: 500 }}>{SHIPPING_FEE_TYPES.find((f) => f.id === pr.shipping_fee_pref)?.label}</span>
+            </div>
+          </div>
+          {pr && myUserId && (
+            <div style={{ marginTop: 32 }}>
+              <TransactionChat purchase_request_id={pr.id.toString()} myUserId={myUserId} />
+            </div>
+          )}
+          <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid #e0ddd8`, display: "flex", justifyContent: "center" }}>
+            <WithdrawRequestButton requestId={pr.id} onWithdrawn={onChanged} />
+          </div>
+        </div>
+      </div>
     );
-}
+  }
+ 
+  // SELLER View
+  return (
+    <div style={{ ...s.wrap, overflow: "hidden" }}>
+      {/* Header */}
+      <div style={s.sectionTitle}>
+        <h3 style={{ fontWeight: 700, fontSize: 18, color: "#1a1a1a" }}>取引条件の提示</h3>
+        <p style={{ fontSize: 14, color: "#5c5a56", marginTop: 4 }}>購入者の希望を確認し、正式な送料・配送方法を決定してください。</p>
+      </div>
+ 
+      <div style={{ padding: 20, display: "flex", flexDirection: "column", gap: 32 }}>
+        <ItemSummary item={item} />
+ 
+        {/* 購入者の希望 */}
+        <div style={{ position: "relative" }}>
+          <div style={{ position: "absolute", top: -12, left: 12, backgroundColor: "#fff", padding: "0 8px", fontSize: 11, fontWeight: 700, color: "#8c8c8c" }}>購入者の希望</div>
+          <div style={s.addressBox}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#2e3128" }}>
+              <Truck size={16} style={{ color: "#8c8c8c" }} />
+              <span>配送: </span>
+              <span style={{ fontWeight: 700 }}>{SHIPPING_METHODS.find((m) => m.id === pr.shipping_method_pref)?.label}</span>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#2e3128", marginTop: 8 }}>
+              <Box size={16} style={{ color: "#8c8c8c" }} />
+              <span>送料: </span>
+              <span style={{ fontWeight: 700 }}>{SHIPPING_FEE_TYPES.find((f) => f.id === pr.shipping_fee_pref)?.label}</span>
+            </div>
+            {pr.note && <div style={{ marginTop: 8, fontSize: 12, color: "#8c8c8c", backgroundColor: "#f0eeeb", padding: 8, borderRadius: 6 }}>備考: {pr.note}</div>}
+          </div>
+        </div>
+ 
+        {/* 設定フォーム */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          {/* 配送方法 */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>1. 配送方法 <span style={{ fontSize: 11, color: "#d63c20", fontWeight: 400 }}>必須</span></label>
+            <div style={s.radioGrid}>
+              <button type="button" onClick={() => setShippingMethod(ShippingMethod.DELIVERY)} style={s.radioBtn(shippingMethod === ShippingMethod.DELIVERY)}>
+                <div style={s.radioBtnTitle}><Truck size={14} style={{ display: "inline", marginRight: 4 }} />配送</div>
+              </button>
+              <button type="button" onClick={() => setShippingMethod(ShippingMethod.MEETUP)} style={s.radioBtn(shippingMethod === ShippingMethod.MEETUP)}>
+                <div style={s.radioBtnTitle}><MapPin size={14} style={{ display: "inline", marginRight: 4 }} />手渡し</div>
+              </button>
+            </div>
+          </div>
+ 
+          {isDelivery && (
+            <>
+              {/* 送料負担 */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <label style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>2. 送料負担 <span style={{ fontSize: 11, color: "#d63c20", fontWeight: 400 }}>必須</span></label>
+                <div style={s.radioGrid}>
+                  <button type="button" onClick={() => setFeeType(ShippingFeePref.INCLUDED)} style={s.radioBtn(feeType === ShippingFeePref.INCLUDED)}>
+                    <div style={s.radioBtnTitle}>送料込み</div>
+                    <div style={s.radioBtnDesc}>出品者負担</div>
+                  </button>
+                  <button type="button" onClick={() => setFeeType(ShippingFeePref.COD)} style={s.radioBtn(feeType === ShippingFeePref.COD)}>
+                    <div style={s.radioBtnTitle}>着払い</div>
+                    <div style={s.radioBtnDesc}>購入者負担</div>
+                  </button>
+                </div>
+              </div>
+ 
+              {/* 送料入力 */}
+              {isIncluded && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>3. 送料（円） <span style={{ fontSize: 11, color: "#d63c20", fontWeight: 400 }}>必須</span></label>
+ 
+                  {/* 送料見積もりツール */}
+                  <div style={{ ...s.addressBox, display: "flex", flexDirection: "column", gap: 12 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: "#8c8c8c", display: "flex", alignItems: "center", gap: 4 }}><Calculator size={12} />送料見積もりツール（任意）</div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#8c8c8c", marginBottom: 4 }}>配送業者</div>
+                        <select style={s.select} value={carrier} onChange={(e) => setCarrier(e.target.value as Carrier)}>
+                          {CARRIER_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#8c8c8c", marginBottom: 4 }}>温度帯</div>
+                        <select style={s.select} value={temp} onChange={(e) => setTemp(e.target.value as Temp)}>
+                          {TEMP_OPTIONS.map((o) => <option key={o.id} value={o.id}>{o.label}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: 11, color: "#8c8c8c", marginBottom: 4 }}>サイズ</div>
+                        <select style={s.select} value={size} onChange={(e) => setSize(Number(e.target.value) as Size)}>
+                          {SIZE_OPTIONS.map((o) => <option key={o} value={o}>{o}サイズ</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    {estimateLoading && <div style={{ fontSize: 12, color: "#8c8c8c" }}>計算中...</div>}
+                    {estimateError && <div style={{ fontSize: 12, color: "#d63c20" }}>{estimateError}</div>}
+                    {estimate !== null && !estimateLoading && (
+                      <div style={s.estimateBox}>
+                        <span style={s.estimateLabel}>見積もり送料</span>
+                        <span style={s.estimateValue}>{yen(estimate)}</span>
+                      </div>
+                    )}
+                  </div>
+ 
+                  <input
+                    type="number"
+                    min={0}
+                    placeholder="例: 800"
+                    value={feeAmount === 0 ? "" : feeAmount}
+                    onChange={(e) => setFeeAmount(Number(e.target.value))}
+                    style={{ ...s.select, width: "100%" }}
+                  />
+                </div>
+              )}
+            </>
+          )}
+ 
+          {/* 購入者へのメモ */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <label style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a" }}>購入者へのメモ（任意）</label>
+            <textarea
+              value={noteToBuyer}
+              onChange={(e) => setNoteToBuyer(e.target.value)}
+              placeholder="梱包方法、発送タイミングなど..."
+              rows={3}
+              style={{ ...s.select, resize: "vertical", fontFamily: "inherit", height: "auto" }}
+            />
+          </div>
+ 
+          {/* 申請却下ボタン */}
+          <div style={{ marginTop: 8 }}>
+            <RejectRequestButton requestId={pr.id} onRejected={onChanged} />
+          </div>
+        </div>
+ 
+        {/* 合計確認・確定ボタン */}
+        <div style={{ borderTop: "2px dashed #e0ddd8", paddingTop: 24 }}>
+          <div style={{ backgroundColor: "#1a1a1a", borderRadius: 16, padding: 24, color: "#fff", display: "flex", flexDirection: "column", gap: 16 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#8c8c8c" }}>
+              <span>商品価格</span><span>{yen(safeItemPrice)}</span>
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 14, color: "#8c8c8c" }}>
+              <span>送料</span>
+              <span>{isDelivery ? (isIncluded ? yen(safeFeeAmount) : "着払い") : "なし"}</span>
+            </div>
+            <div style={{ height: 1, backgroundColor: "#5c5a56", margin: "4px 0" }} />
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+              <span style={{ fontWeight: 700 }}>購入者に提示する合計</span>
+              <span style={{ fontSize: 24, fontWeight: 700 }}>{yen(total)}</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            disabled={!canSubmit}
+            onClick={handleSubmitTerms}
+            style={{ ...s.acceptBtn, marginTop: 16, opacity: canSubmit ? 1 : 0.4, cursor: canSubmit ? "pointer" : "not-allowed" }}
+          >
+            条件を確定して取引を開始する <ArrowRight size={20} style={{ display: "inline" }} />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+ 

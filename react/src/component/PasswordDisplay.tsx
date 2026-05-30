@@ -1,8 +1,3 @@
-
-
-const PasswordDisplay = ({ password }: { password: string }) => {
-    return <span>{'●'.repeat(password.length)}</span>;
-};
-
+import React from "react";
+const PasswordDisplay = ({ password }: { password: string }) => <span>{"●".repeat(password.length)}</span>;
 export default PasswordDisplay;
-// Compare this snippet from front/src/page/EditProfile.tsx:

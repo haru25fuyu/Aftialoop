@@ -2,160 +2,82 @@ import React from "react";
 import { Star, X, Check } from "lucide-react";
 import { REVIEW_TEMPLATES } from "../conf/FleaMarket";
 import { LoadingButton } from "../component/LoadingButton";
+import { s } from "../styles/modal/FleaReviewModal.styles";
 
-type FleaReviewModalProps = {
-    isOpen: boolean;
-    onClose: () => void;
-    onSubmit: (rating: number, comment: string) => Promise<void>; // 完了時の処理（非同期）
-};
+type Props = { isOpen: boolean; onClose: () => void; onSubmit: (rating: number, comment: string) => Promise<void>; };
 
-export default function FleaReviewModal({
-    isOpen,
-    onClose,
-    onSubmit,
-}: FleaReviewModalProps) {
-    // モーダル内で管理するState
-    const [rating, setRating] = React.useState(5);
-    const [comment, setComment] = React.useState("");
-    const [isChecked, setIsChecked] = React.useState(false);
-    const [isSubmitting, setIsSubmitting] = React.useState(false);
+export default function FleaReviewModal({ isOpen, onClose, onSubmit }: Props) {
+  const [rating, setRating] = React.useState(5);
+  const [comment, setComment] = React.useState("");
+  const [isChecked, setIsChecked] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [hoverRating, setHoverRating] = React.useState(0);
 
-    // モーダルが開くたびに初期化したい場合は useEffect を使う
-    React.useEffect(() => {
-        if (isOpen) {
-            setRating(5);
-            setComment("");
-            setIsChecked(false);
-            setIsSubmitting(false);
-        }
-    }, [isOpen]);
+  React.useEffect(() => {
+    if (isOpen) { setRating(5); setComment(""); setIsChecked(false); setIsSubmitting(false); }
+  }, [isOpen]);
 
-    if (!isOpen) return null;
+  if (!isOpen) return null;
 
-    const handleSubmit = async () => {
-        if (!isChecked) return;
-        setIsSubmitting(true);
-        try {
-            await onSubmit(rating, comment);
-            // 成功したら親側で閉じたりリロードしたりする想定
-        } catch (e) {
-            console.error(e);
-            alert("送信に失敗しました");
-            setIsSubmitting(false);
-        }
-    };
+  const handleSubmit = async () => {
+    if (!isChecked) return;
+    setIsSubmitting(true);
+    try { await onSubmit(rating, comment); }
+    catch { alert("送信に失敗しました"); setIsSubmitting(false); }
+  };
 
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-            {/* モーダル本体 */}
-            <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
-
-                {/* ヘッダー */}
-                <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
-                    <h3 className="font-bold text-lg flex items-center gap-2">
-                        <Star className="fill-black text-black" size={20} />
-                        受取評価
-                    </h3>
-                    <button
-                        onClick={onClose}
-                        className="p-1 rounded-full hover:bg-gray-200 transition"
-                        disabled={isSubmitting}
-                    >
-                        <X size={20} className="text-gray-500" />
-                    </button>
-                </div>
-
-                {/* コンテンツ */}
-                <div className="p-6 space-y-6">
-                    {/* 星評価 */}
-                    <div className="text-center">
-                        <p className="text-sm font-bold text-gray-700 mb-3">今回の取引はいかがでしたか？</p>
-                        <div className="flex justify-center gap-3 mb-2">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <button
-                                    key={star}
-                                    type="button"
-                                    onClick={() => setRating(star)}
-                                    className="transition-transform hover:scale-110 focus:outline-none"
-                                >
-                                    <Star
-                                        size={36}
-                                        className={star <= rating ? "fill-black text-black" : "text-gray-200"}
-                                        strokeWidth={star <= rating ? 0 : 2}
-                                    />
-                                </button>
-                            ))}
-                        </div>
-                        <div className="text-sm font-bold text-black h-5">
-                            {rating === 5 && "最高！"}
-                            {rating === 4 && "良かった"}
-                            {rating === 3 && "普通"}
-                            {rating === 2 && "不満"}
-                            {rating === 1 && "悪い"}
-                        </div>
-                    </div>
-
-                    {/* コメント */}
-                    <div>
-                        <label className="block text-sm font-bold text-gray-700 mb-2">
-                            コメント <span className="text-xs font-normal text-gray-400">任意</span>
-                        </label>
-                        <textarea
-                            className="w-full p-3 rounded-xl border border-gray-300 focus:ring-2 focus:ring-black focus:border-black outline-none text-sm min-h-[100px] resize-none"
-                            placeholder="スムーズな取引ありがとうございました。梱包も丁寧で安心しました！"
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                        />
-
-                        {/* 定型文チップ */}
-                        <div className="mt-3">
-                            <div className="text-xs text-gray-400 mb-2 font-bold">定型文を挿入:</div>
-                            <div className="flex flex-wrap gap-2">
-                                {REVIEW_TEMPLATES.map((tmpl, idx) => (
-                                    <button
-                                        key={idx}
-                                        type="button"
-                                        onClick={() => setComment(tmpl.text)}
-                                        className="text-xs border border-gray-200 bg-gray-50 hover:bg-gray-100 hover:border-gray-300 rounded-full px-3 py-1.5 text-gray-600 transition-colors"
-                                    >
-                                        {tmpl.label}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* 確認チェック */}
-                    <label className={`
-                        flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer
-                        ${isChecked ? "bg-black/5 border-black" : "bg-gray-50 border-gray-200 hover:bg-gray-100"}
-                    `}>
-                        <input
-                            type="checkbox"
-                            className="mt-1 w-5 h-5 accent-black cursor-pointer"
-                            checked={isChecked}
-                            onChange={(e) => setIsChecked(e.target.checked)}
-                        />
-                        <div className="text-xs text-gray-600">
-                            <span className={`font-bold block text-sm mb-0.5 ${isChecked ? "text-black" : "text-gray-700"}`}>
-                                中身を確認しました
-                            </span>
-                            商品に不備がないことを確認しました。評価を送信して取引を完了します。
-                        </div>
-                    </label>
-
-                    {/* 送信ボタン */}
-                    <LoadingButton
-                        onClick={handleSubmit}
-                        disabled={!isChecked}
-                        loading={isSubmitting} // ★これでくるくる回る
-                        className="w-full py-3.5 rounded-xl font-bold text-base flex items-center justify-center gap-2 transition-all bg-black text-white hover:bg-gray-800 shadow-lg disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed disabled:shadow-none"
-                    >
-                        <Check size={20} strokeWidth={3} className="mr-1" />
-                        評価を確定して完了する
-                    </LoadingButton>
-                </div>
-            </div>
+  return (
+    <div style={s.overlay}>
+      <div style={s.card}>
+        <div style={s.header}>
+          <h3 style={{ fontWeight: 700, fontSize: 18, display: "flex", alignItems: "center", gap: 8 }}><Star size={20} fill="#1a1a1a" />受取評価</h3>
+          <button onClick={onClose} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", borderRadius: "50%" }}><X size={20} /></button>
         </div>
-    );
+        <div style={s.body}>
+          {/* 星評価 */}
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <p style={{ fontSize: 14, color: "#5c5a56", marginBottom: 12 }}>取引はいかがでしたか？</p>
+            <div style={{ display: "flex", justifyContent: "center", gap: 8 }}>
+              {[1,2,3,4,5].map((n) => (
+                <button key={n} onClick={() => setRating(n)} onMouseEnter={() => setHoverRating(n)} onMouseLeave={() => setHoverRating(0)}
+                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                  <Star size={36} fill={(hoverRating || rating) >= n ? "#f0a800" : "none"} stroke={(hoverRating || rating) >= n ? "#f0a800" : "#c4c1bb"} />
+                </button>
+              ))}
+            </div>
+            <p style={{ fontSize: 14, fontWeight: 700, color: "#1a1a1a", marginTop: 8 }}>{["", "悪い", "やや悪い", "普通", "良い", "とても良い"][rating]}</p>
+          </div>
+          {/* テンプレート */}
+          {REVIEW_TEMPLATES && REVIEW_TEMPLATES.length > 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 12, color: "#8c8c8c", marginBottom: 8 }}>テンプレートから選ぶ</p>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                {REVIEW_TEMPLATES.map((t: string, i: number) => (
+                  <button key={i} onClick={() => setComment(t)}
+                    style={{ padding: "4px 12px", fontSize: 13, borderRadius: 9999, border: "1px solid #e0ddd8", background: comment === t ? "#1a1a1a" : "#fff", color: comment === t ? "#fff" : "#2e3128", cursor: "pointer" }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {/* コメント */}
+          <textarea value={comment} onChange={(e) => setComment(e.target.value)} placeholder="コメントを入力（任意）" rows={4}
+            style={{ width: "100%", padding: 12, borderRadius: 8, border: "1px solid #e0ddd8", fontSize: 14, fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }} />
+          {/* チェック */}
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 12, padding: 16, borderRadius: 12, border: `2px solid ${isChecked ? "#1a1a1a" : "#e0ddd8"}`, backgroundColor: isChecked ? "#f8f7f5" : "#f8f7f5", cursor: "pointer", marginTop: 16 }}>
+            <input type="checkbox" checked={isChecked} onChange={(e) => setIsChecked(e.target.checked)} style={{ width: 20, height: 20, marginTop: 2 }} />
+            <div style={{ fontSize: 13, color: "#5c5a56" }}>
+              <span style={{ fontWeight: 700, display: "block", fontSize: 14, marginBottom: 2, color: "#1a1a1a" }}>中身を確認しました</span>
+              商品に不備がないことを確認しました。評価を送信して取引を完了します。
+            </div>
+          </label>
+          <LoadingButton onClick={handleSubmit} disabled={!isChecked} loading={isSubmitting}
+            style={{ width: "100%", padding: "14px 0", marginTop: 16, borderRadius: 12, fontWeight: 700, fontSize: 16, backgroundColor: isChecked ? "#1a1a1a" : "#e0ddd8", color: isChecked ? "#fff" : "#8c8c8c", border: "none", cursor: isChecked ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <Check size={20} strokeWidth={3} />評価を確定して完了する
+          </LoadingButton>
+        </div>
+      </div>
+    </div>
+  );
 }

@@ -1,19 +1,16 @@
 import React from 'react';
-import { Spinner } from './Spinner';
+import { s } from '../styles/component/LoadingButton.styles';
+import { colors } from '../styles/tokens';
 
-type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & {
-    loading?: boolean;
-};
+type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean };
 
-export const LoadingButton: React.FC<Props> = ({ loading, children, className, ...props }) => {
-    return (
-        <button
-            {...props}
-            disabled={loading || props.disabled}
-            className={`relative flex justify-center items-center px-4 py-2 font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700 disabled:bg-indigo-400 ${className}`}
-        >
-            {loading && <Spinner size="sm" color="border-white" className="absolute" />}
-            <span className={loading ? "opacity-0" : "opacity-100"}>{children}</span>
-        </button>
-    );
-};
+export const LoadingButton: React.FC<Props> = ({ loading, children, style, disabled, ...props }) => (
+  <button
+    {...props}
+    disabled={loading || disabled}
+    style={{ ...s.btn, ...(loading || disabled ? s.btnDisabled : {}), ...style }}
+  >
+    {loading && <div style={s.spinner} />}
+    <span style={{ opacity: loading ? 0 : 1 }}>{children}</span>
+  </button>
+);

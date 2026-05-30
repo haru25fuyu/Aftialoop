@@ -1,75 +1,29 @@
+import React from "react";
 import { Customer } from "../types/Content";
+import { colors, semantic, spacing, fontSize } from "../styles/tokens";
 
-interface PriceWithPerksProps {
-    price: number;
-    user?: Customer | null; // 必要ならちゃんとした User 型に変える
-    num: number;              // 何倍で割引を乗算するか
-    showShipping?: boolean;   // 「送料込み」を出すかどうか
-    className?: string;
-}
+interface Props { price: number; user?: Customer | null; num: number; showShipping?: boolean; }
 
-export const PriceWithPerks: React.FC<PriceWithPerksProps> = ({
-    price,
-    user,
-    num,
-    showShipping = true,
-    className = "",
-}) => {
-    const basePrice = price;
+export const PriceWithPerks: React.FC<Props> = ({ price, user, num, showShipping = true }) => {
+  let discount = 0;
+  if (user && user.point > 0) { const usable = Math.min(user.point, price); discount = Math.floor(usable * num); }
+  const hasDiscount = discount > 0;
+  const finalPrice = price - discount;
+  const bigDiscount = discount >= 100;
 
-    let discount = 0;
-    if (user && user.point > 0) {
-        const usablePoint = Math.min(user.point, basePrice);
-        discount = Math.floor(usablePoint * num);
-    }
-
-    const hasDiscount = discount > 0;
-    const finalPrice = basePrice - discount;
-    const bigDiscount = discount >= 100;
-
-    return (
-        <div className={className}>
-            {/* メイン価格 */}
-            <p className="text-gray-900 font-bold mt-1 text-sm">
-                {(hasDiscount ? finalPrice : basePrice).toLocaleString()}円
-            </p>
-
-            {hasDiscount ? (
-                <>
-                    {/* 元値（取り消し線） */}
-                    <p className="text-gray-400 line-through text-xs">
-                        {basePrice.toLocaleString()}円
-                    </p>
-
-                    {/* サブスク優待バッジ */}
-                    <p className="mt-0.5">
-                        <span className="inline-block px-1.5 py-[1px] rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold tracking-wide">
-                            サブスク優待
-                        </span>
-                    </p>
-
-                    {/* 割引額表示 */}
-                    <p
-                        className={
-                            bigDiscount
-                                ? "text-emerald-600 text-[11px] mt-0.5 font-semibold"
-                                : "text-gray-500 text-[11px] mt-0.5"
-                        }
-                    >
-                        ポイント利用で{discount.toLocaleString()}円おトク
-                    </p>
-                </>
-            ) : (
-                <p className="text-gray-500 text-[11px] mt-0.5">
-                    サブスクポイント利用でおトクに
-                </p>
-            )}
-
-            {showShipping && (
-                <p className="text-gray-500 font-medium mt-0.5 text-[11px]">
-                    送料込み
-                </p>
-            )}
-        </div>
-    );
+  return (
+    <div>
+      <p style={{ color: semantic.textPrimary, fontWeight: "700", marginTop: spacing[1], fontSize: fontSize.sm }}>{(hasDiscount ? finalPrice : price).toLocaleString()}円</p>
+      {hasDiscount ? (
+        <>
+          <p style={{ color: semantic.textMuted, textDecoration: "line-through", fontSize: fontSize.xs }}>{price.toLocaleString()}円</p>
+          <p style={{ marginTop: 2 }}><span style={{ display: "inline-block", padding: "1px 6px", borderRadius: 9999, backgroundColor: colors.infoBg, color: colors.info, fontSize: 10, fontWeight: "600" }}>サブスク優待</span></p>
+          <p style={{ color: bigDiscount ? colors.success : semantic.textMuted, fontSize: 11, marginTop: 2 }}>ポイント利用で{discount.toLocaleString()}円おトク</p>
+        </>
+      ) : (
+        <p style={{ color: semantic.textMuted, fontSize: 11, marginTop: 2 }}>サブスクポイント利用でおトクに</p>
+      )}
+      {showShipping && <p style={{ color: semantic.textMuted, fontWeight: "500", marginTop: 2, fontSize: 11 }}>送料込み</p>}
+    </div>
+  );
 };

@@ -1,130 +1,50 @@
-import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { useForm, SubmitHandler } from "react-hook-form";
-import Header from "../component/Header";
-import api from "../conf/api";
-import { LoadingButton } from "../component/LoadingButton";
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useForm, SubmitHandler } from 'react-hook-form';
+import { Header } from '../component/Header';
+import { LoadingButton } from '../component/LoadingButton';
+import api from '../conf/api';
+import { s } from '../styles/page/ContactForm.styles';
 
-type ContactInput = {
-    name: string;
-    email: string;
-    category: string;
-    body: string;
-};
+type ContactInput = { name: string; email: string; category: string; body: string; };
 
 const ContactForm: React.FC = () => {
-    const navigate = useNavigate();
-    const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ContactInput>();
-    const [sendError, setSendError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<ContactInput>();
+  const [sendError, setSendError] = useState<string | null>(null);
 
-    const onSubmit: SubmitHandler<ContactInput> = async (data) => {
-        setSendError(null);
-        try {
-            await api.post("/contact/send", data);
-            navigate("/contact/complete");
-        } catch (error) {
-            console.error(error);
-            setSendError("送信に失敗しました。時間をおいて再度お試しください。");
-        }
-    };
+  const onSubmit: SubmitHandler<ContactInput> = async (data) => {
+    setSendError(null);
+    try { await api.post('/contact/send', data); navigate('/contact/complete'); }
+    catch { setSendError('送信に失敗しました。時間をおいて再度お試しください。'); }
+  };
 
-    return (
-        <>
-            <Header />
-            <main className="container mx-auto px-4 py-8 max-w-2xl">
-                <h1 className="text-2xl font-bold mb-6 text-center">お問い合わせフォーム</h1>
-
-                <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-                    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-
-                        {/* お名前 */}
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">
-                                お名前 <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="text"
-                                className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.name ? "border-red-500" : "border-gray-300"}`}
-                                placeholder="例：動物 太郎"
-                                {...register("name", { required: "お名前は必須です" })}
-                            />
-                            {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name.message}</p>}
-                        </div>
-
-                        {/* メールアドレス */}
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">
-                                メールアドレス <span className="text-red-500">*</span>
-                            </label>
-                            <input
-                                type="email"
-                                className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.email ? "border-red-500" : "border-gray-300"}`}
-                                placeholder="例：taro@example.com"
-                                {...register("email", {
-                                    required: "メールアドレスは必須です",
-                                    pattern: {
-                                        value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                                        message: "正しいメールアドレス形式で入力してください"
-                                    }
-                                })}
-                            />
-                            {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email.message}</p>}
-                        </div>
-
-                        {/* お問い合わせ種別 */}
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">
-                                お問い合わせ種別 <span className="text-red-500">*</span>
-                            </label>
-                            <select
-                                className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.category ? "border-red-500" : "border-gray-300"}`}
-                                {...register("category", { required: "種別を選択してください" })}
-                            >
-                                <option value="">選択してください</option>
-                                <option value="service">サービスに関するお問い合わせ</option>
-                                <option value="account">アカウント・ログインについて</option>
-                                <option value="item">商品・取引について</option>
-                                <option value="bug">不具合の報告</option>
-                                <option value="other">その他</option>
-                            </select>
-                            {errors.category && <p className="text-red-500 text-sm mt-1">{errors.category.message}</p>}
-                        </div>
-
-                        {/* お問い合わせ内容 */}
-                        <div>
-                            <label className="block text-sm font-bold text-gray-700 mb-1">
-                                お問い合わせ内容 <span className="text-red-500">*</span>
-                            </label>
-                            <textarea
-                                rows={6}
-                                className={`w-full border rounded-lg p-3 focus:outline-none focus:ring-2 focus:ring-blue-500 ${errors.body ? "border-red-500" : "border-gray-300"}`}
-                                placeholder="具体的な内容をご記入ください"
-                                {...register("body", {
-                                    required: "内容は必須です",
-                                    minLength: { value: 10, message: "10文字以上で入力してください" }
-                                })}
-                            />
-                            {errors.body && <p className="text-red-500 text-sm mt-1">{errors.body.message}</p>}
-                        </div>
-
-                        {sendError && (
-                            <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm">
-                                {sendError}
-                            </div>
-                        )}
-
-                        <LoadingButton
-                            type="submit"
-                            loading={isSubmitting}
-                            className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl hover:bg-blue-700 transition disabled:bg-blue-400"
-                        >
-                            送信する
-                        </LoadingButton>
-                    </form>
-                </div>
-            </main>
-        </>
-    );
+  return (
+    <>
+      <Header />
+      <main style={s.wrap}>
+        <h1 style={s.title}>お問い合わせフォーム</h1>
+        <div style={{ backgroundColor: "#fff", padding: 24, borderRadius: 12, border: "1px solid #e0ddd8" }}>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            {[{ name: 'name', label: 'お名前', type: 'text', placeholder: '例：動物 太郎' }, { name: 'email', label: 'メールアドレス', type: 'email', placeholder: 'example@aftialoop.com' }].map(({ name, label, type, placeholder }) => (
+              <div key={name} style={s.formGroup}>
+                <label style={s.label}>{label} <span style={{ color: "#d63c20" }}>*</span></label>
+                <input type={type} placeholder={placeholder} {...register(name as any, { required: `${label}は必須です` })} style={s.input} />
+                {errors[name as keyof ContactInput] && <p style={{ color: "#d63c20", fontSize: 13, marginTop: 4 }}>{errors[name as keyof ContactInput]?.message}</p>}
+              </div>
+            ))}
+            <div style={s.formGroup}>
+              <label style={s.label}>お問い合わせ内容 <span style={{ color: "#d63c20" }}>*</span></label>
+              <textarea placeholder="具体的な内容をご記入ください" rows={6} {...register('body', { required: '内容は必須です', minLength: { value: 10, message: '10文字以上で入力してください' } })} style={s.textarea} />
+              {errors.body && <p style={{ color: "#d63c20", fontSize: 13, marginTop: 4 }}>{errors.body.message}</p>}
+            </div>
+            {sendError && <div style={{ backgroundColor: "#fef0ec", color: "#d63c20", padding: 12, borderRadius: 8, fontSize: 14, marginBottom: 16 }}>{sendError}</div>}
+            <LoadingButton type="submit" loading={isSubmitting} style={s.submitBtn}>送信する</LoadingButton>
+          </form>
+        </div>
+      </main>
+    </>
+  );
 };
 
 export default ContactForm;

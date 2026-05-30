@@ -1,46 +1,32 @@
-import React from 'react';
-import { useEffect } from 'react';
-
-import { Header } from '../component/Header.tsx';
-import { Footer } from '../component/Footer.tsx';
-
-import api from '../conf/api.ts';
+import React, { useEffect } from 'react';
+import { Header } from '../component/Header';
+import { Footer } from '../component/Footer';
+import api from '../conf/api';
+import { s } from '../styles/page/RegisterConfirm.styles';
 
 const RegisterConfirm: React.FC = () => {
-    useEffect(() => {
-        //GETトークンパラメーターの取得
-        const url = new URL(window.location.href);
-        const token = url.searchParams.get('token');
-        
-        //本登録APIの呼び出し
-        api.get('/register/confirm?token=' + token).then((res) => {
-                console.log(res.data);
-            })
-            .catch((err) => {
-                console.error(err);
-            });
-    }, []);
-    return (
-        <div className="flex flex-col min-h-screen">
-            <header>
-                <Header />
-            </header>
-            <main className="flex-grow">
-                <div className="flex-grow flex justify-center items-center mt-10 max-md:mt-0">
-                    <div className="w-full max-w-lg p-8 space-y-6 bg-white rounded shadow-md">
-                        <h2 className="text-2xl font-bold text-center text-gray-900">本登録完了</h2>
-                        <p className="mb-4">ご登録ありがとうございます！アカウントが正常に作成されました。</p>
-                        {localStorage.getItem('cart') ? (
-                            <a href="/purchase" className="text-blue-500 underline">購入ページへ</a>
-                        ) : (
-                            <a href="/" className="text-blue-500 underline">トップページへ</a>
-                        )}
-                    </div>
-                </div>
-            </main>
-            <Footer />
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const token = url.searchParams.get('token');
+    api.get('/register/confirm?token=' + token).catch(console.error);
+  }, []);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+      <Header />
+      <main style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "40px 16px" }}>
+        <div style={s.card}>
+          <h2 style={s.title}>本登録完了</h2>
+          <p style={{ marginBottom: 16 }}>ご登録ありがとうございます！アカウントが正常に作成されました。</p>
+          {localStorage.getItem('cart')
+            ? <a href="/purchase" style={s.link}>購入ページへ</a>
+            : <a href="/" style={s.link}>トップページへ</a>
+          }
         </div>
-    );
+      </main>
+      <Footer />
+    </div>
+  );
 };
 
 export default RegisterConfirm;

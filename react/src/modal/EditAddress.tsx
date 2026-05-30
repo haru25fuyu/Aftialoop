@@ -1,351 +1,116 @@
-import React, { useEffect, useCallback } from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
+import { LoadingButton } from "../component/LoadingButton";
 import api from "../conf/api";
 import { Address } from "../types/Address";
-import { PREFS } from "../conf/config";
-import { X, Save } from "lucide-react"; // ★アイコンを追加
-import { LoadingButton } from "../component/LoadingButton"; // ★LoadingButtonを追加
+import { s } from "../styles/modal/EditAddress.styles";
 
-// AjaxZip3 型定義
-declare global {
-  interface Window {
-    AjaxZip3?: {
-      zip2addr: (
-        zip: string,
-        pref: string,
-        addr1: string,
-        addr2: string,
-      ) => void;
-    };
-  }
-}
+const RequiredBadge = () => <span style={{ marginLeft: 4, fontSize: 10, fontWeight: 700, backgroundColor: "#d63c20", color: "#fff", padding: "1px 5px", borderRadius: 4 }}>必須</span>;
 
-type AddressForm = Address & {
-  PrefCode: number; // ← 送信用
-};
+type Props = { address: Address; isOpen: boolean; onClose: () => void; setAddress: React.Dispatch<React.SetStateAction<Address[]>>; };
+type Inputs = { name: string; phone: string; post_code: string; pref: string; address1: string; address2: string; address3: string; };
 
-type Props = {
-  address: Address;
-  isOpen: boolean;
-  onClose: () => void;
-};
-
-const prefNameToCode = (name: string) =>
-  PREFS.find((p) => p.name === name)?.id ?? 0;
-const prefCodeToName = (code: number) =>
-  PREFS.find((p) => p.id === code)?.name ?? "";
-
-const EditAddress: React.FC<Props> = ({ address, isOpen, onClose }) => {
-  const {
-    register,
-    handleSubmit,
-    setValue,
-    watch,
-    reset,
-    formState: { errors, isSubmitting },
-  } = useForm<AddressForm>();
-
-  const post_code = watch("post_code");
-  const pref_code = watch("PrefCode");
+const EditAddress: React.FC<Props> = ({ address, isOpen, onClose, setAddress }) => {
+  const { register, handleSubmit, reset, setValue, formState: { errors, isSubmitting } } = useForm<Inputs>();
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (isOpen) {
+      reset({ name: address.name || "", phone: address.phone || "", post_code: address.post_code || "", pref: address.pref || "", address1: address.address1 || "", address2: address.address2 || "", address3: address.address3 || "" });
+    }
+  }, [isOpen, address]);
 
-    document.body.style.overflow = "hidden";
-
-    reset({
-      name: address.name,
-      phone: address.phone,
-      post_code: address.post_code,
-      pref: address.pref,
-      pref_code: address.pref_code,
-      PrefCode: address.pref_code,
-      address1: address.address1,
-      address2: address.address2,
-      address3: address.address3,
-      status: address.status,
-    });
-
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen, address, reset]);
-
-  // AjaxZip3 で補完（post_code が7桁になったら）
-  const complementAddress = useCallback(() => {
-    if (!window.AjaxZip3) return;
-    const zip = String(post_code ?? "")
-      .replace(/-/g, "")
-      .trim();
-    if (zip.length !== 7) return;
-
-    // AjaxZip3 は「inputのname属性」を指定する想定
-    window.AjaxZip3.zip2addr("post_code", "", "pref_name", "address1");
-
-    // DOMの値をhook-formへ同期（AjaxZip3はDOM直書き）
-    setTimeout(() => {
-      const prefVal = (
-        document.querySelector<HTMLInputElement>('input[name="pref_name"]')
-          ?.value ?? ""
-      ).trim();
-      const a1 = (
-        document.querySelector<HTMLInputElement>('input[name="address1"]')
-          ?.value ?? ""
-      ).trim();
-      const a2 = (
-        document.querySelector<HTMLInputElement>('input[name="address2"]')
-          ?.value ?? ""
-      ).trim();
-
-      if (prefVal) {
-        setValue("pref", prefVal, { shouldDirty: true, shouldValidate: true });
-        setValue("PrefCode", prefNameToCode(prefVal), { shouldDirty: true });
+  const lookupPostCode = async (code: string) => {
+    const clean = code.replace(/-/g, "");
+    if (clean.length !== 7) return;
+    try {
+      const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${clean}`);
+      const data = await res.json();
+      if (data.results && data.results[0]) {
+        const r = data.results[0];
+        setValue("pref", r.address1 || ""); setValue("address1", (r.address2 || "") + (r.address3 || ""));
       }
-      if (a1)
-        setValue("address1", a1, { shouldDirty: true, shouldValidate: true });
-      if (a2)
-        setValue("address2", a2, { shouldDirty: true, shouldValidate: true });
-    }, 200);
-  }, [post_code, setValue]);
-
-  useEffect(() => {
-    if (!isOpen) return;
-    complementAddress();
-  }, [post_code, isOpen, complementAddress]);
-
-  // PrefCode（select）変更 → 表示用の pref も同期（サーバーが pref 文字列も欲しい場合）
-  useEffect(() => {
-    if (!isOpen) return;
-    if (!pref_code) return;
-    setValue("pref", prefCodeToName(Number(pref_code)), {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
-  }, [pref_code, isOpen, setValue]);
-
-  const onSubmit = async (form: AddressForm) => {
-    const payload: Address = {
-      id: address.id,
-      name: form.name,
-      phone: form.phone,
-      post_code: form.post_code.replace(/-/g, ""),
-      pref: form.pref, // 表示用
-      pref_code: form.PrefCode, // 機械用（送料計算）
-      address1: form.address1,
-      address2: form.address2,
-      address3: form.address3,
-      status: form.status,
-    };
-
-    await api.post("/address/edit", payload);
-
-    onClose();
+    } catch {}
   };
 
-  if (!isOpen) return null;
+  const onSubmit = async (data: Inputs) => {
+    try {
+      const payload = { ...data, id: address.id };
+      const res = address.id ? await api.post('/address/edit', payload) : await api.post('/address/add', data);
+      setAddress(res.data.address || []);
+      onClose();
+    } catch { alert("保存に失敗しました"); }
+  };
 
-  // 共通のinputクラスを定義してスッキリさせる
-  const inputClass =
-    "w-full px-4 py-3 mt-1.5 border border-gray-200 rounded-xl bg-gray-50 focus:bg-white focus:ring-2 focus:ring-black focus:border-transparent outline-none transition-all text-sm";
+  const handleDelete = async () => {
+    if (!address.id || !window.confirm("この住所を削除しますか？")) return;
+    try { const res = await api.post('/address/delete', { id: address.id }); setAddress(res.data.address || []); onClose(); }
+    catch { alert("削除に失敗しました"); }
+  };
 
-  // 必須ラベルのコンポーネント
-  const RequiredBadge = () => (
-    <span className="ml-2 text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded font-bold align-middle">
-      必須
-    </span>
-  );
+  const inputClass = (hasErr: boolean): React.CSSProperties => ({ width: "100%", padding: "12px", borderRadius: 8, border: `1px solid ${hasErr ? "#d63c20" : "#e0ddd8"}`, fontSize: 14, boxSizing: "border-box", backgroundColor: hasErr ? "#fef8f6" : "#f8f7f5", outline: "none" });
 
   return (
-    <div className="relative p-6 sm:p-8 bg-white">
-      {/* 閉じるボタン (右上に配置してモダンに) */}
-      <button
-        onClick={onClose}
-        className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors text-gray-500"
-        type="button"
-        aria-label="閉じる"
-      >
-        <X size={20} />
-      </button>
-
-      <h2 className="text-xl font-bold text-gray-900 mb-6 pr-8">
-        お届け先の設定
-      </h2>
-
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
-        {/* 送信用 */}
-        <input
-          type="hidden"
-          {...register("PrefCode", { valueAsNumber: true })}
-        />
-
+    <div>
+      <div style={s.header}>
+        <h2 style={s.title}>{address.id ? "住所を編集" : "住所を追加"}</h2>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", color: "#8c8c8c", fontSize: 22 }}>×</button>
+      </div>
+      <form onSubmit={handleSubmit(onSubmit)} style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+        {/* 名前 */}
         <div>
-          <label className="block text-sm font-bold text-gray-700">
-            氏名 <RequiredBadge />
-          </label>
-          <input
-            type="text"
-            {...register("name", { required: true })}
-            className={`${inputClass} ${errors.name ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
-            name="name"
-            autoComplete="name"
-            placeholder="山田 太郎"
-          />
-          {errors.name && (
-            <p className="mt-1.5 text-xs font-bold text-red-500">
-              必須項目です
-            </p>
-          )}
+          <label style={s.label}>お名前 <RequiredBadge /></label>
+          <input {...register("name", { required: true })} style={inputClass(!!errors.name)} placeholder="山田 太郎" />
+          {errors.name && <p style={s.errMsg}>必須項目です</p>}
         </div>
-
+        {/* 電話 */}
         <div>
-          <label className="block text-sm font-bold text-gray-700">
-            電話番号 <RequiredBadge />
-          </label>
-          <input
-            type="tel"
-            {...register("phone", { required: true })}
-            className={`${inputClass} ${errors.phone ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
-            name="phone"
-            autoComplete="tel"
-            placeholder="09012345678"
-          />
-          {errors.phone && (
-            <p className="mt-1.5 text-xs font-bold text-red-500">
-              必須項目です
-            </p>
-          )}
+          <label style={s.label}>電話番号 <RequiredBadge /></label>
+          <input type="tel" {...register("phone", { required: true })} style={inputClass(!!errors.phone)} placeholder="09012345678" />
+          {errors.phone && <p style={s.errMsg}>必須項目です</p>}
         </div>
-
+        {/* 郵便番号 */}
         <div>
-          <label className="block text-sm font-bold text-gray-700">
-            郵便番号 <RequiredBadge />
-          </label>
-          <input
-            type="text"
-            {...register("post_code", { required: true })}
-            className={`${inputClass} ${errors.post_code ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
-            name="post_code"
-            inputMode="numeric"
-            autoComplete="postal-code"
-            placeholder="1234567 (ハイフンなし)"
-          />
-          {errors.post_code && (
-            <p className="mt-1.5 text-xs font-bold text-red-500">
-              必須項目です
-            </p>
-          )}
-        </div>
-
-        <div>
-          <label className="block text-sm font-bold text-gray-700">
-            都道府県 <RequiredBadge />
-          </label>
-
-          {/* 表示用pref（AjaxZip3がここに入れる） */}
-          <input
-            type="hidden"
-            {...register("pref", { required: true })}
-            name="pref"
-          />
-          <input
-            type="text"
-            name="pref_name"
-            id="pref_name"
-            className="hidden"
-          />
-          <select
-            className={inputClass}
-            value={Number(pref_code || 0) || ""}
-            onChange={(e) =>
-              setValue("PrefCode", Number(e.target.value), {
-                shouldDirty: true,
-              })
-            }
-          >
-            <option value="">選択してください</option>
-            {PREFS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}
-              </option>
-            ))}
-          </select>
-
-          <div className="mt-1 text-xs text-gray-400 font-medium">
-            現在選択中: {prefCodeToName(Number(pref_code || 0)) || "未選択"}
+          <label style={s.label}>郵便番号 <RequiredBadge /></label>
+          <div style={{ display: "flex", gap: 8 }}>
+            <input {...register("post_code", { required: true })} style={{ ...inputClass(!!errors.post_code), flex: 1 }} placeholder="123-4567"
+              onChange={(e) => { const v = e.target.value; setValue("post_code", v); lookupPostCode(v); }} />
+            <button type="button" onClick={() => { const v = (document.querySelector('[name=post_code]') as HTMLInputElement)?.value; if (v) lookupPostCode(v); }}
+              style={{ padding: "8px 14px", borderRadius: 8, border: "1px solid #e0ddd8", backgroundColor: "#f8f7f5", cursor: "pointer", fontSize: 13, fontWeight: 700, whiteSpace: "nowrap" }}>住所を取得</button>
           </div>
+          {errors.post_code && <p style={s.errMsg}>必須項目です</p>}
         </div>
-
+        {/* 都道府県 */}
         <div>
-          <label className="block text-sm font-bold text-gray-700">
-            市区町村 <RequiredBadge />
-          </label>
-          <input
-            id="address1"
-            type="text"
-            {...register("address1", { required: true })}
-            className={`${inputClass} ${errors.address1 ? "border-red-300 bg-red-50 focus:ring-red-500" : ""}`}
-            name="address1"
-            placeholder="渋谷区神南"
-          />
-          {errors.address1 && (
-            <p className="mt-1.5 text-xs font-bold text-red-500">
-              必須項目です
-            </p>
-          )}
+          <label style={s.label}>都道府県 <RequiredBadge /></label>
+          <input {...register("pref", { required: true })} style={inputClass(!!errors.pref)} placeholder="東京都" />
+          {errors.pref && <p style={s.errMsg}>必須項目です</p>}
         </div>
-
+        {/* 住所1 */}
         <div>
-          <label className="block text-sm font-bold text-gray-700 flex items-center gap-2">
-            丁目・番地・号{" "}
-            <span className="text-[10px] text-gray-400 font-normal">任意</span>
-          </label>
-          <input
-            id="address2"
-            type="text"
-            {...register("address2")}
-            className={inputClass}
-            name="address2"
-            placeholder="1-2-3"
-          />
+          <label style={s.label}>市区町村・番地 <RequiredBadge /></label>
+          <input {...register("address1", { required: true })} style={inputClass(!!errors.address1)} placeholder="渋谷区渋谷1-1-1" />
+          {errors.address1 && <p style={s.errMsg}>必須項目です</p>}
         </div>
-
+        {/* 住所2 */}
         <div>
-          <label className="block text-sm font-bold text-gray-700 flex items-center gap-2">
-            建物名／会社名・部屋番号{" "}
-            <span className="text-[10px] text-gray-400 font-normal">任意</span>
-          </label>
-          <input
-            type="text"
-            {...register("address3")}
-            className={inputClass}
-            name="address3"
-            placeholder="〇〇ビル 101"
-          />
+          <label style={s.label}>建物名・部屋番号（任意）</label>
+          <input {...register("address2")} style={inputClass(false)} placeholder="○○マンション101号室" />
         </div>
-
-        {/* デフォルトチェックボックスをリッチに */}
-        <label className="flex items-center gap-3 p-4 mt-2 border border-gray-200 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors">
-          <input
-            type="checkbox"
-            {...register("status")}
-            defaultChecked={Number(address.status) === 1}
-            className="h-5 w-5 accent-black rounded border-gray-300 cursor-pointer"
-          />
-          <span className="text-sm font-bold text-gray-800">
-            この住所をデフォルトに設定する
-          </span>
-        </label>
-
-        <div className="pt-2">
-          <LoadingButton
-            type="submit"
-            loading={isSubmitting}
-            className="w-full py-3.5 bg-black hover:bg-gray-800 text-white font-bold rounded-xl shadow-md disabled:bg-gray-300 disabled:text-gray-500 disabled:shadow-none transition-all flex items-center justify-center gap-2"
-          >
-            <Save size={18} />
-            保存する
-          </LoadingButton>
+        {/* 住所3 */}
+        <div>
+          <label style={s.label}>その他（任意）</label>
+          <input {...register("address3")} style={inputClass(false)} placeholder="" />
         </div>
+        <LoadingButton type="submit" loading={isSubmitting}
+          style={{ width: "100%", padding: "14px 0", borderRadius: 12, backgroundColor: "#1a1a1a", color: "#fff", border: "none", fontWeight: 700, cursor: "pointer", fontSize: 16 }}>
+          保存して終了
+        </LoadingButton>
+        {address.id && (
+          <button type="button" onClick={handleDelete}
+            style={{ width: "100%", padding: "12px 0", borderRadius: 12, backgroundColor: "#fef0ec", color: "#d63c20", border: "1px solid #f0a890", fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+            この住所を削除する
+          </button>
+        )}
       </form>
     </div>
   );

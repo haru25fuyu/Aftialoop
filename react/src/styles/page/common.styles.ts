@@ -1,0 +1,27 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight, shadow } from "../tokens";
+
+export const page = {
+wrap: { minHeight: "100vh", backgroundColor: semantic.bgPage },
+narrow: { maxWidth: 480, margin: "0 auto", padding: `${spacing[6]}px ${spacing[4]}px` },
+centered: { display: "flex", alignItems: "center", justifyContent: "center", minHeight: "calc(100vh - 64px)", padding: spacing[6] },
+card: { width: "100%", maxWidth: 480, backgroundColor: semantic.bgSurface, borderRadius: radius.xl, padding: spacing[8], border: `1px solid ${semantic.borderDefault}`, ...shadow.md },
+title: { fontSize: fontSize.xl, fontWeight: fontWeight.bold, color: semantic.textPrimary, textAlign: "center" as const, marginBottom: spacing[6] },
+subtitle: { fontSize: fontSize.sm, color: semantic.textSecondary, textAlign: "center" as const, marginBottom: spacing[4] },
+section: { backgroundColor: semantic.bgSurface, border: `1px solid ${semantic.borderDefault}`, borderRadius: radius.lg, padding: spacing[5], ...shadow.sm },
+sectionTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: semantic.textPrimary, marginBottom: spacing[4] },
+backBtn: { padding: spacing[1], background: "none", border: "none", color: semantic.textSecondary, cursor: "pointer" },
+pageHeader: { backgroundColor: semantic.bgSurface, padding: spacing[4], display: "flex", alignItems: "center", gap: spacing[4], borderBottom: `1px solid ${semantic.borderDefault}`, position: "sticky" as const, top: 0, zIndex: 10 },
+pageTitle: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: semantic.textPrimary },
+emptyState: { padding: `${spacing[10]}px ${spacing[6]}px`, textAlign: "center" as const, display: "flex", flexDirection: "column" as const, alignItems: "center", gap: spacing[4] },
+emptyIcon: { width: 64, height: 64, backgroundColor: colors.neutral200, borderRadius: radius.full, display: "flex", alignItems: "center", justifyContent: "center", color: colors.neutral400 },
+emptyText: { color: semantic.textMuted, fontWeight: fontWeight.bold },
+listItem: { display: "block", backgroundColor: semantic.bgSurface, padding: spacing[4], borderRadius: radius.xl, border: `1px solid ${semantic.borderDefault}`, marginBottom: spacing[3], textDecoration: "none", ...shadow.sm },
+formGroup: { marginBottom: spacing[4] },
+label: { display: "block", fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: semantic.textPrimary, marginBottom: spacing[1] },
+input: { width: "100%", height: 44, paddingLeft: spacing[4], paddingRight: spacing[4], border: `1px solid ${semantic.borderDefault}`, borderRadius: radius.md, fontSize: fontSize.base, color: semantic.textPrimary, backgroundColor: semantic.bgSurface, outline: "none", boxSizing: "border-box" as const },
+errMsg: { fontSize: fontSize.xs, color: colors.danger, marginTop: spacing[1] },
+submitBtn: { width: "100%", height: 44, backgroundColor: colors.primary500, color: colors.neutral0, border: "none", borderRadius: radius.md, fontSize: fontSize.base, fontWeight: fontWeight.bold, cursor: "pointer" },
+link: { color: semantic.textLink, textDecoration: "none", fontSize: fontSize.sm },
+divider: { height: 1, backgroundColor: semantic.borderDefault, marginBlock: spacing[4] },
+badge: (color: string, bg: string) => ({ display: "inline-flex", alignItems: "center", fontSize: fontSize.xs, fontWeight: fontWeight.bold, padding: `2px ${spacing[2]}px`, borderRadius: radius.full, color, backgroundColor: bg }),
+};

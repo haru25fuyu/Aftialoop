@@ -1,149 +1,143 @@
-import React, { useEffect } from "react";
-import { FleaThreadResponse } from "../../../types/FleaMarket"; // 型定義は適宜合わせてください
-import {
-  CheckCircle,
-  FileText,
-  HelpCircle,
-  Home,
-  Calendar,
-  Hash,
-  Printer,
-} from "lucide-react";
+import React from "react";
+import { CheckCircle, FileText, HelpCircle, Home } from "lucide-react";
+import { FleaThreadResponse } from "../../../types/FleaMarket";
+import { s } from "../../../styles/component/fleaMarket/fleaMarketPhases/CompletePanel.styles";
 import { CONFIG } from "../../../conf/config";
 
-// 日付フォーマット
-function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return "-";
-  const d = new Date(dateStr);
-  return isNaN(d.getTime())
-    ? dateStr
-    : d.toLocaleString("ja-JP", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+function formatDate(dateStr?: string | null) {
+  if (!dateStr) return "—";
+  return new Date(dateStr).toLocaleDateString("ja-JP");
 }
-
 function yen(n: number) {
-  return n.toLocaleString();
+  return `¥${Math.floor(n).toLocaleString()}`;
 }
 
 export default function CompletePanel({ data }: { data: FleaThreadResponse }) {
   const { transaction: tx, item, role } = data;
-
-  if (!tx || tx.status !== "COMPLETED") return null;
-
   const isSeller = role === "SELLER";
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-sm overflow-hidden">
-      {/* 完了ヘッダー */}
-      <div className="bg-gray-50 p-8 text-center border-b border-gray-100">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-green-100 mb-4 animate-in zoom-in duration-300">
-          <CheckCircle className="text-green-600 w-8 h-8" strokeWidth={3} />
+    <div style={s.wrap}>
+      <div style={s.banner}>
+        <div style={s.bannerInner}>
+          <CheckCircle size={24} />
+          <div>
+            <h3 style={s.bannerTitle}>取引が完了しました</h3>
+            <p style={s.bannerDesc}>
+              ありがとうございました。またのご利用をお待ちしております。
+            </p>
+          </div>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900">取引完了</h2>
-        <p className="text-gray-500 mt-2 text-sm">
-          すべての手続きが完了しました。
-          <br />
-          ご利用ありがとうございました。
-        </p>
       </div>
 
-      <div className="p-6 space-y-6">
-        {/* 取引情報カード */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm">
-          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-4 border-b pb-2">
-            Transaction Summary
-          </h3>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="h-12 w-12 rounded bg-gray-100 flex-shrink-0 overflow-hidden border border-gray-200">
-                {item.main_image_url ? (
-                  <img
-                    src={CONFIG.BASE_URL + item.main_image_url}
-                    alt={item.name}
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <div className="h-full w-full flex items-center justify-center text-[10px] text-gray-400">
-                    No Img
-                  </div>
-                )}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-bold text-gray-900 truncate">
-                  {item.name}
-                </div>
-                <div className="text-sm text-gray-500">
-                  {yen(tx.price_item)}円
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
-              <div className="flex items-center gap-2 text-gray-600 bg-gray-50 p-2 rounded-lg">
-                <Calendar size={14} className="text-gray-400" />
-                <span className="text-xs text-gray-500">完了日:</span>
-                <span className="font-medium text-gray-900">
-                  {formatDate(tx.completed_at)}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-600 bg-gray-50 p-2 rounded-lg">
-                <Hash size={14} className="text-gray-400" />
-                <span className="text-xs text-gray-500">取引ID:</span>
-                <span className="font-mono font-medium text-gray-900">
-                  {tx.id}
-                </span>
-              </div>
+      <div style={s.section}>
+        <h4 style={s.sectionTitle}>取引サマリー</h4>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 12,
+            marginBottom: 12,
+          }}
+        >
+          <div
+            style={{
+              width: 56,
+              height: 56,
+              borderRadius: 8,
+              overflow: "hidden",
+              backgroundColor: "#f0eeeb",
+              flexShrink: 0,
+            }}
+          >
+            {item?.main_image_url && (
+              <img
+                src={CONFIG.BASE_URL + item.main_image_url}
+                style={{ width: "100%", height: "100%", objectFit: "cover" }}
+              />
+            )}
+          </div>
+          <div>
+            <div style={{ fontWeight: 700, fontSize: 14 }}>{item?.name}</div>
+            <div style={{ fontSize: 14, color: "#5c5a56" }}>
+              {yen(tx?.price_item ?? 0)}
             </div>
           </div>
         </div>
-
-        {/* アクションボタン群 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {isSeller && (
-            <a
-              href={`${CONFIG.BASE_URL}/flea-market/transactions/${tx.id}/statement/pdf`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-3 border border-gray-300 rounded-xl hover:bg-gray-50 text-sm font-bold"
-            >
-              <FileText size={18} />
-              販売明細書をダウンロード
-            </a>
-          )}
-
-          {/* 領収書PDFダウンロード（共通） */}
-          {!isSeller && (
-            <a
-              href={`${CONFIG.BASE_URL}/flea-market/transactions/${tx.id}/receipt/pdf`} // APIを直接叩く
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center justify-center gap-2 w-full py-3 ..."
-            >
-              <Printer size={18} />
-              領収書PDFをダウンロード
-            </a>
-          )}
-
-          {/* お問い合わせ */}
-          <a
-            href="/contact" // 適切なパスへ
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-gray-300 text-gray-700 font-bold text-sm hover:bg-gray-50 transition-colors"
-          >
-            <HelpCircle size={18} />
-            この取引について問い合わせる
-          </a>
+        <div
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}
+        >
+          <div style={s.row}>
+            <span style={s.rowLabel}>完了日</span>
+            <span style={s.rowValue}>{formatDate(tx?.completed_at)}</span>
+          </div>
+          <div style={s.row}>
+            <span style={s.rowLabel}>取引ID</span>
+            <span style={{ ...s.rowValue, fontFamily: "monospace" }}>
+              #{tx?.id}
+            </span>
+          </div>
         </div>
+      </div>
 
-        {/* トップへ戻る */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {isSeller && (
+          <a
+            href={`${CONFIG.BASE_URL}/flea-market/transactions/${tx?.id}/statement/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: "12px 0",
+              border: `1px solid #e0ddd8`,
+              borderRadius: 12,
+              fontSize: 14,
+              fontWeight: 700,
+              textDecoration: "none",
+              color: "#2e3128",
+            }}
+          >
+            <FileText size={18} />
+            販売明細書をダウンロード
+          </a>
+        )}
+        <a
+          href="/contact"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "12px 0",
+            border: `1px solid #e0ddd8`,
+            borderRadius: 12,
+            fontSize: 14,
+            fontWeight: 700,
+            textDecoration: "none",
+            color: "#2e3128",
+          }}
+        >
+          <HelpCircle size={18} />
+          この取引について問い合わせる
+        </a>
         <a
           href="/flea-market"
-          className="flex items-center justify-center gap-2 w-full py-4 rounded-xl bg-black text-white font-bold text-base hover:bg-gray-800 transition-all shadow-md hover:shadow-lg"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+            padding: "16px 0",
+            borderRadius: 12,
+            fontSize: 16,
+            fontWeight: 700,
+            backgroundColor: "#1a1a1a",
+            color: "#fff",
+            textDecoration: "none",
+          }}
         >
           <Home size={20} />
           フリーマーケットトップへ

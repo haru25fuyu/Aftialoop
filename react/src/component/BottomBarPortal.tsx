@@ -1,70 +1,40 @@
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { s } from '../styles/component/BottomBarPortal.styles';
 
 type Props = {
   children: React.ReactNode;
   height?: number;
   mobileOnly?: boolean;
-  className?: string;
   style?: React.CSSProperties;
 };
 
-export default function BottomBarPortal({
-  children,
-  height = 120,
-  mobileOnly = true,
-  className = "",
-  style = {},
-}: Props) {
-  const ref = useRef<HTMLDivElement | null>(null); // ← 無条件で先頭に置く
+export default function BottomBarPortal({ children, height = 120, mobileOnly = true, style = {} }: Props) {
+  const ref = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return; // ← ここで環境分岐
-
+    if (typeof window === "undefined") return;
     const vv = window.visualViewport;
     const el = ref.current;
     if (!vv || !el) return;
-
     const apply = () => {
       const y = vv.offsetTop ?? 0;
       el.style.transform = `translateY(${y}px)`;
-      const supportsEnv =
-        (window as any).CSS?.supports?.("(bottom: env(safe-area-inset-bottom))") ?? false;
+      const supportsEnv = (window as any).CSS?.supports?.("(bottom: env(safe-area-inset-bottom))") ?? false;
       el.style.setProperty("--safe-bottom", supportsEnv ? "env(safe-area-inset-bottom)" : "0px");
     };
-
     apply();
     vv.addEventListener("resize", apply);
     vv.addEventListener("scroll", apply);
-    return () => {
-      vv.removeEventListener("resize", apply);
-      vv.removeEventListener("scroll", apply);
-    };
+    return () => { vv.removeEventListener("resize", apply); vv.removeEventListener("scroll", apply); };
   }, []);
 
-  if (typeof document === "undefined") {
-    // SSR時などは null を返す
-    return null;
-  }
+  if (typeof document === "undefined") return null;
 
-  const node = (
-    <div
-      ref={ref}
-      className={[
-        "fixed inset-x-0 bottom-0 z-[50]",
-        "will-change-transform [backface-visibility:hidden]",
-        mobileOnly ? "md:hidden" : "",
-        className,
-      ].join(" ")}
-      style={{
-        height,
-        paddingBottom: `calc(12px + var(--safe-bottom, 0px))`,
-        ...style,
-      }}
-    >
+  return createPortal(
+    <div ref={ref} style={{ ...s.bar, height, display: mobileOnly ? undefined : "flex", ...style }}>
       {children}
-    </div>
+    </div>,
+    document.body
   );
-
-  return createPortal(node, document.body);
 }

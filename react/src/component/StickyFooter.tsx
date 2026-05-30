@@ -1,22 +1,16 @@
-// StickyFooter.tsx
-export function StickyFooter({ canPublish, loading, onDraft, onPublish }: {
-    canPublish: boolean; loading?: boolean; onDraft: () => void; onPublish: () => void;
-}) {
-    return (
-        <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-white/80 backdrop-blur">
-            <div className="mx-auto flex max-w-5xl items-center justify-end gap-3 px-4 py-3">
-                <button onClick={onDraft} className="rounded border px-4 py-2 text-sm hover:bg-gray-50">下書き保存</button>
-                <button
-                    disabled={!canPublish || loading}
-                    onClick={onPublish}
-                    className={[
-                        "rounded px-4 py-2 text-sm text-white",
-                        canPublish && !loading ? "bg-black hover:opacity-90" : "bg-gray-400 cursor-not-allowed"
-                    ].join(" ")}
-                >
-                    {loading ? "公開中…" : "今すぐ公開"}
-                </button>
-            </div>
-        </div>
-    );
+import React from "react";
+import { colors, semantic, spacing, radius, fontSize } from "../styles/tokens";
+
+export function StickyFooter({ canPublish, loading, onDraft, onPublish }: { canPublish: boolean; loading?: boolean; onDraft: () => void; onPublish: () => void; }) {
+  return (
+    <div style={{ position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 40, borderTop: `1px solid ${semantic.borderDefault}`, backgroundColor: "rgba(255,255,255,0.85)", backdropFilter: "blur(8px)" }}>
+      <div style={{ maxWidth: 1280, margin: "0 auto", display: "flex", alignItems: "center", justifyContent: "flex-end", gap: spacing[3], padding: `${spacing[3]}px ${spacing[4]}px` }}>
+        <button onClick={onDraft} style={{ borderRadius: radius.sm, border: `1px solid ${semantic.borderDefault}`, padding: `${spacing[2]}px ${spacing[4]}px`, fontSize: fontSize.sm, background: "none", cursor: "pointer", color: semantic.textPrimary }}>下書き保存</button>
+        <button disabled={!canPublish || loading} onClick={onPublish}
+          style={{ borderRadius: radius.sm, padding: `${spacing[2]}px ${spacing[4]}px`, fontSize: fontSize.sm, color: colors.neutral0, backgroundColor: canPublish && !loading ? colors.neutral900 : colors.neutral400, cursor: canPublish && !loading ? "pointer" : "not-allowed", border: "none" }}>
+          {loading ? "公開中…" : "今すぐ公開"}
+        </button>
+      </div>
+    </div>
+  );
 }

@@ -1,25 +1,20 @@
 import React from 'react';
-import { Header } from '../component/Header.tsx';
-import {Footer} from '../component/Footer.tsx';
+import { Header } from '../component/Header';
+import { Footer } from '../component/Footer';
+import { s } from '../styles/page/SignUpComplete.styles';
 
+const SignUpComplete: React.FC = () => (
+  <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh" }}>
+    <Header />
+    <div style={{ flex: 1, display: "flex", justifyContent: "center", alignItems: "center", padding: "40px 16px" }}>
+      <div style={s.card}>
+        <h2 style={s.title}>仮登録完了</h2>
+        <p style={{ textAlign: "center" }}>メールを送信しました。</p>
+        <p style={{ textAlign: "center" }}>メール内のリンクをクリックして登録を完了してください。</p>
+      </div>
+    </div>
+    <Footer />
+  </div>
+);
 
-const SignUpConplete: React.FC = () => {
-    return (
-        <div className="flex flex-col min-h-screen">
-            <header>
-                <Header />
-            </header>
-
-            <div className="flex-grow flex justify-center items-center mt-10 max-md:mt-0">
-                <div className="w-full max-w-md p-8 space-y-6 bg-white rounded shadow-md">    
-                    <h2 className="text-2xl font-bold text-center text-gray-900">仮登録完了</h2>
-                    <p className="text-center">メールを送信しました。</p>
-                    <p className="text-center">メール内のリンクをクリックして登録を完了してください。</p>
-                </div>
-            </div>
-            <Footer />
-        </div>
-    );
-};
-
-export default SignUpConplete;
+export default SignUpComplete;

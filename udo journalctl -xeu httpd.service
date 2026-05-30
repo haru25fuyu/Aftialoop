@@ -1,3 +1,4 @@
+
 [0;1;31m×[0m httpd.service - The Apache HTTP Server
      Loaded: loaded (]8;;file://vm-9301790b-ec.novalocal/usr/lib/systemd/system/httpd.service/usr/lib/systemd/system/httpd.service]8;;; [0;1;32menabled[0m; preset: [0;1;38;5;185mdisabled[0m)
      Active: [0;1;31mfailed[0m (Result: exit-code) since Mon 2025-04-14 00:54:22 JST; 37s ago

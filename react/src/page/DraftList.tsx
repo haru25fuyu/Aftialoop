@@ -5,106 +5,68 @@ import { Header } from "../component/Header";
 import api from "../conf/api";
 import { DraftItem } from "../types/FleaMarket";
 import { CONFIG } from "../conf/config";
+import { s } from "../styles/page/DraftList.styles";
 
 export default function DraftListPage() {
-    const navigate = useNavigate();
-    const [drafts, setDrafts] = useState<DraftItem[]>([]);
-    const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const [drafts, setDrafts] = useState<DraftItem[]>([]);
+  const [loading, setLoading] = useState(true);
 
-    const fetchDrafts = () => {
-        setLoading(true);
-        api.get("/flea-market/draft/list?limit=20&offset=0")
-            .then((res) => {
-                setDrafts(res.data.items || []);
-                console.log(res.data);
-            })
-            .catch((err) => console.error(err))
-            .finally(() => setLoading(false));
-    };
+  const fetchDrafts = () => {
+    setLoading(true);
+    api.get("/flea-market/draft/list?limit=20&offset=0").then((res) => setDrafts(res.data.items || [])).catch(console.error).finally(() => setLoading(false));
+  };
 
-    useEffect(() => {
-        fetchDrafts();
-    }, []);
+  useEffect(() => { fetchDrafts(); }, []);
 
-    const handleDelete = async (id: number) => {
-        if (!window.confirm("この下書きを削除しますか？")) return;
-        try {
-            await api.delete(`/flea-market/draft/${id}`);
-            setDrafts((prev) => prev.filter((d) => d.draft_id !== id));
-        } catch (error) {
-            console.error(error);
-            alert("削除に失敗しました");
-        }
-    };
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("この下書きを削除しますか？")) return;
+    try { await api.delete(`/flea-market/draft/${id}`); setDrafts(prev => prev.filter(d => d.draft_id !== id)); }
+    catch { alert("削除に失敗しました"); }
+  };
 
-    return (
-        <div className="bg-gray-50 min-h-screen pb-20">
-            <Header />
-            <div className="max-w-2xl mx-auto p-4 space-y-6">
-                <div className="flex items-center gap-2 mt-4">
-                    <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-100 rounded-full">
-                        <ChevronLeft size={24} className="text-gray-600" />
-                    </button>
-                    <FileText className="text-blue-600" />
-                    <h1 className="text-2xl font-bold text-gray-800">下書き一覧</h1>
-                </div>
-
-                {loading ? (
-                    <div className="p-10 text-center text-gray-400">読み込み中...</div>
-                ) : drafts.length === 0 ? (
-                    <div className="p-10 text-center bg-white rounded-xl border border-gray-200 text-gray-500 shadow-sm">
-                        下書きはありません
-                    </div>
-                ) : (
-                    <div className="space-y-4">
-                        {drafts.map((draft) => (
-                            <div key={draft.draft_id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 flex gap-4">
-                                {/* 画像サムネイル */}
-                                <div className="w-20 h-20 bg-gray-100 rounded-lg flex-shrink-0 flex items-center justify-center overflow-hidden">
-                                    {draft.main_image_url ? (
-                                        <img src={CONFIG.BASE_URL + draft.main_image_url} alt="" className="w-full h-full object-cover" />
-                                    ) : (
-                                        <ImageOff className="text-gray-300" size={24} />
-                                    )}
-                                </div>
-
-                                {/* 詳細情報 */}
-                                <div className="flex-1 flex flex-col justify-between">
-                                    <div>
-                                        <h3 className="font-bold text-gray-800 line-clamp-1">
-                                            {draft.name || "タイトル未設定"}
-                                        </h3>
-                                        <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
-                                            <Clock size={12} />
-                                            <span>編集: {new Date(draft.updated_at).toLocaleDateString()}</span>
-                                        </div>
-                                    </div>
-
-                                    <div className="text-sm font-bold text-gray-600">
-                                        {draft.price ? `¥${Number(draft.price).toLocaleString()}` : "価格未定"}
-                                    </div>
-                                </div>
-
-                                {/* 操作ボタン */}
-                                <div className="flex flex-col justify-center gap-2 border-l border-gray-100 pl-4">
-                                    <Link
-                                        to={`/flea-market/sell/create/${draft.draft_id}`}
-                                        className="flex items-center gap-1 text-sm font-bold text-blue-600 hover:bg-blue-50 px-3 py-2 rounded-lg transition"
-                                    >
-                                        <Edit2 size={16} /> 編集
-                                    </Link>
-                                    <button
-                                        onClick={() => handleDelete(draft.draft_id)}
-                                        className="flex items-center gap-1 text-sm font-bold text-red-500 hover:bg-red-50 px-3 py-2 rounded-lg transition"
-                                    >
-                                        <Trash2 size={16} /> 削除
-                                    </button>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </div>
+  return (
+    <div style={s.page}>
+      <Header />
+      <div style={{ maxWidth: 640, margin: "0 auto", padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, marginBottom: 24 }}>
+          <button onClick={() => navigate(-1)} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", borderRadius: "50%" }}><ChevronLeft size={24} style={{ color: "#5c5a56" }} /></button>
+          <FileText size={20} style={{ color: "#1a5adc" }} />
+          <h1 style={s.title}>下書き一覧</h1>
         </div>
-    );
+        {loading ? (
+          <div style={{ padding: 40, textAlign: "center", color: "#8c8c8c" }}>読み込み中...</div>
+        ) : drafts.length === 0 ? (
+          <div style={{ padding: 40, textAlign: "center", backgroundColor: "#fff", borderRadius: 12, border: "1px solid #e0ddd8", color: "#8c8c8c" }}>下書きはありません</div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {drafts.map((draft) => (
+              <div key={draft.draft_id} style={{ backgroundColor: "#fff", padding: 16, borderRadius: 12, border: "1px solid #e0ddd8", display: "flex", gap: 16 }}>
+                <div style={{ width: 80, height: 80, backgroundColor: "#f0eeeb", borderRadius: 8, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  {draft.main_image_url ? <img src={CONFIG.BASE_URL + draft.main_image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <ImageOff size={24} style={{ color: "#c4c1bb" }} />}
+                </div>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between" }}>
+                  <div>
+                    <h3 style={{ fontWeight: 700, color: "#1a1a1a", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{draft.name || "タイトル未設定"}</h3>
+                    <div style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#8c8c8c", marginTop: 4 }}>
+                      <Clock size={12} /><span>編集: {new Date(draft.updated_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#5c5a56" }}>{draft.price ? `¥${Number(draft.price).toLocaleString()}` : "価格未定"}</div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8, borderLeft: "1px solid #f0eeeb", paddingLeft: 16 }}>
+                  <Link to={`/flea-market/sell/create/${draft.draft_id}`} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, fontWeight: 700, color: "#1a5adc", textDecoration: "none", padding: "8px 12px", borderRadius: 8 }}>
+                    <Edit2 size={16} /> 編集
+                  </Link>
+                  <button onClick={() => handleDelete(draft.draft_id)} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 14, fontWeight: 700, color: "#d63c20", background: "none", border: "none", cursor: "pointer", padding: "8px 12px", borderRadius: 8 }}>
+                    <Trash2 size={16} /> 削除
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

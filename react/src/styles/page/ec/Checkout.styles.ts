@@ -1,0 +1,16 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight, shadow } from "../../tokens";
+
+export const s = {
+page: { maxWidth: 640, margin: "0 auto", padding: spacing[4], display: "flex", flexDirection: "column" as const, gap: spacing[4] },
+title: { fontSize: fontSize["2xl"], fontWeight: fontWeight.bold, color: semantic.textPrimary, marginBottom: spacing[4] },
+section: { backgroundColor: semantic.bgSurface, border: `1px solid ${semantic.borderDefault}`, borderRadius: radius.lg, padding: spacing[5], ...shadow.sm },
+sectionHeader: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: spacing[4], paddingBottom: spacing[3], borderBottom: `1px solid ${semantic.borderDefault}` },
+sectionTitle: { fontSize: fontSize.md, fontWeight: fontWeight.bold, color: semantic.textPrimary },
+changeLink: { fontSize: fontSize.sm, color: semantic.textLink, textDecoration: "none" },
+row: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: `${spacing[2]}px 0`, fontSize: fontSize.sm, color: semantic.textSecondary },
+totalRow: { display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${semantic.borderDefault}`, marginTop: spacing[3], paddingTop: spacing[4], fontSize: fontSize.md, fontWeight: fontWeight.bold, color: colors.primary700 },
+paymentOption: { display: "flex", alignItems: "center", gap: spacing[4], padding: `${spacing[3]}px ${spacing[4]}px`, border: `1px solid ${semantic.borderDefault}`, borderRadius: radius.md, cursor: "pointer", marginBottom: spacing[2] },
+paymentSelected: { border: `1px solid ${colors.primary500}`, backgroundColor: colors.primary50 },
+errMsg: { fontSize: fontSize.sm, color: colors.danger, padding: spacing[2] },
+submitBtn: { width: "100%", height: 52, backgroundColor: colors.accent500, color: colors.neutral0, border: "none", borderRadius: radius.lg, fontSize: fontSize.md, fontWeight: fontWeight.bold, cursor: "pointer" },
+};

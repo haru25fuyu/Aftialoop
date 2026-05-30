@@ -1,20 +1,17 @@
-import React from 'react';
-import '../css/MainImage.css';
+import React from "react";
+import { Image } from "lucide-react";
+import { s } from "../styles/component/MainImage.styles";
 
-type Props = {
-    image: string;
-    title: string;
-};
+type Props = { src?: string | null; alt?: string; };
 
-export const MainImage: React.FC<Props> = ({image,title}) => {
-    return (
-        <div className='main'>
-            <img className='main-image' src={image} />
-            <div className='overlay'>
-                <h1 className="title">{title}</h1>
-            </div>
-        </div>
-    );
-}
+const MainImage: React.FC<Props> = ({ src, alt = "商品画像" }) => (
+  <div style={s.wrap}>
+    {src ? (
+      <img src={src} alt={alt} style={s.img} />
+    ) : (
+      <div style={s.placeholder}><Image size={40} /></div>
+    )}
+  </div>
+);
 
 export default MainImage;

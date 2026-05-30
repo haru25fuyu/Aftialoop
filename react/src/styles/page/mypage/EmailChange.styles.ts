@@ -1,0 +1,13 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight } from "../../tokens";
+
+export const s = {
+page: { backgroundColor: semantic.bgPage, minHeight: "100vh" },
+body: { maxWidth: 400, margin: "0 auto", padding: spacing[6] },
+card: { backgroundColor: semantic.bgSurface, borderRadius: radius.xl, padding: spacing[6], border: `1px solid ${semantic.borderDefault}` },
+title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: semantic.textPrimary, marginBottom: spacing[5] },
+formGroup: { marginBottom: spacing[4] },
+label: { display: "block", fontSize: fontSize.sm, fontWeight: fontWeight.medium, color: semantic.textPrimary, marginBottom: spacing[1] },
+input: { width: "100%", height: 44, paddingLeft: spacing[4], paddingRight: spacing[4], border: `1px solid ${semantic.borderDefault}`, borderRadius: radius.md, fontSize: fontSize.base, color: semantic.textPrimary, outline: "none", boxSizing: "border-box" as const },
+submitBtn: { width: "100%", height: 44, backgroundColor: colors.primary500, color: colors.neutral0, border: "none", borderRadius: radius.md, fontSize: fontSize.base, fontWeight: fontWeight.bold, cursor: "pointer" },
+errMsg: { fontSize: fontSize.xs, color: colors.danger, marginTop: spacing[1] },
+};

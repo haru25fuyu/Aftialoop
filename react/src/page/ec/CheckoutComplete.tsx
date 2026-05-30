@@ -1,17 +1,18 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { CheckCircle } from 'lucide-react';
+import { s } from '../../styles/page/ec/CheckoutComplete.styles';
 
 const CheckoutComplete: React.FC = () => {
-    return (
-        <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-            <h1>ご注文ありがとうございます！</h1>
-            <p>ご注文が正常に完了しました。</p>
-            <p>ご登録のメールアドレスに確認メールを送信しました。</p>
-            <Link to="/" style={{ marginTop: '24px', display: 'inline-block', textDecoration: 'none', color: '#fff', background: '#4caf50', padding: '12px 32px', borderRadius: '4px' }}>
-                ホームへ戻る
-            </Link>
-        </div>
-    );
+  return (
+    <div style={s.page}>
+      <div style={s.icon}><CheckCircle size={32} /></div>
+      <h1 style={s.title}>ご注文ありがとうございます！</h1>
+      <p style={s.desc}>ご注文が正常に完了しました。</p>
+      <p style={s.desc}>ご登録のメールアドレスに確認メールを送信しました。</p>
+      <Link to="/" style={s.btn}>ホームへ戻る</Link>
+    </div>
+  );
 };
 
 export default CheckoutComplete;

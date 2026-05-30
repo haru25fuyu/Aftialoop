@@ -1,0 +1,18 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight, shadow } from "../../tokens";
+
+export const s = {
+page: { backgroundColor: semantic.bgPage, minHeight: "100vh", paddingBottom: 80 },
+header: { backgroundColor: semantic.bgSurface, padding: spacing[4], display: "flex", alignItems: "center", gap: spacing[4], borderBottom: `1px solid ${semantic.borderDefault}`, position: "sticky" as const, top: 0, zIndex: 10 },
+title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: semantic.textPrimary },
+list: { maxWidth: 640, margin: "0 auto", padding: spacing[4], display: "flex", flexDirection: "column" as const, gap: spacing[3] },
+card: (selected: boolean) => ({ position: "relative" as const, borderRadius: radius.lg, border: `1px solid ${selected ? colors.primary500 : semantic.borderDefault}`, overflow: "hidden", ...shadow.sm }),
+defaultBadge: { position: "absolute" as const, top: 0, right: 0, backgroundColor: colors.primary600, color: colors.neutral0, fontSize: 10, fontWeight: fontWeight.bold, padding: `${spacing[1]}px ${spacing[3]}px`, borderBottomLeftRadius: radius.lg, display: "flex", alignItems: "center", gap: spacing[1] },
+cardBody: { padding: spacing[4] },
+cardBrand: { fontWeight: fontWeight.bold, fontSize: fontSize.base, color: semantic.textSecondary, textTransform: "uppercase" as const, letterSpacing: "0.05em", marginBottom: spacing[3] },
+cardNumber: { fontSize: fontSize.xl, fontFamily: "monospace", color: semantic.textPrimary, letterSpacing: "0.15em", marginBottom: spacing[3] },
+cardExpiry: { display: "flex", alignItems: "center", gap: spacing[2], fontSize: fontSize.sm, color: semantic.textMuted },
+actionRow: { display: "flex", borderTop: `1px solid ${semantic.borderDefault}`, backgroundColor: colors.neutral50, divideX: `1px solid ${semantic.borderDefault}` },
+actionBtn: { flex: 1, padding: `${spacing[2]}px 0`, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: semantic.textSecondary, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: spacing[2] },
+actionBtnDanger: { flex: 1, padding: `${spacing[2]}px 0`, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.danger, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: spacing[2] },
+addBtn: { width: "100%", height: 48, backgroundColor: colors.primary500, color: colors.neutral0, border: "none", borderRadius: radius.lg, fontSize: fontSize.base, fontWeight: fontWeight.bold, cursor: "pointer", marginTop: spacing[2] },
+};

@@ -1,0 +1,19 @@
+import { colors, semantic, spacing, radius, fontSize, fontWeight, shadow } from "../../tokens";
+
+export const s = {
+page: { backgroundColor: semantic.bgPage, minHeight: "100vh", paddingBottom: 80 },
+header: { backgroundColor: semantic.bgSurface, padding: spacing[4], display: "flex", alignItems: "center", gap: spacing[4], borderBottom: `1px solid ${semantic.borderDefault}`, position: "sticky" as const, top: 0, zIndex: 10 },
+title: { fontSize: fontSize.lg, fontWeight: fontWeight.bold, color: semantic.textPrimary },
+list: { maxWidth: 640, margin: "0 auto", padding: spacing[4], display: "flex", flexDirection: "column" as const, gap: spacing[3] },
+card: { backgroundColor: semantic.bgSurface, borderRadius: radius.xl, border: `1px solid ${semantic.borderDefault}`, overflow: "hidden", ...shadow.sm },
+cardSelected: { border: `2px solid ${colors.primary500}` },
+cardBody: { padding: spacing[4], cursor: "pointer" },
+cardName: { fontWeight: fontWeight.bold, fontSize: fontSize.base, color: semantic.textPrimary },
+cardAddress: { fontSize: fontSize.sm, color: semantic.textSecondary, marginTop: spacing[1] },
+cardPhone: { fontSize: fontSize.xs, color: semantic.textMuted, marginTop: spacing[1] },
+defaultBadge: { display: "inline-flex", fontSize: fontSize.xs, fontWeight: fontWeight.bold, backgroundColor: colors.primary100, color: colors.primary800, padding: `2px ${spacing[2]}px`, borderRadius: radius.sm, marginTop: spacing[2] },
+actionRow: { display: "flex", borderTop: `1px solid ${semantic.borderDefault}` },
+actionBtn: { flex: 1, padding: `${spacing[3]}px 0`, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: semantic.textSecondary, background: "none", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: spacing[1] },
+useBtn: { flex: 1, padding: `${spacing[3]}px 0`, fontSize: fontSize.sm, fontWeight: fontWeight.bold, color: colors.primary600, background: "none", border: "none", borderLeft: `1px solid ${semantic.borderDefault}`, cursor: "pointer" },
+addBtn: { width: "100%", height: 48, backgroundColor: colors.primary500, color: colors.neutral0, border: "none", borderRadius: radius.lg, fontSize: fontSize.base, fontWeight: fontWeight.bold, cursor: "pointer", marginTop: spacing[2] },
+};

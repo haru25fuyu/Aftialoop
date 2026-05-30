@@ -6,137 +6,69 @@ import api from '../../conf/api';
 import { Address } from '../../types/Address';
 import { Plus, MapPin, CheckCircle, Phone, Edit2, ChevronLeft } from 'lucide-react';
 import { Spinner } from '../../component/Spinner';
+import { s } from '../../styles/page/mypage/AddressList.styles';
 
 const AddressList: React.FC = () => {
-    const navigate = useNavigate();
-    const [address, setAddress] = useState<Address[]>([]);
-    const [isModalOpen, setIsModalOpen] = useState(false);
-    const [selectedAddress, setSelectedAddress] = useState<Address>({} as Address);
+  const navigate = useNavigate();
+  const [address, setAddress] = useState<Address[]>([]);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedAddress, setSelectedAddress] = useState<Address>({} as Address);
+  const [isLoading, setIsLoading] = useState(true);
 
-    const [isLoading, setIsLoading] = useState(true);
+  const getList = () => {
+    setIsLoading(true);
+    api.post('/address/list').then((res) => setAddress(res.data.address || [])).catch(console.error).finally(() => setIsLoading(false));
+  };
 
-    useEffect(() => {
-        GetAddressList();
-    }, []);
+  useEffect(() => { getList(); }, []);
 
-    const GetAddressList = () => {
-        setIsLoading(true);
-        api.post('/address/list')
-            .then((res) => {
-                setAddress(res.data.address || []);
-            })
-            .catch((err) => {
-                console.error("住所一覧エラー:", err);
-            })
-            .finally(() => {
-                setIsLoading(false);
-            });
-    }
-
-    // モーダルを閉じてデータを再取得する処理
-    const handleCloseModal = () => {
-        setIsModalOpen(false);
-        GetAddressList();
-    };
-
-    return (
-        <div className="bg-gray-50 min-h-screen pb-20">
-            <Header />
-
-            {/* モーダル */}
-            {isModalOpen && (
-                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex justify-center items-center z-50 p-4 animate-in fade-in duration-200">
-                    <div className="w-full max-w-lg bg-white rounded-2xl shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
-                        <EditAddress
-                            setAddress={setAddress}
-                            address={selectedAddress}
-                            isOpen={isModalOpen}
-                            onClose={handleCloseModal}
-                        />
-                    </div>
-                </div>
-            )}
-
-            <main className="max-w-3xl mx-auto p-4 space-y-6">
-                <div className="flex items-center gap-2 mt-4 mb-6">
-                    <button onClick={() => navigate(-1)} className="p-1 hover:bg-gray-100 rounded-full">
-                        <ChevronLeft size={24} className="text-gray-600" />
-                    </button>
-                    <MapPin className="text-blue-600" />
-                    <h1 className="text-2xl font-bold text-gray-800">お届け先住所の管理</h1>
-                </div>
-
-                {isLoading ? (
-                    <div className="py-20 flex flex-col items-center justify-center gap-4 text-gray-400">
-                        <Spinner size="lg" />
-                        <p className="text-sm font-medium">住所情報を読み込んでいます...</p>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {/* --- 住所リスト (Grid Layout) --- */}
-
-                        {/* 1. 新規追加カード (破線で目立たせる) */}
-                        <button
-                            onClick={() => {
-                                setSelectedAddress({} as Address);
-                                setIsModalOpen(true);
-                            }}
-                            className="flex flex-col items-center justify-center min-h-[200px] border-2 border-dashed border-blue-300 rounded-xl bg-blue-50/50 text-blue-500 hover:bg-blue-50 hover:border-blue-500 hover:shadow-md transition gap-3 group"
-                        >
-                            <div className="bg-white p-3 rounded-full shadow-sm group-hover:scale-110 transition">
-                                <Plus size={32} />
-                            </div>
-                            <span className="font-bold text-sm">新しいお届け先を追加</span>
-                        </button>
-
-                        {/* 2. 登録済み住所カード */}
-                        {address.map((item) => (
-                            <div
-                                key={item.id}
-                                onClick={() => {
-                                    setSelectedAddress(item);
-                                    setIsModalOpen(true);
-                                }}
-                                className={`relative p-5 bg-white border rounded-xl shadow-sm hover:shadow-md hover:border-blue-400 transition cursor-pointer group flex flex-col justify-between ${item.status ? "border-blue-500 ring-1 ring-blue-500" : "border-gray-200"}`}
-                            >
-                                {/* デフォルトバッジ */}
-                                {item.status && (
-                                    <div className="absolute top-3 right-3 bg-blue-600 text-white text-[10px] font-bold px-2 py-1 rounded-full flex items-center gap-1">
-                                        <CheckCircle size={12} /> デフォルト
-                                    </div>
-                                )}
-
-                                {/* 住所情報 */}
-                                <div className="space-y-3">
-                                    <div>
-                                        <div className="text-xs text-gray-400 mb-0.5">お名前</div>
-                                        <div className="font-bold text-lg text-gray-800 flex items-center gap-2">
-                                            {item.name}
-                                            <Edit2 size={14} className="text-gray-300 group-hover:text-blue-500 transition" />
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="text-xs text-gray-400 mb-0.5">住所</div>
-                                        <div className="text-sm text-gray-700 leading-relaxed">
-                                            〒{item.post_code}<br />
-                                            {item.pref} {item.address1}<br />
-                                            {item.address2} {item.address3}
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-center gap-2 text-sm text-gray-500 bg-gray-50 p-2 rounded-lg">
-                                        <Phone size={14} />
-                                        <span>{item.phone}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                )}
-            </main>
+  return (
+    <div style={s.page}>
+      <Header />
+      {isModalOpen && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 50, padding: 16 }}>
+          <div style={{ width: "100%", maxWidth: 512, backgroundColor: "#fff", borderRadius: 16, overflow: "hidden", maxHeight: "90vh", overflowY: "auto" }}>
+            <EditAddress setAddress={setAddress} address={selectedAddress} isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); getList(); }} />
+          </div>
         </div>
-    );
+      )}
+      <main style={{ maxWidth: 720, margin: "0 auto", padding: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 16, marginBottom: 24 }}>
+          <button onClick={() => navigate(-1)} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", borderRadius: "50%" }}><ChevronLeft size={24} /></button>
+          <MapPin size={20} style={{ color: "#1a5adc" }} />
+          <h1 style={s.title}>お届け先住所の管理</h1>
+        </div>
+        {isLoading ? (
+          <div style={{ display: "flex", justifyContent: "center", padding: 80 }}><Spinner size="lg" /></div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            <button onClick={() => { setSelectedAddress({} as Address); setIsModalOpen(true); }}
+              style={{ width: "100%", minHeight: 100, border: "2px dashed #93b3f5", borderRadius: 12, backgroundColor: "#f0f4fe", color: "#1a5adc", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8 }}>
+              <Plus size={28} />
+              <span style={{ fontWeight: 700, fontSize: 14 }}>新しい住所を追加</span>
+            </button>
+            {address.map((item) => (
+              <div key={item.id} onClick={() => { setSelectedAddress(item); setIsModalOpen(true); }}
+                style={{ position: "relative", padding: 20, backgroundColor: "#fff", border: `1px solid ${item.status ? "#1a5adc" : "#e0ddd8"}`, borderRadius: 12, cursor: "pointer", display: "flex", flexDirection: "column", gap: 12, boxShadow: item.status ? "0 0 0 1px #1a5adc" : undefined }}>
+                {item.status && <div style={{ position: "absolute", top: 12, right: 12, backgroundColor: "#1a5adc", color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 9999, display: "flex", alignItems: "center", gap: 4 }}><CheckCircle size={12} />デフォルト</div>}
+                <div>
+                  <div style={{ fontSize: 11, color: "#8c8c8c", marginBottom: 2 }}>お名前</div>
+                  <div style={{ fontWeight: 700, fontSize: 18, display: "flex", alignItems: "center", gap: 8 }}>{item.name}<Edit2 size={14} style={{ color: "#c4c1bb" }} /></div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 11, color: "#8c8c8c", marginBottom: 2 }}>住所</div>
+                  <div style={{ fontSize: 14, color: "#2e3128", lineHeight: 1.6 }}>〒{item.post_code}<br />{item.pref} {item.address1}<br />{item.address2} {item.address3}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, color: "#8c8c8c", backgroundColor: "#f8f7f5", padding: 8, borderRadius: 8 }}>
+                  <Phone size={14} /><span>{item.phone}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+    </div>
+  );
 };
 
 export default AddressList;

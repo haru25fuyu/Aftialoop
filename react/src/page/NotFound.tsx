@@ -1,28 +1,19 @@
-import Header from '../component/Header';
-import Footer from '../component/Footer';
+import React from 'react';
+import { Header } from '../component/Header';
+import { Footer } from '../component/Footer';
+import { s } from '../styles/page/NotFound.styles';
 
-
-const NotFound = () => {
-    return (
-        <>
-            <header>
-                <Header />
-            </header>
-
-            <main className="container mx-auto px-4 py-8">
-                <div className="text-center mt-20">
-
-                    <h1 className="text-4xl font-bold">404 - ページが見つかりません</h1>
-                    <p className="text-gray-600 mt-2">URLが間違っているか、ページが移動された可能性があります。</p>
-
-                </div>
-            </main>
-
-            <footer>
-                <Footer />
-            </footer>
-        </>
-    );
-};
+const NotFound: React.FC = () => (
+  <>
+    <Header />
+    <main style={s.main}>
+      <div style={s.wrap}>
+        <h1 style={s.title}>404 - ページが見つかりません</h1>
+        <p style={s.desc}>URLが間違っているか、ページが移動された可能性があります。</p>
+      </div>
+    </main>
+    <Footer />
+  </>
+);
 
 export default NotFound;

@@ -1,234 +1,109 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronLeft, Package, ShoppingCart, Store, CheckCircle, XCircle, ShoppingBag } from "lucide-react";
-// import { Header } from "../component/Header"; // ★削除: サブページなので共通ヘッダーは外してスッキリさせる
+import { ChevronLeft, Package, ShoppingBag } from "lucide-react";
+import { Header } from "../../component/Header";
 import api from "../../conf/api";
 import { CONFIG } from "../../conf/config";
-import Header from "../../component/Header";
+import { s } from "../../styles/page/mypage/HistoryPage.styles";
 
-// --- 型定義 ---
-interface FleaTransaction {
-    id: number;
-    type: 'flea';
-    item_name: string;
-    item_image_url: string;
-    price: number;
-    status: string;
-    is_seller: boolean;
-    updated_at: string;
+interface HistoryItem {
+  id: number; type: "flea" | "ec"; item_name?: string; first_item_name?: string; item_count?: number;
+  item_image_url?: string; price?: number; total_amount?: number; status: string; created_at: string;
 }
-
-interface EcOrder {
-    id: number;
-    type: 'ec';
-    first_item_name: string;
-    first_item_image: string;
-    total_amount: number;
-    item_count: number;
-    status: string;
-    created_at: string;
-}
-
-type HistoryItem = FleaTransaction | EcOrder;
 
 export default function HistoryPage() {
-    const navigate = useNavigate();
+  const navigate = useNavigate();
+  const [items, setItems] = useState<HistoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [offset, setOffset] = useState(0);
+  const [hasMore, setHasMore] = useState(true);
+  const [activeTab, setActiveTab] = useState<"all" | "flea" | "ec">("all");
+  const limit = 20;
 
-    // 大カテゴリー: 'flea' | 'ec'
-    const [serviceTab, setServiceTab] = useState<'flea' | 'ec'>('flea');
-    // フリマ用サブタブ: 'buyer' | 'seller'
-    const [fleaRoleTab, setFleaRoleTab] = useState<'buyer' | 'seller'>('buyer');
+  const observer = useRef<IntersectionObserver | null>(null);
+  const lastRef = useCallback((node: any) => {
+    if (loading || loadingMore) return;
+    if (observer.current) observer.current.disconnect();
+    observer.current = new IntersectionObserver(entries => { if (entries[0].isIntersecting && hasMore) setOffset(prev => prev + limit); });
+    if (node) observer.current.observe(node);
+  }, [loading, loadingMore, hasMore]);
 
-    const [fleaItems, setFleaItems] = useState<FleaTransaction[]>([]);
-    const [ecItems, setEcItems] = useState<EcOrder[]>([]);
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        const fetchData = async () => {
-            try {
-                setLoading(true);
-                const [resFlea, resEc] = await Promise.all([
-                    api.get("/mypage/transactions/history"),
-                    api.get("/mypage/orders/history").catch(() => ({ data: [] })) // エラー回避
-                ]);
-
-                const fItems = (resFlea.data || []).map((i: FleaTransaction) => ({ ...i, type: 'flea' }));
-                const eItems = (resEc.data || []).map((i: EcOrder) => ({ ...i, type: 'ec' }));
-
-                setFleaItems(fItems);
-                setEcItems(eItems);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchData();
-    }, []);
-
-    // フィルタリング
-    let displayItems: HistoryItem[] = [];
-    if (serviceTab === 'flea') {
-        displayItems = fleaItems.filter(item =>
-            fleaRoleTab === 'seller' ? item.is_seller : !item.is_seller
-        );
-    } else {
-        displayItems = ecItems;
-    }
-
-    // ステータスバッジ（フリマ用）
-    const getStatusBadge = (status: string) => {
-        switch (status) {
-            case "COMPLETED": return { label: "完了", color: "bg-gray-100 text-gray-500", icon: <CheckCircle size={12} /> };
-            case "CANCELLED": return { label: "キャンセル", color: "bg-red-50 text-red-400", icon: <XCircle size={12} /> };
-            default: return { label: status, color: "bg-gray-100 text-gray-500", icon: null };
-        }
+  useEffect(() => {
+    const fetch = async () => {
+      if (offset === 0) setLoading(true); else setLoadingMore(true);
+      try {
+        const res = await api.get(`/mypage/transactions/history?limit=${limit}&offset=${offset}`);
+        const newItems = res.data.items || [];
+        setItems(prev => { const ids = new Set(prev.map(i => i.id + i.type)); return offset === 0 ? newItems : [...prev, ...newItems.filter((i: HistoryItem) => !ids.has(i.id + i.type))]; });
+        if (newItems.length < limit) setHasMore(false);
+      } catch { } finally { setLoading(false); setLoadingMore(false); }
     };
+    fetch();
+  }, [offset]);
 
-    return (
-        <>
-            <Header />
-            <div className="min-h-screen bg-gray-50 pb-20">
-                {/*  max-w-md を max-w-4xl に拡張し、スマホ以外でも見やすく */}
-                <div className="max-w-4xl mx-auto bg-gray-50 min-h-screen">
+  const displayItems = items.filter(item => activeTab === "all" ? true : item.type === activeTab);
 
-                    {/* ヘッダーエリア */}
-                    <div className="bg-white sticky top-0 z-20 shadow-sm">
-                        <div className="p-4 flex items-center gap-4 border-b border-gray-100">
-                            <button onClick={() => navigate(-1)} className="p-2 hover:bg-gray-100 rounded-full transition-colors">
-                                <ChevronLeft size={24} className="text-gray-600" />
-                            </button>
-                            <h1 className="text-lg font-bold text-gray-800">購入・取引履歴</h1>
-                        </div>
-
-                        {/* 大タブ (サービス切り替え) */}
-                        <div className="p-3 px-4 flex gap-3 bg-gray-50 border-b border-gray-200">
-                            <button
-                                onClick={() => setServiceTab('flea')}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${serviceTab === 'flea'
-                                    ? "bg-white text-blue-600 shadow ring-1 ring-black/5"
-                                    : "text-gray-500 hover:bg-gray-200 hover:text-gray-700"
-                                    }`}
-                            >
-                                フリマ
-                            </button>
-                            <button
-                                onClick={() => setServiceTab('ec')}
-                                className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${serviceTab === 'ec'
-                                    ? "bg-white text-emerald-600 shadow ring-1 ring-black/5"
-                                    : "text-gray-500 hover:bg-gray-200 hover:text-gray-700"
-                                    }`}
-                            >
-                                公式ストア
-                            </button>
-                        </div>
-
-                        {/* フリマ用サブタブ */}
-                        {serviceTab === 'flea' && (
-                            <div className="flex border-b border-gray-200 bg-white">
-                                <button
-                                    onClick={() => setFleaRoleTab('buyer')}
-                                    className={`flex-1 py-3 text-xs md:text-sm font-bold flex items-center justify-center gap-2 relative transition-colors ${fleaRoleTab === 'buyer' ? "text-blue-600 bg-blue-50/50" : "text-gray-400 hover:bg-gray-50"
-                                        }`}
-                                >
-                                    <ShoppingCart size={16} /> 購入した商品
-                                    {fleaRoleTab === 'buyer' && <div className="absolute bottom-0 h-0.5 w-full bg-blue-600"></div>}
-                                </button>
-                                <button
-                                    onClick={() => setFleaRoleTab('seller')}
-                                    className={`flex-1 py-3 text-xs md:text-sm font-bold flex items-center justify-center gap-2 relative transition-colors ${fleaRoleTab === 'seller' ? "text-blue-600 bg-blue-50/50" : "text-gray-400 hover:bg-gray-50"
-                                        }`}
-                                >
-                                    <Store size={16} /> 出品した商品
-                                    {fleaRoleTab === 'seller' && <div className="absolute bottom-0 h-0.5 w-full bg-blue-600"></div>}
-                                </button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* リスト表示エリア */}
-                    <div className="p-4">
-                        {loading ? (
-                            <div className="p-20 text-center text-gray-400">読み込み中...</div>
-                        ) : displayItems.length === 0 ? (
-                            <div className="p-10 text-center flex flex-col items-center gap-4 mt-10">
-                                <div className="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center text-gray-400">
-                                    <Package size={32} />
-                                </div>
-                                <p className="text-gray-500 font-bold">履歴はありません</p>
-                            </div>
-                        ) : (
-                            // PCでは2列グリッド (md:grid-cols-2)、スマホでは1列
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                {displayItems.map((item) => {
-                                    // --- フリマの場合 ---
-                                    if (item.type === 'flea') {
-                                        const badge = getStatusBadge(item.status);
-                                        return (
-                                            <Link key={`flea-${item.id}`} to={`/flea-market/transactions/${item.id}`}
-                                                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition flex gap-4 items-center group">
-                                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-100 relative">
-                                                    {item.item_image_url ? (
-                                                        <img src={CONFIG.BASE_URL + item.item_image_url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />
-                                                    ) : (
-                                                        <div className="w-full h-full flex items-center justify-center text-gray-300"><Package size={24} /></div>
-                                                    )}
-                                                    {/* 完了済みなら少し暗くする演出 */}
-                                                    <div className="absolute inset-0 bg-black/5"></div>
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex justify-between items-start mb-1">
-                                                        <h3 className="font-bold text-gray-700 text-sm line-clamp-1 group-hover:text-blue-600 transition-colors">
-                                                            {item.item_name}
-                                                        </h3>
-                                                    </div>
-                                                    <div className="flex items-center gap-2 mb-2">
-                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex items-center gap-1 ${badge.color}`}>
-                                                            {badge.icon} {badge.label}
-                                                        </span>
-                                                    </div>
-                                                    <div className="flex justify-between items-end">
-                                                        <span className="font-bold text-gray-900">¥{item.price.toLocaleString()}</span>
-                                                        <span className="text-xs text-gray-400">{new Date(item.updated_at).toLocaleDateString()}</span>
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        );
-                                    }
-                                    // --- ECの場合 ---
-                                    else {
-                                        return (
-                                            <Link key={`ec-${item.id}`} to={`/orders/${item.id}`}
-                                                className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 hover:shadow-md transition flex gap-4 items-center group">
-                                                <div className="w-20 h-20 bg-gray-100 rounded-lg overflow-hidden shrink-0 border border-gray-100">
-                                                    {item.first_item_image && <img src={CONFIG.BASE_URL + item.first_item_image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" alt="" />}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h3 className="font-bold text-gray-700 text-sm line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                                                        {item.first_item_name}
-                                                    </h3>
-                                                    {item.item_count > 1 && (
-                                                        <p className="text-xs text-gray-400 mt-0.5">他 {item.item_count - 1} 点</p>
-                                                    )}
-                                                    <div className="mt-2 flex justify-between items-end">
-                                                        <div>
-                                                            <div className="text-xs text-gray-400 mb-0.5">支払金額</div>
-                                                            <span className="font-bold text-gray-900 text-lg">¥{item.total_amount.toLocaleString()}</span>
-                                                        </div>
-                                                        <div className="flex items-center gap-1 text-emerald-600 text-xs font-bold bg-emerald-50 px-2 py-1 rounded-md">
-                                                            <ShoppingBag size={12} /> 公式ストア
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </Link>
-                                        );
-                                    }
-                                })}
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
-        </>
-    );
+  return (
+    <>
+      <Header />
+      <div style={s.page}>
+        <div style={s.stickyHeader}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "0 16px", height: 56 }}>
+            <button onClick={() => navigate(-1)} style={{ padding: 4, background: "none", border: "none", cursor: "pointer", borderRadius: "50%" }}><ChevronLeft size={24} /></button>
+            <h1 style={s.title}>購入した商品・取引履歴</h1>
+          </div>
+          <div style={s.tabs}>
+            {[["all", "すべて"], ["flea", "フリマ"], ["ec", "公式ストア"]].map(([tab, label]) => (
+              <button key={tab} onClick={() => setActiveTab(tab as any)}
+                style={{ flex: 1, padding: "8px 0", fontSize: 14, fontWeight: 700, border: "none", background: "none", cursor: "pointer", color: activeTab === tab ? "#1a1a1a" : "#8c8c8c", borderBottom: activeTab === tab ? "2px solid #1a1a1a" : "2px solid transparent" }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div style={s.content}>
+          {loading ? <div style={{ padding: 80, textAlign: "center", color: "#8c8c8c" }}>読み込み中...</div> :
+            displayItems.length === 0 ? (
+              <div style={{ padding: 80, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 16 }}>
+                <div style={{ width: 64, height: 64, backgroundColor: "#f0eeeb", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center" }}><Package size={32} style={{ color: "#8c8c8c" }} /></div>
+                <p style={{ color: "#8c8c8c", fontWeight: 700 }}>履歴はありません</p>
+              </div>
+            ) : (
+              <div style={s.grid}>
+                {displayItems.map((item, i) => {
+                  if (item.type === "flea") return (
+                    <Link key={`flea-${item.id}`} ref={i === displayItems.length - 1 ? lastRef : null} to={`/flea-market/transactions/${item.id}`} style={s.card}>
+                      <div style={s.cardImg}>
+                        {item.item_image_url ? <img src={CONFIG.BASE_URL + item.item_image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={24} style={{ color: "#c4c1bb" }} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "#1a1a1a", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.item_name}</div>
+                        <div style={{ fontWeight: 700, fontSize: 18 }}>¥{(item.price || 0).toLocaleString()}</div>
+                        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "#3a7a22", backgroundColor: "#f0fae8", padding: "2px 8px", borderRadius: 9999, display: "inline-block" }}>フリマ</div>
+                      </div>
+                    </Link>
+                  );
+                  return (
+                    <Link key={`ec-${item.id}`} ref={i === displayItems.length - 1 ? lastRef : null} to={`/orders/${item.id}`} style={s.card}>
+                      <div style={s.cardImg}>
+                        {item.item_image_url ? <img src={CONFIG.BASE_URL + item.item_image_url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <Package size={24} style={{ color: "#c4c1bb" }} />}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: 14, color: "#1a1a1a", marginBottom: 4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.first_item_name}</div>
+                        {(item.item_count || 0) > 1 && <div style={{ fontSize: 12, color: "#8c8c8c" }}>他 {item.item_count! - 1} 点</div>}
+                        <div style={{ fontWeight: 700, fontSize: 18 }}>¥{(item.total_amount || 0).toLocaleString()}</div>
+                        <div style={{ marginTop: 4, fontSize: 12, fontWeight: 700, color: "#3a7a22", backgroundColor: "#f0fae8", padding: "2px 8px", borderRadius: 9999, display: "inline-flex", alignItems: "center", gap: 4 }}><ShoppingBag size={12} />公式ストア</div>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )
+          }
+          {loadingMore && <div style={{ padding: 20, textAlign: "center", color: "#8c8c8c" }}>読み込み中...</div>}
+        </div>
+      </div>
+    </>
+  );
 }
