@@ -10,9 +10,8 @@ import SquarePayment from "../../../modal/EditPayment";
 
 import { LoadingButton } from "../../LoadingButton";
 
-import { TransactionChat } from "../../TransactionChat";
-// キャンセルボタンをインポート
-import { CancelTransactionButton } from "../../CancelTransactionButton";
+import TransactionChat from "../../TransactionChat";
+import CancelTransactionButton from "../../CancelTransactionButton";
 import { AxiosError } from "axios";
 
 import { s } from "../../../styles/component/fleaMarket/fleaMarketPhases/PaymentPanel.styles";
@@ -37,8 +36,8 @@ interface ApiErrorResponse {
 // ---------------------------------------------------------
 // ヘルパー関数
 // ---------------------------------------------------------
-const cn = (...xs: Array<string | false | undefined | null>) =>
-  xs.filter(Boolean).join(" ");
+//const cn = (...xs: Array<string | false | undefined | null>) =>
+//  xs.filter(Boolean).join(" ");
 const clamp = (n: number, min: number, max: number) =>
   Math.max(min, Math.min(max, n));
 
@@ -273,7 +272,7 @@ export default function PaymentPanel({
       {data.transaction && myUserId && (
         <div style={{ marginTop: 32 }}>
           <TransactionChat
-            purchase_request_id={data.transaction.purchase_request_id.toString()}
+            transactionId={data.transaction.id.toString()}
             myUserId={myUserId}
           />
         </div>

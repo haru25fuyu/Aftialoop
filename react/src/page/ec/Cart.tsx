@@ -10,9 +10,12 @@ import api, { getAccessToken } from '../../conf/api';
 
 import { s } from '../../styles/page/ec/Cart.styles';
 
+// Content型を拡張（カート専用フィールド追加）
+type CartItem = Content & { is_selected?: boolean };
+
 const Cart: React.FC = () => {
   const navigate = useNavigate();
-  const [cart, setCart] = useState<Content[]>(JSON.parse(localStorage.getItem('cart') || '[]'));
+  const [cart, setCart] = useState<CartItem[]>(JSON.parse(localStorage.getItem('cart') || '[]'));
   const [totalPrice, setTotalPrice] = useState(0);
   const [totalPoints, setTotalPoints] = useState(0);
   const [point, setPoint] = useState(0);
@@ -25,7 +28,7 @@ const Cart: React.FC = () => {
     } else {
       const storedCart = localStorage.getItem('cart');
       if (storedCart) {
-        const localCart: Content[] = JSON.parse(storedCart);
+        const localCart: CartItem[] = JSON.parse(storedCart);
         api.post('/cart/add', localCart).then(() => localStorage.removeItem('cart')).catch(console.error);
         setCart(localCart);
       }
@@ -41,7 +44,7 @@ const Cart: React.FC = () => {
     setTotalPoints(cart.filter(i => i.is_selected).reduce((acc, i) => acc + (Number(i.point) || 0) * (i.quantity ?? 1), 0));
   }, [cart]);
 
-  const handleQuantityChange = (item: Content) => {
+  const handleQuantityChange = (item: CartItem) => {
     if (!item || !item.id) return;
     api.post('/cart/edit', item).then((res) => setCart(res.data || [])).catch(console.error);
   };

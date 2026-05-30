@@ -1,5 +1,4 @@
 import { CSSProperties } from "react";
-import { colors } from "../../tokens";
 
 export const s: {
   layout: CSSProperties;

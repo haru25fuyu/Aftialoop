@@ -37,7 +37,7 @@ export default function SellingListPage() {
         const newItems = res.data.items || [];
         setItems(prev => { const ids = new Set(prev.map(i => i.id)); return [...prev, ...newItems.filter((i: ListingItem) => !ids.has(i.id))]; });
         if (newItems.length < limit) setHasMore(false);
-      } catch { } finally { setLoading(false); setLoadingMore(false); }
+      } catch (e) { console.error(e); } finally { setLoading(false); setLoadingMore(false); }
     };
     fetch();
   }, [offset]);

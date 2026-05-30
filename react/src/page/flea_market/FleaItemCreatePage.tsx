@@ -35,33 +35,53 @@ export default function FleaItemCreatePage() {
 
   const getFormattedDetails = (): AnyDetails => {
     if (formState.type === "SUPPLY") return formState.supplyDetails;
-    return formState.liveDetails;
+    // LiveDetails → InsectDetails として kind を付与して返す
+    const d = formState.liveDetails;
+    return {
+      kind: formState.type as "INSECT",
+      locality: d.locality,
+      hatch_date: d.hatch_date,
+      generation: d.generation,
+      size_value: d.size_value,
+      size_unit: d.size_unit,
+      size_mm: d.size_mm,
+      sex: d.sex,
+    } as AnyDetails;
   };
 
   const summaryData: PublishSummary = {
-    name: formState.name, price: Number(formState.price), quantity: formState.quantity,
-    isMultiPurchasable: formState.isMultiPurchasable, description: formState.description,
-    type: formState.type, category_name: formState.categoryName || "",
-    shippingFeeType: formState.shippingFeeType, shipFrom: formState.shipFromId || 0,
-    shipsWithinDays: formState.shipsWithinDays || null, sellerPlusPct: formState.sellerPlusPct,
-    images: formState.images, mainIndex: formState.mainIndex, details: getFormattedDetails(),
+    name: formState.name,
+    price: Number(formState.price),
+    quantity: formState.quantity,
+    isMultiPurchasable: formState.isMultiPurchasable,
+    description: formState.description,
+    type: formState.type,
+    category_name: formState.categoryName || "",
+    shippingFeeType: formState.shippingFeeType,
+    shipFromId: formState.shipFromId ?? undefined,
+    shipsWithinDays: formState.shipsWithinDays !== "" ? formState.shipsWithinDays : undefined,
+    seller_plus_pct: formState.sellerPlusPct,
+    total: Number(formState.price),
+    images: formState.images,
+    mainIndex: formState.mainIndex,
+    details: getFormattedDetails(),
   };
 
   const handlePublishClick = () => { if (actions.validate()) setConfirmOpen(true); };
   const handleConfirmPublish = async () => {
-    const itemId = await actions.publish();
-    if (itemId) { setConfirmOpen(false); setCompleteOpen(true); }
+    const success = await actions.doSubmit();
+    if (success) { setConfirmOpen(false); setCompleteOpen(true); }
   };
 
   return (
     <div style={s.page}>
-      <HeaderArea draftId={systemState.draftId} saving={systemState.saving} lastSavedAt={systemState.lastSavedAt} onSave={actions.saveDraft} onReset={actions.resetForm} />
+      <HeaderArea draftId={systemState.draftId} saving={systemState.saving} lastSavedAt={systemState.lastSavedAt} onSave={actions.autosaveNow} onReset={actions.resetForm} />
 
       {/* プログレスバー */}
       <div style={s.stickyHeader}>
-        <div style={s.progressBar}>
-          <div style={s.progress(systemState.currentStep === "details" ? 100 : 50)} />
-          <div style={{ flex: 1, height: 4, backgroundColor: "#e0ddd8" }} />
+        <div style={s.progressTrack}>
+          <div style={s.progressHalf(systemState.currentStep === "main")} />
+          <div style={s.progressHalf(systemState.currentStep === "details")} />
         </div>
       </div>
 
