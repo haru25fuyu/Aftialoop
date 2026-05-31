@@ -112,4 +112,9 @@ export const s = {
     fontSize: fontSize.base,
     ...{ boxShadow: `0 4px 12px rgba(58,122,34,0.3)` },
   },
+  errMsg: {
+    fontSize: fontSize.xs,
+    color: colors.danger,
+    marginTop: spacing[1],
+  },
 };

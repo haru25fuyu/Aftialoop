@@ -124,4 +124,5 @@ export const s = {
     padding: `${spacing[1]}px ${spacing[2]}px`,
     borderRadius: radius.md,
   },
+  content: {},
 };

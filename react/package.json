@@ -16,6 +16,8 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@heroicons/react": "^2.2.0",
     "@react-oauth/google": "^0.12.1",
+    "@stripe/react-stripe-js": "^6.5.0",
+    "@stripe/stripe-js": "^9.7.0",
     "axios": "^1.7.9",
     "jsonwebtoken": "^9.0.2",
     "jwt-decode": "^4.0.0",

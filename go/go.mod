@@ -19,7 +19,7 @@ require (
 	github.com/redis/go-redis/v9 v9.17.3
 	github.com/rs/cors v1.11.1
 	github.com/signintech/gopdf v0.35.0
-	github.com/square/square-go-sdk v1.2.0
+	github.com/stripe/stripe-go/v76 v76.25.0
 	golang.org/x/crypto v0.37.0
 	golang.org/x/sync v0.13.0
 )

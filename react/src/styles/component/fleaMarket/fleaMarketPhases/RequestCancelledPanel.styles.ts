@@ -33,4 +33,10 @@ export const s = {
     padding: spacing[3],
     borderRadius: radius.md,
   },
+  section: {
+    borderRadius: radius.xl,
+    border: `1px solid ${semantic.borderDefault}`,
+    backgroundColor: semantic.bgSurface,
+    padding: spacing[4],
+  },
 };

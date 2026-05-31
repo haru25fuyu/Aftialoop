@@ -6,7 +6,7 @@ import { Customer } from "../../../types/Content";
 import { FleaContent } from "../../../types/FleaMarket";
 import { Payment } from "../../../types/Payment";
 
-import SquarePayment from "../../../modal/EditPayment";
+import PaymentModal from "../../../modal/EditPayment";
 
 import { LoadingButton } from "../../LoadingButton";
 
@@ -466,7 +466,7 @@ export default function PaymentPanel({
       </div>
 
       {isPaymentModalOpen && (
-        <SquarePayment
+        <PaymentModal
           setPayments={setPaymentList}
           id={selectCard}
           isOpen={isPaymentModalOpen}

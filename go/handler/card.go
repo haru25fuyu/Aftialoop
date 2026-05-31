@@ -4,33 +4,24 @@ import (
 	"animaloop/function"
 	SQL "animaloop/sql"
 	"animaloop/utils"
-
-	"fmt"
-	"time"
-
 	"encoding/json"
 	"log"
 	"net/http"
+	"os"
 
 	"github.com/gorilla/mux"
-	square "github.com/square/square-go-sdk"
 )
 
-// cardHandler は /card 系のエンドポイントをまとめたハンドラです
 type cardHandler struct {
-	// ここに DB やサービスを注入しても OK
 	db *SQL.Database
 }
 
-// NewCardHandler はハンドラのコンストラクタ
 func NewCardHandler(db *SQL.Database) *cardHandler {
-	return &cardHandler{
-		db: db,
-	}
+	return &cardHandler{db: db}
 }
 
-// RegisterRoutes がルーティングの登録を行います
 func (h *cardHandler) RegisterRoutes(r *mux.Router) {
+	r.HandleFunc("/card/setup-intent", h.CreateSetupIntent).Methods("POST") // ★ 新規
 	r.HandleFunc("/card/save", h.SaveCard).Methods("POST")
 	r.HandleFunc("/card/charge", h.ChargeCard).Methods("POST")
 	r.HandleFunc("/card/address", h.SaveCardAddress).Methods("POST")
@@ -38,396 +29,294 @@ func (h *cardHandler) RegisterRoutes(r *mux.Router) {
 	r.HandleFunc("/card/delete", h.DeleteCard).Methods("POST")
 	r.HandleFunc("/card/default", h.SetDefaultCard).Methods("POST")
 	r.HandleFunc("/card/address/get", h.GetCardAddress).Methods("POST")
-	r.HandleFunc("/card/get", h.GetCard).Methods("POST") // 住所のリスト取得
 }
 
-// クレジットカードの保存
-func (h *cardHandler) SaveCard(w http.ResponseWriter, r *http.Request) {
-	_, err := function.CheckUser(h.db, w, r)
+// ── SetupIntent 作成（カード追加の第一ステップ） ──────────────────
+func (h *cardHandler) CreateSetupIntent(w http.ResponseWriter, r *http.Request) {
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	// リクエストボディからカード情報を取得
-	var card utils.RequestCard
-	err = json.NewDecoder(r.Body).Decode(&card)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-
-	log.Println("userID:", card.UserID)
-	customerID, err := h.db.GetCustomerID(card.UserID)
+	customerID, err := h.db.GetCustomerID(userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "顧客IDの取得に失敗しました"})
 		return
 	}
-	log.Println("顧客ID:", customerID)
-	log.Println("カード情報:", card.Token)
-	card.CustomerID = customerID
 
-	// カード情報を保存
-	card_map, err := function.CreateCard(card)
+	clientSecret, err := function.CreateSetupIntent(customerID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの保存に失敗しました"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "SetupIntentの作成に失敗しました"})
 		return
 	}
-	log.Println(card_map)
 
-	// レスポンス
-	response := map[string]interface{}{
-		"card": card_map,
-	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	// Stripe 公開鍵もフロントに渡す（任意）
+	json.NewEncoder(w).Encode(map[string]string{
+		"client_secret":     clientSecret,
+		"stripe_public_key": os.Getenv("STRIPE_PUBLIC_KEY"),
+	})
 }
 
-// クレジットカードでの支払い
-func (h *cardHandler) ChargeCard(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
+// ── カード保存（PaymentMethod を顧客に紐付け） ────────────────────
+func (h *cardHandler) SaveCard(w http.ResponseWriter, r *http.Request) {
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	// リクエストボディから支払い情報を取得
-	var charge utils.RequestCharge
-	err = json.NewDecoder(r.Body).Decode(&charge)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	var req struct {
+		PaymentMethodID string `json:"paymentMethodId"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.PaymentMethodID == "" {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	log.Println(charge)
 
-	// 購入履歴を保存
-	Purchase_ID, err := h.db.SavePurchaseHistory(user_id, charge.CardID, int64(charge.Amount), charge.Items, charge.AddressID, "")
+	customerID, err := h.db.GetCustomerID(userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "購入履歴の保存に失敗しました" + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "顧客IDの取得に失敗しました"})
 		return
 	}
 
-	// 支払い処理
-	url, err := function.ChargeCard(user_id, charge.CardID, charge.IdempotencyKey, charge.Amount)
+	// Stripe に紐付け
+	if err := function.AttachPaymentMethod(req.PaymentMethodID, customerID); err != nil {
+		log.Printf("AttachPaymentMethod error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "カードの保存に失敗しました"})
+		return
+	}
+
+	cardData, err := function.LoadUserAndCards(h.db, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "支払いに失敗しました" + err.Error()})
-		return
-	}
-	log.Println("支払い成功")
-
-	SaveReceiptURL := h.db.SaveReceiptURL(Purchase_ID, url)
-	if SaveReceiptURL != nil {
-		// レシートURLの保存に失敗(ログに残すがそのまま続行する)
-		log.Printf("レシートURLの保存に失敗: %v", SaveReceiptURL)
-	}
-
-	for _, item := range charge.Items {
-		DeleteCartItem := h.db.DeleteCartItem(user_id, item.ID)
-		if DeleteCartItem != nil {
-			// カートアイテムの削除に失敗(ログに残すがそのまま続行する)
-			log.Printf("カートアイテムの削除に失敗: %v", DeleteCartItem)
-		}
-	}
-
-	// user_idからユーザー情報を取得
-	claims, err := h.db.GetUserDataByID(user_id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザー情報の取得に失敗しました" + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "カード一覧の取得に失敗しました"})
 		return
 	}
 
-	// 支払い完了メールの送信
-	htmlContent := fmt.Sprintf(`<h3>%s様</h3><br />
-	<P>ご購入ありがとうございます。</p><br />
-	<p>以下の内容でお支払いが完了しました。</p><br />
-	<p>金額: %d円</p><br />
-	<p>購入日時: %s</p><br />
-	<p>お支払い方法: クレジットカード</p><br />
-	<p>領収書は以下のリンクからダウンロードできます。</p><br />
-	<p><a href="%s">領収書をダウンロードする</a></p><br />
-	<p>ご不明な点がございましたら、お気軽にお問い合わせください。</p><br />
-	<p>今後とも、Animaloopをどうぞよろしくお願いいたします。</p><br />
-	<p>Animaloopサポートチーム</p>
-	`, claims.Name, charge.Amount, url, time.Now().Format("2006-01-02 15:04:05"))
-
-	subject := "【Aftialoop】お支払い完了のお知らせ"
-
-	// メール送信
-	res, err := function.SendMail(claims.Email, subject, htmlContent)
-	if err != nil {
-		log.Printf("SES送信失敗: %v", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "メールの送信に失敗しました"})
-		return
-	}
-	log.Printf("Email sent: %+v", res)
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"message": "支払いが完了しました", "receipt_url": url})
-
-	// 支払い完了メール送信成功
-	log.Println("支払い完了メール送信成功")
+	json.NewEncoder(w).Encode(map[string]interface{}{"card": cardData})
 }
 
-// クレジットの住所の保存
-func (h *cardHandler) SaveCardAddress(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
-	if err != nil {
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
-		return
-	}
-
-	// リクエストボディから住所とクレジットカード情報を取得
-	var user_data utils.RequestCardWithAddress
-	err = json.NewDecoder(r.Body).Decode(&user_data)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
-		return
-	}
-	log.Println(user_data)
-
-	err = h.db.SaveOrUpdateCardAddress(user_id, user_data.CardID, user_data.AddressID)
-	if err != nil {
-		log.Println("住所とカードの保存失敗:", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの保存に失敗しました: " + err.Error()})
-		return
-	}
-	log.Println("カードと住所の保存成功")
-
-	// カード情報を取得
-	cardData, err := function.LoadUserAndCards(h.db, user_id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
-		return
-	}
-
-	// レスポンス
-	response := map[string]interface{}{
-		"card":    cardData,
-		"count":   len(cardData),
-		"message": "カードと住所を保存しました",
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
-
-}
-
-// 　クレジットカードリストの取得
+// ── カード一覧取得 ─────────────────────────────────────────────────
 func (h *cardHandler) ListCards(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	cardData, err := function.LoadUserAndCards(h.db, user_id)
+	cardData, err := function.LoadUserAndCards(h.db, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
 		return
 	}
 
-	response := map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"card":  cardData,
 		"count": len(cardData),
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
-// クレジットカードの削除
+// ── カード削除 ────────────────────────────────────────────────────
 func (h *cardHandler) DeleteCard(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
-	// トークンからIdを取得
-	claims, err := h.db.GetUserDataByID(user_id)
+
+	var req utils.RequestCharge
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	claims, err := h.db.GetUserDataByID(userID)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	// リクエストボディから削除するカードのIDを取得
-	var card utils.RequestCharge
-	err = json.NewDecoder(r.Body).Decode(&card)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	// DB のカード住所情報も削除
+	_ = h.db.DeleteCardAddress(claims.ID, req.CardID)
+
+	// Stripe から detach
+	if err := function.DeleteCard(req.CardID); err != nil {
+		log.Printf("DeleteCard error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "カードの削除に失敗しました"})
 		return
 	}
-	log.Println(card)
 
-	err = h.db.DeleteCardAddress(claims.ID, card.CardID)
+	cardData, err := function.LoadUserAndCards(h.db, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました" + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
 		return
 	}
 
-	// カードの削除
-	err = function.DeleteCard(card.CardID)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの削除に失敗しました" + err.Error()})
-		return
-	}
-	log.Println("カード削除成功")
-
-	cardData, err := function.LoadUserAndCards(h.db, user_id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
-		return
-	}
-
-	// レスポンス
-	response := map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"card":    cardData,
-		"count":   len(cardData),
 		"message": "カードを削除しました",
-	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
-// カードのデフォルト設定
+// ── デフォルトカード設定 ──────────────────────────────────────────
 func (h *cardHandler) SetDefaultCard(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
-	// トークンからIdを取得
-	claims, err := h.db.GetUserDataByID(user_id)
+
+	var req utils.RequestCharge
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	claims, err := h.db.GetUserDataByID(userID)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
-		return
-	}
-	// リクエストボディからデフォルトにするカードのIDを取得
-	var card utils.RequestCharge
-	err = json.NewDecoder(r.Body).Decode(&card)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	// カードのデフォルト設定
-	err = h.db.SetDefaultCard(claims.ID, card.CardID)
+	customerID, err := h.db.GetCustomerID(userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "デフォルトカードの設定に失敗しました" + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "顧客IDの取得に失敗しました"})
 		return
 	}
-	log.Println("デフォルトカード設定成功")
 
-	cardData, err := function.LoadUserAndCards(h.db, user_id)
+	// Stripe のデフォルト設定
+	if err := function.SetDefaultPaymentMethod(customerID, req.CardID); err != nil {
+		log.Printf("SetDefaultPaymentMethod error: %v", err)
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "デフォルトカードの設定に失敗しました"})
+		return
+	}
+
+	// DB にも保存
+	if err := h.db.SetDefaultCard(claims.ID, req.CardID); err != nil {
+		log.Printf("DB SetDefaultCard error: %v", err)
+	}
+
+	cardData, err := function.LoadUserAndCards(h.db, userID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
 		return
 	}
 
-	// レスポンス
-	response := map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{
 		"card":    cardData,
-		"count":   len(cardData),
 		"message": "デフォルトカードを設定しました",
-	}
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	})
 }
 
-// カードのアドレス情報の取得
+// ── カード住所の保存・取得（既存のまま流用） ──────────────────────
+func (h *cardHandler) SaveCardAddress(w http.ResponseWriter, r *http.Request) {
+	userID, err := function.CheckUser(h.db, w, r)
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
+		return
+	}
+
+	var req utils.RequestCardWithAddress
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.db.SaveOrUpdateCardAddress(userID, req.CardID, req.AddressID); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "住所の保存に失敗しました"})
+		return
+	}
+
+	cardData, err := function.LoadUserAndCards(h.db, userID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"card": cardData})
+}
+
 func (h *cardHandler) GetCardAddress(w http.ResponseWriter, r *http.Request) {
-	user_id, err := function.CheckUser(h.db, w, r)
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	// リクエストボディからカードのIDを取得
-	var card utils.RequestCharge
-	err = json.NewDecoder(r.Body).Decode(&card)
-	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	var req utils.RequestCharge
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	// カードのアドレス情報を取得
-	addressData, err := h.db.GetCardAddress(user_id, card.CardID)
+	addressData, err := h.db.GetCardAddress(userID, req.CardID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました"})
 		return
 	}
 
-	response := map[string]interface{}{
-		"address": addressData,
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(map[string]interface{}{"address": addressData})
 }
 
-// クレジットカードの取得
-func (h *cardHandler) GetCard(w http.ResponseWriter, r *http.Request) {
-	_, err := function.CheckUser(h.db, w, r)
+// ── 決済（フリマ・EC 共通） ───────────────────────────────────────
+// ※ flea_transactions.go の ChargeCard 呼び出し部分も同じシグネチャで動作する
+func (h *cardHandler) ChargeCard(w http.ResponseWriter, r *http.Request) {
+	// EC 用決済エンドポイント（フリマは flea_transactions.go で処理）
+	userID, err := function.CheckUser(h.db, w, r)
 	if err != nil {
 		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "無効なトークンです"})
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "unauthorized"})
 		return
 	}
 
-	// リクエストボディからカードのIDを取得
-	var cardRequest utils.RequestCharge
-	err = json.NewDecoder(r.Body).Decode(&cardRequest)
+	var req utils.RequestCharge
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	user, err := h.db.GetUserDataWithCustomerIDByID(userID)
 	if err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "ユーザーが見つかりません"})
 		return
 	}
-	log.Println("カードID:", cardRequest.CardID)
-	// カード情報の取得
-	var cardData *square.GetCardResponse
-	cardData, err = function.GetCardByID(cardRequest.CardID)
+
+	paymentID, err := function.ChargeCard(
+		user.CustomerID,
+		req.CardID,
+		req.IdempotencyKey,
+		float64(req.Amount),
+	)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"err_message": "データの取得に失敗しました: " + err.Error()})
+		log.Printf("ChargeCard error: %v", err)
+		w.WriteHeader(http.StatusPaymentRequired)
+		json.NewEncoder(w).Encode(map[string]string{"err_message": "決済に失敗しました"})
 		return
 	}
 
-	responseCard := utils.CardSummary{
-		ID:       *cardData.Card.ID,
-		Brand:    string(*cardData.Card.CardBrand),
-		Last4:    *cardData.Card.Last4,
-		ExpMonth: int(*cardData.Card.ExpMonth),
-		ExpYear:  int(*cardData.Card.ExpYear),
-		Disabled: cardData.Card.Enabled != nil && !*cardData.Card.Enabled,
-	}
-
-	response := map[string]interface{}{
-		"card":       responseCard,
-		"CustomerID": cardData.Card.CustomerID,
-	}
-
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(map[string]string{"payment_id": paymentID})
 }

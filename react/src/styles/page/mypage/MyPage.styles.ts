@@ -165,4 +165,15 @@ export const s = {
     padding: spacing[3],
     borderRadius: radius.md,
   },
+  badge: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: colors.neutral0,
+    backgroundColor: colors.danger,
+    padding: `2px ${spacing[2]}px`,
+    borderRadius: radius.full,
+    minWidth: 18,
+    textAlign: "center" as const,
+  },
+  sectionBody: {},
 };

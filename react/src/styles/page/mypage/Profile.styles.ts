@@ -176,4 +176,16 @@ export const s = {
     cursor: "pointer",
     textDecoration: "underline",
   },
+  profileTop: {
+    display: "flex",
+    flexDirection: "column" as const,
+    alignItems: "center",
+    gap: spacing[3],
+    paddingBottom: spacing[5],
+    borderBottom: `1px solid ${colors.neutral100}`,
+  },
+  infoIcon: {
+    color: semantic.textMuted,
+    display: "flex",
+  },
 };

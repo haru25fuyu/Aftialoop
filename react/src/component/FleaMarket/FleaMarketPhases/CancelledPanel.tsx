@@ -1,11 +1,11 @@
 import React from "react";
 import { XCircle } from "lucide-react";
 import { FleaThreadResponse } from "../../../types/FleaMarket";
-import { s } from "../../../styles/component/FleaMarket/FleaMarketPhases/CancelledPanel.styles";
+import { s } from "../../../styles/component/fleaMarket/fleaMarketPhases/CancelledPanel.styles";
 
 export default function CancelledPanel({ data }: { data: FleaThreadResponse }) {
   const { transaction: tx } = data;
-  const reason = tx?.cancel_reason || tx?.cancellation_reason;
+  const reason = tx?.cancellation_reason;
 
   return (
     <div style={s.wrap}>

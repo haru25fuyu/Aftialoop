@@ -68,9 +68,8 @@ func (h *SignupHandler) Signup(w http.ResponseWriter, r *http.Request) {
 
 	// 重複チェック
 	sql_mail, _ := h.db.EmailCheck(user.Email)
-	square_mail := function.CheckSquareEmail(user.Email)
 
-	if sql_mail || square_mail {
+	if sql_mail {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{"err_message": "メールアドレスは既に使用されています"})
 		return
@@ -170,7 +169,7 @@ func (h *SignupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 本登録処理: Square顧客作成
+	// 本登録処理: Stripe顧客作成
 	id, err := function.CreateCustomer(userData)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -184,7 +183,7 @@ func (h *SignupHandler) ConfirmRegistration(w http.ResponseWriter, r *http.Reque
 
 	err = h.db.SaveUser(userData)
 	if err != nil {
-		// ★ エラー発生時はSquareの顧客を削除する (ゴミデータを残さない)
+		// ★ エラー発生時はStripeの顧客を削除する (ゴミデータを残さない)
 		function.DeleteCustomer(id)
 
 		// 重複キー(1062)判定
@@ -334,18 +333,18 @@ func (h *SignupHandler) GoogleSignUp(w http.ResponseWriter, r *http.Request) {
 		IdentityStatus: config.IdentityStatusNone,
 	}
 
-	// Square顧客作成
-	squareID, err := function.CreateCustomer(newUser)
+	// Stripe顧客作成
+	stripeID, err := function.CreateCustomer(newUser)
 	if err != nil {
-		log.Printf("Square作成失敗: %v", err)
+		log.Printf("Stripe作成失敗: %v", err)
 		http.Error(w, "ユーザー作成に失敗しました", http.StatusInternalServerError)
 		return
 	}
-	newUser.CustomerID = squareID
+	newUser.CustomerID = stripeID
 
 	// DB保存
 	if err := h.db.SaveUser(newUser); err != nil {
-		function.DeleteCustomer(squareID) // ★失敗したらSquareも消す
+		function.DeleteCustomer(stripeID) // ★失敗したらStripeも消す
 		http.Error(w, "DB保存失敗", http.StatusInternalServerError)
 		return
 	}

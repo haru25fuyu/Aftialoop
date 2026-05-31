@@ -85,4 +85,9 @@ export const s = {
     fontWeight: fontWeight.bold,
     cursor: "pointer",
   },
+  title: {
+    fontSize: fontSize.lg,
+    fontWeight: fontWeight.bold,
+    color: semantic.textPrimary,
+  },
 };

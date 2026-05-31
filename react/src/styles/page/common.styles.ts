@@ -171,4 +171,10 @@ export const page = {
     color,
     backgroundColor: bg,
   }),
+  desc: {
+    fontSize: fontSize.sm,
+    color: semantic.textSecondary,
+    lineHeight: 1.6,
+    marginBottom: spacing[4],
+  },
 };

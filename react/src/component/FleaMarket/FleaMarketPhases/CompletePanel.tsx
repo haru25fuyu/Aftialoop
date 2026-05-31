@@ -1,4 +1,3 @@
-import React from "react";
 import { CheckCircle, FileText, HelpCircle, Home } from "lucide-react";
 import { FleaThreadResponse } from "../../../types/FleaMarket";
 import { s } from "../../../styles/component/fleaMarket/fleaMarketPhases/CompletePanel.styles";

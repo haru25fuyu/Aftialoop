@@ -92,4 +92,40 @@ export const s = {
     cursor: "pointer",
     textAlign: "left" as const,
   },
+
+  row: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: spacing[4],
+    borderBottom: `1px solid ${colors.neutral50}`,
+    textDecoration: "none",
+    color: semantic.textPrimary,
+  },
+  rowIcon: {
+    color: semantic.textMuted,
+    display: "flex",
+    flexShrink: 0,
+    marginRight: spacing[3],
+  },
+  rowBody: { flex: 1 },
+  rowLabel: {
+    fontSize: fontSize.sm,
+    fontWeight: fontWeight.medium,
+    color: semantic.textPrimary,
+  },
+  rowSub: { fontSize: fontSize.xs, color: semantic.textMuted, marginTop: 2 },
+  section: {
+    backgroundColor: semantic.bgSurface,
+    borderRadius: radius.lg,
+    ...shadow.sm,
+    overflow: "hidden",
+  },
+  sectionTitle: {
+    fontSize: fontSize.xs,
+    fontWeight: fontWeight.bold,
+    color: semantic.textMuted,
+    padding: `${spacing[3]}px ${spacing[4]}px`,
+  },
+  sectionBody: {},
 };

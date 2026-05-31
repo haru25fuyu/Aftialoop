@@ -310,7 +310,7 @@ func (h *FleaMarketHandler) AcceptPurchaseRequest(w http.ResponseWriter, r *http
 }
 
 type PayTransactionInput struct {
-	CardID         *string `json:"card_id"`         // 保存済みカードのID (SquareのCard ID)
+	CardID         *string `json:"card_id"`         // 保存済みカードのID (StripeのPaymentMethod ID)
 	UsePoints      int64   `json:"use_points"`      // 使いたいポイント数
 	IdempotencyKey string  `json:"idempotency_key"` // 同一取引で複数回リクエストが来たときに、2回目以降は同じキーで再試行できるようにするためのフィールド (APIには送らない)
 }
@@ -420,7 +420,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	}
 
 	// -----------------------------------------------------
-	// C. Square決済実行
+	// C. Stripe決済実行
 	// -----------------------------------------------------
 	paymentID := ""
 	provider := "NONE"
@@ -428,7 +428,7 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 	log.Printf("Calculated charge amount: %.2f yen (item: %d, shipping: %d, points used: %d, discount: %.2f, customer ID: %s)", chargeAmount, tx.PriceItem, tx.PriceShipping, input.UsePoints, discountYen, user.CustomerID)
 
 	if chargeAmount > 0 {
-		receiptURL, err := function.ChargeCard(user.CustomerID, *input.CardID, input.IdempotencyKey, chargeAmount)
+		stripePaymentID, err := function.ChargeCard(user.CustomerID, *input.CardID, input.IdempotencyKey, chargeAmount)
 		if err != nil {
 			log.Printf("Payment Failed: %v", err)
 			if strings.Contains(err.Error(), "idempotency key already used") {
@@ -439,9 +439,9 @@ func (h *FleaMarketHandler) PayTransaction(w http.ResponseWriter, r *http.Reques
 			return
 		}
 
-		provider = "SQUARE"
-		paymentID = "sq_" + uuid.New().String()
-		log.Printf("決済完了: URL=%s", receiptURL)
+		provider = "STRIPE"
+		paymentID = stripePaymentID // Stripe が返す PaymentIntent ID をそのまま使う
+		log.Printf("決済完了: PaymentIntent=%s", paymentID)
 	} else {
 		provider = "POINT"
 		paymentID = "pt_" + uuid.New().String()
@@ -1683,13 +1683,12 @@ func (h *FleaMarketHandler) CancelTransaction(w http.ResponseWriter, r *http.Req
 	}
 
 	// 5. 返金処理 (PAIDの場合)
-	// Square決済やポイント払いの返金が必要
+	// Stripe決済やポイント払いの返金が必要
 	if txData.Status == "PAID" {
-		// A. Square決済の返金 (PaymentIDがある場合)
-		if *txData.PaymentProvider == "SQUARE" && *txData.PaymentID != "" {
-			// function.RefundPayment などの実装が必要
-			// ここでは簡易的にログ出力のみとし、実運用ではSquare APIを叩く
-			log.Printf("TODO: Refund Square Payment: %v", txData.PaymentID)
+		// A. Stripe決済の返金 (PaymentIDがある場合)
+		if *txData.PaymentProvider == "STRIPE" && *txData.PaymentID != "" {
+			log.Printf("TODO: Refund Stripe PaymentIntent: %v", txData.PaymentID)
+			// 実装する場合: stripe.Refund.New で PaymentIntent ID を渡す
 		}
 
 		// B. ポイント返還 (UsePoint > 0 の場合)

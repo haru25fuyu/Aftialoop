@@ -85,4 +85,14 @@ export const s = {
     color: semantic.textMuted,
     marginTop: 2,
   },
+  historyHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: spacing[2],
+    fontWeight: fontWeight.bold,
+    fontSize: fontSize.sm,
+    color: semantic.textPrimary,
+    padding: `${spacing[3]}px 0`,
+    marginBottom: spacing[2],
+  },
 };

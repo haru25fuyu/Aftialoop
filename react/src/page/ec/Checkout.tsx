@@ -7,7 +7,7 @@ import { Payment } from "../../types/Payment";    // ✅ 正しいインポー�
 
 import api from "../../conf/api";
 import { chargeCard, chargePoint } from "../../conf/function";
-import SquarePayment from "../../modal/EditPayment";
+import PaymentModal from "../../modal/EditPayment";
 
 const Checkout: React.FC = () => {
   const navigate = useNavigate();
@@ -172,8 +172,8 @@ const Checkout: React.FC = () => {
       </button>
 
       {isPaymentModalOpen && (
-        // ✅ SquarePayment の props: setPayments (Payment[] 用 dispatch)
-        <SquarePayment
+        // ✅ PaymentModal の props: setPayments (Payment[] 用 dispatch)
+        <PaymentModal
           setPayments={setPaymentList}
           id={selectCard}
           isOpen={isPaymentModalOpen}

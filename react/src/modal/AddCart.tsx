@@ -1,6 +1,6 @@
-import React, { useEffect } from "react";
 import { X, ShoppingCart } from "lucide-react";
 import { s } from "../styles/snackBar/AddCart.styles";
+import { useEffect } from "react";
 
 type Props = {
   visible: boolean;

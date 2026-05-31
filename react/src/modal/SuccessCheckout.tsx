@@ -1,5 +1,5 @@
 import React from 'react';
-import { s } from '../styles/modal/SuccessCheckout.styles';
+//import { s } from '../styles/modal/SuccessCheckout.styles';
 
 const SuccessCheckout: React.FC = () => (
   <>

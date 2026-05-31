@@ -1,4 +1,3 @@
-import React from "react";
 import { s } from "../../styles/component/fleaMarket/CreateItemHeaderArea.styles";
 
 type Props = {

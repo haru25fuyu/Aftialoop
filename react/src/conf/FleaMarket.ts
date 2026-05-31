@@ -11,11 +11,11 @@ export async function fetchFleaTransactionDetail(id: string | number) {
 }
 
 export const FleaItemStatus = {
-	Draft: 0, // 下書き
-	Active: 1, // 出品中
-	Trading: 2, // 取引中
-	Sold: 3, // 売却済み
-	Cancelled: 4, // 出品取消
+  Draft: 0, // 下書き
+  Active: 1, // 出品中
+  Trading: 2, // 取引中
+  Sold: 3, // 売却済み
+  Cancelled: 4, // 出品取消
 };
 
 export type TxPhase =
@@ -35,12 +35,16 @@ export enum ShippingMethod {
   ANONYMIZED = "ANONYMIZED",
   MEETUP = "MEETUP",
   DELIVERY = "DELIVERY",
+  PREFER_TRACKED = "PREFER_TRACKED",
+  PREFER_COMPACT = "PREFER_COMPACT",
 }
 
 export enum ShippingFeePref {
   OK_EITHER = "OK_EITHER",
   INCLUDED = "INCLUDED",
   COD = "COD",
+  PREFER_SELLER_BEARS = "PREFER_SELLER_BEARS",
+  PREFER_BUYER_BEARS = "PREFER_BUYER_BEARS",
 }
 
 // 配送業者の定義を追加
