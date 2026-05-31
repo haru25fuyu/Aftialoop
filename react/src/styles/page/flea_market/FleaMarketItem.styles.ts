@@ -222,4 +222,10 @@ export const s = {
     padding: `${spacing[3]}px ${spacing[4]}px`,
     paddingBottom: `calc(${spacing[3]}px + env(safe-area-inset-bottom))`,
   },
+  img: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain" as const,
+    display: "block",
+  },
 };

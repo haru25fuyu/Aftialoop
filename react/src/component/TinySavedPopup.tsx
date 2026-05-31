@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
 type Props = { open: boolean; onClose?: () => void; message?: string; duration?: number; x?: number; y?: number; offsetX?: number; offsetY?: number; anchor?: "center" | "top-left" | "top-right" | "bottom-left" | "bottom-right"; };

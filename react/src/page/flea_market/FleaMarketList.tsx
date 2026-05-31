@@ -4,21 +4,48 @@ import Header from "../../component/Header";
 import api, { getAccessToken } from "../../conf/api";
 import { CONFIG } from "../../conf/config";
 import { LikeButton } from "../../component/LikeButton";
-import SearchBar from "../../component/SearchBar";
 
 import { s } from "../../styles/page/flea_market/FleaMarketList.styles";
 
-type FleaListContent = { id: number; name: string; price: number; main_image_url: string | null; seller_icon_url: string | null; seller_name: string; seller_rate?: number; quantity: number; shipping_fee_type: number; is_liked: boolean; };
-type Customer = { point: number; };
-const DEFAULT_RATE = 1.00;
-function safeRate(v: number | null | undefined): number { const n = Number(v); return (!Number.isFinite(n) || n <= 0) ? DEFAULT_RATE : n; }
-function normalizeRate(rawRate: number, den: number) { return rawRate > 2.0 ? { num: Math.round(rawRate), den } : { num: Math.round(rawRate * den), den }; }
-function calcRateDiscount(priceYen: number, userPoint: number, rawRate: number, rateDen: number) {
-  const price = Math.floor(priceYen); const point = Math.floor(userPoint);
+type FleaListContent = {
+  id: number;
+  name: string;
+  price: number;
+  main_image_url: string | null;
+  seller_icon_url: string | null;
+  seller_name: string;
+  seller_rate?: number;
+  quantity: number;
+  shipping_fee_type: number;
+  is_liked: boolean;
+};
+type Customer = { point: number };
+const DEFAULT_RATE = 1.0;
+function safeRate(v: number | null | undefined): number {
+  const n = Number(v);
+  return !Number.isFinite(n) || n <= 0 ? DEFAULT_RATE : n;
+}
+function normalizeRate(rawRate: number, den: number) {
+  return rawRate > 2.0
+    ? { num: Math.round(rawRate), den }
+    : { num: Math.round(rawRate * den), den };
+}
+function calcRateDiscount(
+  priceYen: number,
+  userPoint: number,
+  rawRate: number,
+  rateDen: number,
+) {
+  const price = Math.floor(priceYen);
+  const point = Math.floor(userPoint);
   const { num: scaledRate, den } = normalizeRate(rawRate, rateDen);
   if (scaledRate <= den) return { discountYen: 0 };
-  const needPt = Math.floor((price * den) / scaledRate); const usePt = Math.min(point, needPt);
-  let coveredYen = usePt >= needPt ? price : Math.min(Math.floor((usePt * scaledRate) / den), price);
+  const needPt = Math.floor((price * den) / scaledRate);
+  const usePt = Math.min(point, needPt);
+  const coveredYen =
+    usePt >= needPt
+      ? price
+      : Math.min(Math.floor((usePt * scaledRate) / den), price);
   return { discountYen: Math.max(0, coveredYen - usePt) };
 }
 
@@ -26,8 +53,6 @@ const FleaMarketList: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const [contents, setContents] = useState<FleaListContent[]>([]);
-  const [offset, setOffset] = useState(0);
-  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const limit = 20;
@@ -36,50 +61,105 @@ const FleaMarketList: React.FC = () => {
   const [isPinned, setIsPinned] = useState(false);
   const [rateDen, setRateDen] = useState<number>(10000);
   const isCategoryPath = location.pathname.startsWith("/flea-market/category/");
-  const pathSegments = location.pathname.split('/').filter(Boolean);
+  const pathSegments = location.pathname.split("/").filter(Boolean);
   const slug = isCategoryPath ? pathSegments[pathSegments.length - 1] : null;
   const currentType = searchParams.get("type") || "";
   const CATEGORY_TYPES = [
-    { value: "", label: "すべて" }, { value: "INSECT", label: "昆虫" }, { value: "REPTILE", label: "爬虫類" },
-    { value: "AMPHIBIAN", label: "両生類" }, { value: "MAMMAL", label: "小動物" }, { value: "FISH", label: "魚類" }, { value: "SUPPLY", label: "飼育用品" },
+    { value: "", label: "すべて" },
+    { value: "INSECT", label: "昆虫" },
+    { value: "REPTILE", label: "爬虫類" },
+    { value: "AMPHIBIAN", label: "両生類" },
+    { value: "MAMMAL", label: "小動物" },
+    { value: "FISH", label: "魚類" },
+    { value: "SUPPLY", label: "飼育用品" },
   ];
+
+  const offsetRef = useRef(0);
+  const hasMoreRef = useRef(true);
 
   const handleFilterChange = (key: string, value: string) => {
     const next = new URLSearchParams(searchParams.toString());
-    if (value) next.set(key, value); else next.delete(key);
+    if (value) next.set(key, value);
+    else next.delete(key);
     setSearchParams(next);
   };
 
-  const fetchData = useCallback(async (currentOffset: number, isLoadMore: boolean) => {
-    if (isLoadMore) setLoadingMore(true); else setLoading(true);
-    try {
-      let targetCategoryId = Number(searchParams.get("category_id")) || 0;
-      let targetSupplyTypeId = 0; let targetType = searchParams.get("type") || "";
-      if (slug) {
-        try { const catRes = await api.get(`/api/category/lookup?slug=${slug}`); if (catRes.data?.id) { if (catRes.data.type === 'SUPPLY') { targetType = 'SUPPLY'; targetSupplyTypeId = catRes.data.id; targetCategoryId = 0; } else { targetCategoryId = catRes.data.id; targetSupplyTypeId = 0; } } } catch {}
+  const fetchData = useCallback(
+    async (currentOffset: number, isLoadMore: boolean) => {
+      if (isLoadMore) setLoadingMore(true);
+      else setLoading(true);
+      try {
+        let targetCategoryId = Number(searchParams.get("category_id")) || 0;
+        let targetSupplyTypeId = 0;
+        let targetType = searchParams.get("type") || "";
+        if (slug) {
+          try {
+            const catRes = await api.get(`/api/category/lookup?slug=${slug}`);
+            if (catRes.data?.id) {
+              if (catRes.data.type === "SUPPLY") {
+                targetType = "SUPPLY";
+                targetSupplyTypeId = catRes.data.id;
+                targetCategoryId = 0;
+              } else {
+                targetCategoryId = catRes.data.id;
+                targetSupplyTypeId = 0;
+              }
+            }
+          } catch {
+            /* ignore */
+          }
+        }
+        const payload = {
+          page: Math.floor(currentOffset / limit) + 1,
+          limit,
+          category_id: targetCategoryId,
+          supply_type_id: targetSupplyTypeId,
+          type: targetType,
+          keyword: searchParams.get("keyword") || "",
+        };
+        const res = await api.post("/flea-market/list", payload);
+        const items: FleaListContent[] = res.data.items || [];
+        if (isLoadMore) setContents((prev) => [...prev, ...items]);
+        else setContents(items);
+        hasMoreRef.current = items.length === limit;
+        offsetRef.current = currentOffset + items.length;
+        if (res.data.rate_den) setRateDen(res.data.rate_den);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (isLoadMore) setLoadingMore(false);
+        else setLoading(false);
       }
-      const payload = { page: Math.floor(currentOffset / limit) + 1, limit, category_id: targetCategoryId, supply_type_id: targetSupplyTypeId, type: targetType, keyword: searchParams.get("keyword") || "" };
-      const res = await api.post("/flea-market/list", payload);
-      const items: FleaListContent[] = res.data.items || [];
-      if (isLoadMore) setContents(prev => [...prev, ...items]); else setContents(items);
-      setHasMore(items.length === limit);
-      setOffset(currentOffset + items.length);
-      if (res.data.rate_den) setRateDen(res.data.rate_den);
-    } catch (e) { console.error(e); }
-    finally { if (isLoadMore) setLoadingMore(false); else setLoading(false); }
-  }, [searchParams, slug]);
+    },
+    [searchParams, slug],
+  );
 
-  useEffect(() => { setContents([]); setOffset(0); setHasMore(true); fetchData(0, false); }, [searchParams, location.pathname]);
+  useEffect(() => {
+    setContents([]);
+    offsetRef.current = 0;
+    hasMoreRef.current = true;
+    fetchData(0, false);
+  }, [searchParams, location.pathname]);
 
   useEffect(() => {
     const token = getAccessToken();
-    if (token && token !== "undefined") { api.post("customer").then((res) => setUser(res.data.user || null)).catch(() => {}); }
+    if (token && token !== "undefined") {
+      api
+        .post("customer")
+        .then((res) => setUser(res.data.user || null))
+        .catch(() => {});
+    }
   }, []);
 
   useEffect(() => {
-    const el = pointBarRef.current; if (!el) return;
-    const observer = new IntersectionObserver(([entry]) => setIsPinned(!entry.isIntersecting), { threshold: 0 });
-    observer.observe(el); return () => observer.disconnect();
+    const el = pointBarRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsPinned(!entry.isIntersecting),
+      { threshold: 0 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
   return (
@@ -90,7 +170,11 @@ const FleaMarketList: React.FC = () => {
       <div style={s.pointBar(isPinned)}>
         <div style={s.pointBadge}>
           <span style={{ fontWeight: 600, fontSize: 12 }}>P残高</span>
-          <span style={{ fontWeight: 700, fontFamily: "monospace", fontSize: 16 }}>{user?.point.toLocaleString()}</span>
+          <span
+            style={{ fontWeight: 700, fontFamily: "monospace", fontSize: 16 }}
+          >
+            {user?.point.toLocaleString()}
+          </span>
         </div>
       </div>
 
@@ -102,7 +186,13 @@ const FleaMarketList: React.FC = () => {
               <h2 style={s.filterTitle}>絞り込み</h2>
               <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                 {CATEGORY_TYPES.map((cat) => (
-                  <div key={cat.value} onClick={() => handleFilterChange("type", cat.value)} style={s.filterItem(currentType === cat.value)}>{cat.label}</div>
+                  <div
+                    key={cat.value}
+                    onClick={() => handleFilterChange("type", cat.value)}
+                    style={s.filterItem(currentType === cat.value)}
+                  >
+                    {cat.label}
+                  </div>
                 ))}
               </div>
             </div>
@@ -114,8 +204,24 @@ const FleaMarketList: React.FC = () => {
               <div ref={pointBarRef} style={{ marginBottom: 24 }}>
                 <div style={s.pointCard}>
                   <div style={s.pointCardInner}>
-                    <div style={s.pointIconWrap}><span style={{ fontSize: 20 }}>💎</span></div>
-                    <div><p style={s.pointLabel}>現在の所持ポイント</p><p style={{ ...s.pointValue, lineHeight: 1 }}>{user.point.toLocaleString()} <span style={{ fontSize: 14, fontWeight: 400, color: "#8c8c8c" }}>pt</span></p></div>
+                    <div style={s.pointIconWrap}>
+                      <span style={{ fontSize: 20 }}>💎</span>
+                    </div>
+                    <div>
+                      <p style={s.pointLabel}>現在の所持ポイント</p>
+                      <p style={{ ...s.pointValue, lineHeight: 1 }}>
+                        {user.point.toLocaleString()}{" "}
+                        <span
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 400,
+                            color: "#8c8c8c",
+                          }}
+                        >
+                          pt
+                        </span>
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -127,19 +233,53 @@ const FleaMarketList: React.FC = () => {
                 const rawRate = safeRate(item.seller_rate);
                 const { num, den } = normalizeRate(rawRate, rateDen);
                 const isRateUp = num > den;
-                const { discountYen } = user ? calcRateDiscount(item.price, user.point, rawRate, rateDen) : { discountYen: 0 };
+                const { discountYen } = user
+                  ? calcRateDiscount(item.price, user.point, rawRate, rateDen)
+                  : { discountYen: 0 };
                 return (
-                  <a key={item.id} href={`/flea-market/item/${item.id}`} style={s.card}>
+                  <a
+                    key={item.id}
+                    href={`/flea-market/item/${item.id}`}
+                    style={s.card}
+                  >
                     <div style={s.cardImgWrap}>
-                      {item.main_image_url ? <img src={CONFIG.BASE_URL + item.main_image_url} alt={item.name} style={s.cardImg} /> : null}
-                      {item.seller_icon_url && <img src={CONFIG.BASE_URL + item.seller_icon_url} alt={item.seller_name} style={s.sellerAvatar} />}
-                      <div style={s.likeBtn}><LikeButton itemId={item.id} initialLiked={item.is_liked} size={20} /></div>
+                      {item.main_image_url ? (
+                        <img
+                          src={CONFIG.BASE_URL + item.main_image_url}
+                          alt={item.name}
+                          style={s.cardImg}
+                        />
+                      ) : null}
+                      {item.seller_icon_url && (
+                        <img
+                          src={CONFIG.BASE_URL + item.seller_icon_url}
+                          alt={item.seller_name}
+                          style={s.sellerAvatar}
+                        />
+                      )}
+                      <div style={s.likeBtn}>
+                        <LikeButton
+                          itemId={item.id}
+                          initialLiked={item.is_liked}
+                          size={20}
+                        />
+                      </div>
                     </div>
                     <div style={s.cardBody}>
                       <div style={s.cardName}>{item.name}</div>
-                      <div style={s.cardPrice}>¥{item.price.toLocaleString()}</div>
-                      {isRateUp && discountYen > 0 && <span style={s.pointDiscount}>ポイントで -{discountYen.toLocaleString()}円</span>}
-                      {isRateUp && discountYen === 0 && <span style={s.pointDiscountGray}>ポイントでおトク</span>}
+                      <div style={s.cardPrice}>
+                        ¥{item.price.toLocaleString()}
+                      </div>
+                      {isRateUp && discountYen > 0 && (
+                        <span style={s.pointDiscount}>
+                          ポイントで -{discountYen.toLocaleString()}円
+                        </span>
+                      )}
+                      {isRateUp && discountYen === 0 && (
+                        <span style={s.pointDiscountGray}>
+                          ポイントでおトク
+                        </span>
+                      )}
                     </div>
                   </a>
                 );
@@ -158,7 +298,9 @@ const FleaMarketList: React.FC = () => {
                     <div style={s.skeletonBody}>
                       <div style={s.skeletonLine("100%")} />
                       <div style={s.skeletonLine("66%")} />
-                      <div style={{ ...s.skeletonLine("50%"), marginTop: "auto" }} />
+                      <div
+                        style={{ ...s.skeletonLine("50%"), marginTop: "auto" }}
+                      />
                     </div>
                   </div>
                 ))}
@@ -166,7 +308,9 @@ const FleaMarketList: React.FC = () => {
             )}
 
             {!loading && !loadingMore && contents.length === 0 && (
-              <div style={s.empty}><p>出品されている商品はありません</p></div>
+              <div style={s.empty}>
+                <p>出品されている商品はありません</p>
+              </div>
             )}
           </div>
         </div>

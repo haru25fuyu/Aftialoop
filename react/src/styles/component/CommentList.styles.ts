@@ -46,4 +46,13 @@ export const s = {
     color: semantic.textMuted,
     fontSize: fontSize.sm,
   },
+  bubbleWrap: (isSeller: boolean) => ({
+    flex: 1,
+    display: "flex",
+    flexDirection: "column" as const,
+    gap: spacing[1],
+    alignItems: (isSeller ? "flex-end" : "flex-start") as
+      | "flex-end"
+      | "flex-start",
+  }),
 };

@@ -1,6 +1,5 @@
 import React from 'react';
 import { s } from '../styles/component/LoadingButton.styles';
-import { colors } from '../styles/tokens';
 
 type Props = React.ButtonHTMLAttributes<HTMLButtonElement> & { loading?: boolean };
 

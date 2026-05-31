@@ -4,7 +4,7 @@ import { s } from "../styles/component/Footer.styles";
 
 export const Footer: React.FC = () => (
   <footer style={s.footer}>
-    <div style={s.categoryList as any}>
+    <div style={s.categoryList}>
       <span style={s.categoryItem}>昆虫</span>
       <span style={s.categoryItem}>爬虫類</span>
       <span style={s.categoryItem}>両生類</span>
@@ -15,13 +15,48 @@ export const Footer: React.FC = () => (
       <img src="/data/Logo.png" alt="Aftialoop" style={s.footerLogo} />
       <div style={s.menu}>
         <ul style={s.menuList}>
-          <li style={s.menuItem}><Link to="/guide" style={{ textDecoration: "none", color: "inherit" }}>ご利用ガイド</Link></li>
-          <li style={s.menuItem}><Link to="/contact" style={{ textDecoration: "none", color: "inherit" }}>お問い合わせ</Link></li>
+          <li style={s.menuItem}>
+            <Link
+              to="/guide"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              ご利用ガイド
+            </Link>
+          </li>
+          <li style={s.menuItem}>
+            <Link
+              to="/contact"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              お問い合わせ
+            </Link>
+          </li>
         </ul>
         <ul style={s.menuList}>
-          <li style={s.menuItemGray}><Link to="/tos" style={{ textDecoration: "none", color: "inherit" }}>利用規約</Link></li>
-          <li style={s.menuItemGray}><Link to="/privacy" style={{ textDecoration: "none", color: "inherit" }}>プライバシーポリシー</Link></li>
-          <li style={s.menuItemGray}><Link to="/tokutei" style={{ textDecoration: "none", color: "inherit" }}>特定商取引法</Link></li>
+          <li style={s.menuItemGray}>
+            <Link
+              to="/tos"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              利用規約
+            </Link>
+          </li>
+          <li style={s.menuItemGray}>
+            <Link
+              to="/privacy"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              プライバシーポリシー
+            </Link>
+          </li>
+          <li style={s.menuItemGray}>
+            <Link
+              to="/tokutei"
+              style={{ textDecoration: "none", color: "inherit" }}
+            >
+              特定商取引法
+            </Link>
+          </li>
         </ul>
       </div>
     </div>

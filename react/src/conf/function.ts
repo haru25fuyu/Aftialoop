@@ -7,7 +7,7 @@ import { PREFS } from "../conf/config";
 import { Content, UserProfile } from "../types/Content";
 import { FleaContent } from "../types/FleaMarket";
 
-import { ToastCtx } from "./toast-context";
+import { ToastCtx, ToastMsg } from "./toast-context";
 
 // ── 型定義 ────────────────────────────────────────────────
 
@@ -87,7 +87,10 @@ export function hasAllFlags(status: number, flags: number[]): boolean {
 export function useToast() {
   const ctx = useContext(ToastCtx);
   if (!ctx) throw new Error("useToast must be used inside <ToastProvider>");
-  return ctx.toast;
+
+  return (m: string | Omit<ToastMsg, "id">) => {
+    ctx.toast(typeof m === "string" ? { text: m } : m);
+  };
 }
 
 // ── 都道府県名 ────────────────────────────────────────────
